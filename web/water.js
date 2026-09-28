@@ -632,12 +632,17 @@ export function createWaterFX() {
   const tiltApi = {
     get available() { return 'DeviceMotionEvent' in window && matchMedia('(pointer: coarse)').matches; },
     get on() { return tilt.on; },
-    async toggle() {
-      if (tilt.on) { removeEventListener('devicemotion', onMotion); Object.assign(tilt, { on: false, slope: 0, target: 0, grav: [0, -1] }); wake(); return false; }
+    async set(enabled) {
+      if (!enabled) {
+        removeEventListener('devicemotion', onMotion);
+        Object.assign(tilt, { on: false, slope: 0, target: 0, grav: [0, -1] }); wake(); return false;
+      }
+      if (tilt.on || !this.available) return tilt.on;
       try { if (typeof DeviceMotionEvent.requestPermission === 'function' && await DeviceMotionEvent.requestPermission() !== 'granted') return false; }
       catch { return false; }
       addEventListener('devicemotion', onMotion); tilt.on = true; wake(); return true;
     },
+    async toggle() { return this.set(!tilt.on); },
   };
 
   DM.addEventListener('change', () => { readPal(); if (ring) { ring.textKey = ''; ring.dirty = true; } apply(); });

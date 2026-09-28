@@ -6,7 +6,8 @@ let state, busy = false, loading = false, pendingLoad, editing, selected, walkId
 let reachable = false, tracked, failure = null, clearArmed = false, messageTimer, railShown;
 const stored = (name, fallback) => { try { return Number(localStorage.getItem(name)) || fallback; } catch { return fallback; } };
 const store = (name, value) => { try { localStorage.setItem(name, String(value)); } catch { /* convenience only */ } };
-let minutes = stored('2core-minutes', 30), walkMinutes = stored('2core-walk-minutes', 1);
+let minutes = stored('2core-minutes', 30), walkMinutes = stored('2core-walk-minutes', 1), motionEnabled = false;
+try { motionEnabled = localStorage.getItem('2core-motion-enabled') === 'true'; } catch { /* use the default */ }
 try { tracked = JSON.parse(localStorage.getItem('2core-command') || 'null'); } catch { /* old or unavailable storage */ }
 const remember = value => {
   tracked = value;
@@ -462,7 +463,11 @@ $('next-zone').addEventListener('click', async () => {
   // One accepted operation owns both steps, even while the phone is locked.
   await act(`/zones/${next.id}/next`, { minutes: walkMinutes });
 });
-$('tilt').addEventListener('click', async () => { $('tilt').setAttribute('aria-pressed', String(await waterFX.tilt.toggle())); });
+$('tilt').addEventListener('click', async () => {
+  motionEnabled = await waterFX.tilt.toggle();
+  store('2core-motion-enabled', motionEnabled);
+  $('tilt').setAttribute('aria-pressed', String(motionEnabled));
+});
 for (const id of ['active-open', 'dock-open']) $(id)?.addEventListener('click', () => { const z = runningZones()[0] || state.zones.find(z => z.id === opTarget(pendingOp())?.zone); if (z) openZone(z.id); });
 for (const d of document.querySelectorAll('dialog')) {
   d.addEventListener('close', tick);
@@ -543,6 +548,8 @@ $('notes-form').addEventListener('submit', async e => {
 document.querySelectorAll('[data-rain]').forEach(b => b.addEventListener('click', () => act('/rain',{ hours:Number(b.dataset.rain) })));
 $('policy-mode').addEventListener('change', () => act('/policy',{ mode:$('policy-mode').value },'Saving weather mode…'));
 document.addEventListener('visibilitychange', () => { document.body.classList.toggle('page-hidden',document.hidden); if (!document.hidden) { prepare(); load(); } });
+if (motionEnabled) waterFX.tilt.set(true).then(enabled => $('tilt').setAttribute('aria-pressed', String(enabled)));
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(() => {});
 setInterval(() => { if (!document.hidden && !$('notes-dialog').open) load(); },1500);
 setInterval(() => { if (!document.hidden) tick(); },1000);
 prepare();
