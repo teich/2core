@@ -2,13 +2,13 @@
 
 [![Validate](https://github.com/teich/2core/actions/workflows/validate.yml/badge.svg)](https://github.com/teich/2core/actions/workflows/validate.yml)
 
-Timed Tucor irrigation controls, a phone-friendly garden app, and a **native Home Assistant integration for 2026.09**. No MQTT.
+2core is a self-hosted bridge for Tucor irrigation controllers. It provides a phone-friendly garden interface, a local HTTP API, and a **native Home Assistant integration for 2026.09** without requiring MQTT.
 
-The first implementation is runnable in simulation. Live reads were verified during protocol research. Physical start/stop and rain-delay writes are implemented from the deployed Tucor frontend, but **remain unvalidated on the hardware and disabled by default**.
+The bridge is the single client responsible for Tucor sessions, command serialization, local preferences, and weather decisions. Browsers and Home Assistant talk to the bridge over the local network; the bridge talks to Tucor's cloud service. Tucor account credentials stay on the bridge and are never shared with Home Assistant.
 
-Live deployment: **http://192.168.2.6:8787**. Update it with `./tools/deploy.sh`; see [deployment/update/rollback instructions](deploy/README.md) and [server details](deploy/live-server.md).
+Live controller reads have been verified during protocol research. Physical start/stop and rain-delay writes are implemented from the vendor frontend's protocol, but should be validated with someone present at the irrigation system before unattended use. Live writes are disabled by default.
 
-## Try it
+## Try the simulator
 
 Requires Node.js 24:
 
@@ -23,7 +23,7 @@ Open **http://127.0.0.1:8787** and enter `2core-demo`. Or use Docker:
 docker compose -f compose.demo.yaml up --build -d
 ```
 
-The simulator never connects to Tucor. Its garden names and readings are sample data. It supports timed runs, stop, next-zone walking, favorites, notes, list order, rain delays, and weather policy. Simulator runs reset on restart; preferences and activity persist. Use a separate data directory/volume for live mode.
+The simulator never connects to Tucor or operates irrigation hardware. Its garden names and readings are sample data. It supports timed runs, stop, next-zone walking, favorites, notes, list order, rain delays, and weather policy. Simulator runs reset on restart; preferences and activity persist. Use a separate data directory or volume for live mode.
 
 ## Architecture
 
@@ -38,11 +38,11 @@ flowchart LR
   Bridge --> SQLite[(Local SQLite)]
 ```
 
-A single local service owns command serialization, credentials, run ownership, weather decisions, and durable request records. The phone and HA use the same API and see the same state. This avoids separate clients racing for Tucor's sessionful controller connection. A future iOS app can use that API too.
+A single local service owns command serialization, credentials, run ownership, weather decisions, and durable request records. The phone and HA use the same API and see the same state. This avoids separate clients racing for Tucor's sessionful controller connection. Other clients can use the same authenticated API.
 
 **This still depends on Tucor's cloud; it is not direct LAN control.** The native HA integration talks locally to 2core. Tucor schedules and the bounded watering timer remain on the controller; the app does not need to stay open.
 
-## What works in the first version
+## Features
 
 - Zone buttons for **1, 5, 15, or 60 minutes**, countdown, explicit stop, and “Stop & run next.” Only one test run at a time. Search, favorites, walking order, local aliases, and leak notes.
 - Controller voltage/current/flow, active-zone count, rain-delay status, and command activity.
@@ -56,7 +56,9 @@ Historical charts and water totals are not yet part of the dashboard. Read-only 
 
 ## Install the 2core server
 
-See **[deploy/README.md](deploy/README.md)** for Docker/LXC installation, credentials, and the supervised hardware validation sequence. No Tempest entity IDs need to be chosen when installing the server.
+The production service requires Docker, Node.js 24 in the image, an existing Tucor account, and network access to Tucor's cloud service. Start with live control disabled, verify that the controller inventory and readings are correct, and then perform the supervised hardware checks before enabling writes.
+
+See **[deploy/README.md](deploy/README.md)** for Docker installation, secret creation, backup guidance, and the hardware-validation sequence. The checked-in `.env` example contains no account credentials. Weather entities are configured later in Home Assistant and are not needed to bring up the bridge.
 
 ## Home Assistant installation with HACS
 
@@ -69,7 +71,7 @@ The Home Assistant integration is distributed from this repository as a HACS cus
 5. Restart Home Assistant when HACS prompts you.
 6. Go to **Settings → Devices & services → Add integration**, search for **2core Irrigation**, and enter the 2core server URL and access key.
 
-Use an address that Home Assistant itself can reach; `localhost` would refer to Home Assistant, not the 2core server. Tucor credentials remain on the Docker server. HACS only installs the files under `custom_components/tucor_2core`; it does not install or update the 2core server.
+Use the bridge's LAN or private-network address—an address that Home Assistant itself can reach. `localhost` would refer to Home Assistant, not the 2core server. Tucor credentials remain on the Docker server. HACS only installs the files under `custom_components/tucor_2core`; it does not install or update the 2core server.
 
 For development or recovery without HACS, copy `custom_components/tucor_2core` into HA's `/config/custom_components/`, restart HA, and add the integration under Devices & services.
 
@@ -129,15 +131,15 @@ The release workflow verifies that the tag matches the manifest and creates the 
 
 ## Protocol research
 
-[research/protocol.md](research/protocol.md) records recovered packets, endpoints, and evidence. Controller ID is **2479**, type LTD; the address/name is a display label. All 100 controller slots are retained; configured names determine the default displayed list.
+[research/protocol.md](research/protocol.md) records the recovered packets, endpoints, and supporting evidence for the LTD controller protocol. All 100 controller slots are retained; configured names determine the default displayed list.
 
 The read-only CLI remains available:
 
 ```sh
 npm run tucor -- devices
-npm run tucor -- status 2479
-npm run tucor -- stations 2479
-npm run tucor -- history 2479 program overview
+npm run tucor -- status CONTROLLER_ID
+npm run tucor -- stations CONTROLLER_ID
+npm run tucor -- history CONTROLLER_ID program overview
 npm run tucor -- plan zone-start 2 1
 npm run tucor -- plan rain-start 24
 ```
