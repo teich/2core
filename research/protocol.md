@@ -247,3 +247,9 @@ status dashboard. Send that before a warm `Header/Refresh` to restore the full
 station-only mode, returned in approximately 3.2 seconds. Do not append
 `Stations/AutoStatus` to a full-status read. Start/stop still use station-only
 updates for confirmation; the next full-status read restores dashboard mode.
+
+A production deploy on 2026-09-27 showed the same symptom on a **new** session:
+login, controller selection and the first `Stations` packet arrived within
+about 6 seconds, but `Main` never arrived within 20 seconds. Tucor appears to
+keep the station-only mode across sessions. New sessions now send
+`Header/SetState Up` before their first `Header/Refresh`.

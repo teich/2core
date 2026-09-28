@@ -1,6 +1,6 @@
 # Implicit Tailscale authentication
 
-Users reaching `https://2core.giraffe-gamma.ts.net` through private Tailscale Serve are authenticated by the tailnet policy. They do not enter, receive, or store an app access key. Direct TCP/LAN requests still require the existing bearer key, including Home Assistant clients.
+Users reaching `https://2core.giraffe-gamma.ts.net` through private Tailscale Serve are authenticated by the tailnet policy. They do not enter, receive, or store an app access key. Direct TCP/LAN requests still require the existing bearer key.
 
 ## Transport boundary
 

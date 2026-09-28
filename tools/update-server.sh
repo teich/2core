@@ -28,7 +28,7 @@ old_image="$(docker inspect --format '{{.Image}}' "$container_id")"
 docker tag "$old_image" "2core-two-core:rollback-$release_id"
 printf '%s\n' "$old_image" > "$backup/image-id"
 tar --exclude='__pycache__' --exclude='._*' -czf "$backup/source.tgz" \
-  Dockerfile .dockerignore package.json package-lock.json compose.yaml lib server web custom_components deploy README.md tools
+  Dockerfile .dockerignore package.json package-lock.json compose.yaml lib server web deploy README.md tools
 cp .env "$backup/environment"
 tar -czf "$backup/secrets.tgz" secrets
 chmod 600 "$backup"/*
@@ -42,10 +42,14 @@ recover() {
   exit "$result"
 }
 trap recover ERR
-for directory in lib server web custom_components deploy tools; do
+for directory in lib server web deploy tools; do
   mv "$directory" "$backup/source-before-$directory"
 done
+# The Home Assistant integration moved into the bridge; keep its old copy with this backup.
+if [[ -d custom_components ]]; then mv custom_components "$backup/source-before-custom_components"; fi
 tar -xzf "$archive" -C /opt/2core
+# Compose requires every secret file. An empty Home Assistant token leaves weather reads off.
+if [[ ! -e secrets/ha_token ]]; then install -m 444 /dev/null secrets/ha_token; fi
 "${compose[@]}" config --quiet
 "${compose[@]}" build
 "${compose[@]}" stop two-core
@@ -63,6 +67,7 @@ import {readFileSync} from 'node:fs';
 const key=readFileSync('/run/secrets/api_key','utf8').trim();
 const r=await fetch('http://127.0.0.1:8787/api/state',{headers:{Authorization:`Bearer ${key}`}});
 const s=await r.json();
-console.log(JSON.stringify({http:r.status,mode:s.mode,available:s.available,controlEnabled:s.controlEnabled,configuredZones:s.zones?.filter(z=>z.configured).length,weatherMode:s.policy?.mode,error:s.error},null,2));
-if(!r.ok || !s.available) {console.error('App is deployed, but controller connectivity needs attention. No automatic rollback for an external controller outage.');process.exit(2);}
+// 2core no longer contacts Tucor on startup, so controller availability is not checked here.
+console.log(JSON.stringify({http:r.status,mode:s.mode,controlEnabled:s.controlEnabled,configuredZones:s.zones?.filter(z=>z.configured).length,weatherMode:s.policy?.mode,weatherSource:s.weatherSource?.configured?'home-assistant':'not configured',tucorSessionsLastHour:s.connection?.sessionsLastHour,tucorRetryAt:s.connection?.retryAt},null,2));
+if(!r.ok) {console.error('App is deployed, but its API did not answer.');process.exit(2);}
 JS

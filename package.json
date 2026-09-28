@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Timed Tucor irrigation controls and native Home Assistant weather integration",
+  "description": "Timed Tucor irrigation controls with weather-aware rain delays",
   "scripts": {
     "test": "node --test",
     "start": "node server/index.mjs",

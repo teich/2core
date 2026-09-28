@@ -3,31 +3,106 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { ORIGIN, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
 import { trace } from './telemetry.mjs';
 
+// Tucor is a shared vendor service: every new session costs it a device list request,
+// a socket, a login, and a controller selection. These caps hold even if a
+// client or automation misbehaves, and survive restarts through the ledger.
+export const TUCOR_LIMITS = Object.freeze({ sessionsPerHour: 20, loginsPerDay: 6 });
+const BACKOFF_MS = [30000, 60000, 120000, 300000, 600000, 900000];
+const HOUR = 3600000, DAY = 24 * HOUR;
+const minutesFrom = (at, now) => `${Math.max(1, Math.ceil((at - now) / 60000))} min`;
+const tokenRejected = message => Object.assign(new Error(message), { code: 'TOKEN_REJECTED' });
+function memoryLedger() { let value = null; return { load: () => value, save: next => { value = next; } }; }
+
 export class LiveDriver {
   constructor({ user, password, token, controllerId, socketFactory = io, logger = () => {}, clock = Date.now,
-    idleMs = 90000, handoffMs = 1000, maxSessionMs = 600000, freshMs = 3000, waitMs = 20000 }) {
-    Object.assign(this, { user, password, token, controllerId, socketFactory, logger, clock, idleMs, handoffMs, maxSessionMs, freshMs, waitMs });
+    idleMs = 90000, handoffMs = 1000, maxSessionMs = 600000, freshMs = 3000, waitMs = 20000, releaseMs = 500,
+    ledger = memoryLedger(), limits = TUCOR_LIMITS, random = Math.random }) {
+    Object.assign(this, { user, password, token, controllerId, socketFactory, logger, clock, idleMs, handoffMs, maxSessionMs, freshMs, waitMs, releaseMs, ledger, limits, random });
     this.tail = Promise.resolve();
     this.session = null;
+    this.onSnapshot = null;
   }
   async request(path, body, auth = true) {
     const response = await fetch(new URL(path, ORIGIN), { method: body ? 'POST' : 'GET', redirect: 'error', signal: AbortSignal.timeout(15000), headers: { ...(auth ? { Authorization: `bearer ${this.token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    if (auth && [401, 403].includes(response.status)) throw tokenRejected(`Tucor HTTP ${response.status}`);
     if (!response.ok) throw new Error(`Tucor HTTP ${response.status}`);
     return response.json();
   }
+  guard() {
+    const now = this.clock(), g = this.ledger.load() ?? {};
+    return { failures: 0, retryAt: 0, lastError: null, lastSuccessAt: null, history: [], ...g,
+      sessions: (g.sessions ?? []).filter(at => now - at < HOUR), logins: (g.logins ?? []).filter(at => now - at < DAY) };
+  }
+  // A person's explicit command may retry during backoff; the hourly cap still applies.
+  admit(user) {
+    const now = this.clock(), g = this.guard();
+    if (!user && now < g.retryAt) throw new Error(`Waiting ${minutesFrom(g.retryAt, now)} before contacting Tucor again after a failed connection`);
+    if (g.sessions.length >= this.limits.sessionsPerHour) throw new Error(`Tucor connection limit reached (${this.limits.sessionsPerHour} per hour); try again in ${minutesFrom(g.sessions[0] + HOUR, now)}`);
+    g.sessions.push(now);
+    this.ledger.save(g);
+  }
+  settle(error, codes = []) {
+    const now = this.clock(), g = this.guard();
+    if (error) {
+      g.failures += 1;
+      const base = BACKOFF_MS[Math.min(g.failures, BACKOFF_MS.length) - 1];
+      g.retryAt = now + Math.round(base * (0.8 + 0.4 * this.random()));
+      g.lastError = error.message;
+    } else Object.assign(g, { failures: 0, retryAt: 0, lastError: null, lastSuccessAt: now });
+    // Survives redeploys, unlike container logs: when connections failed and what Tucor said.
+    g.history = [{ at: now, ok: !error, ...(error ? { error: error.message } : {}), ...(codes.length ? { codes } : {}) }, ...g.history].slice(0, 30);
+    this.ledger.save(g);
+  }
+  connection() {
+    const g = this.guard();
+    return { open: Boolean(this.session?.healthy), retryAt: g.retryAt > this.clock() ? new Date(g.retryAt).toISOString() : null,
+      lastError: g.lastError, lastSuccessAt: g.lastSuccessAt ? new Date(g.lastSuccessAt).toISOString() : null,
+      sessionsLastHour: g.sessions.length, loginsToday: g.logins.length, limits: this.limits,
+      history: g.history.slice(0, 10).map(h => ({ ...h, at: new Date(h.at).toISOString() })) };
+  }
   async authenticate(t = trace(this.logger)) {
+    if (this.token) return;
     if (this.authRejected) throw new Error('Tucor rejected the configured login; update credentials and restart 2core');
-    if (this.token) {
-      const q = new URLSearchParams({ token: this.token, controllerID: 'null', typeName: 'null' });
-      try { if ((await t.stage('token_validation', () => this.request(`/api/validate-token?${q}`, null, false))).validatetoken) return; } catch { /* obtain a fresh token before any control command */ }
-    }
     if (!this.user || !this.password) throw new Error('Configure Tucor credentials or a valid token');
+    const now = this.clock(), g = this.guard();
+    if (g.logins.length >= this.limits.loginsPerDay) throw new Error(`Tucor password login limit reached (${this.limits.loginsPerDay} per day); try again in ${minutesFrom(g.logins[0] + DAY, now)}`);
+    g.logins.push(now);
+    this.ledger.save(g);
     const token = await t.stage('authentication', () => this.request('/api/get-token', { user: this.user, password: this.password }, false));
-    if (typeof token !== 'string' || !token || token === 'ACCESS DENIED') {
+    if (token === 'ACCESS DENIED') {
+      // Never retry a rejected password: repeated attempts can lock the account.
       this.authRejected = true;
       throw new Error('Tucor authentication failed; update credentials and restart 2core');
     }
+    if (typeof token !== 'string' || !token) throw new Error('Unexpected Tucor login response');
     this.token = token;
+  }
+  async connect(t, user, retry = true) {
+    // A cached token is used directly; a rejection costs one password login, not a check per session.
+    const cached = Boolean(this.token);
+    this.admit(user);
+    let s;
+    try {
+      await this.authenticate(t);
+      const devices = devicesFromResponse(await t.stage('device_list', () => this.request('/api/authenticated/function/getdevicelistnew?controllerID=null&typeName=null')));
+      const device = devices.find(d => String(d.id) === String(this.controllerId));
+      if (!device) throw new Error('Controller not found in this account');
+      if (device.busy) throw new Error('Controller busy; leave the Tucor website on Device List');
+      s = new Session(this, device);
+      this.session = s;
+      await s.open(t);
+      await s.fresh(t);
+    } catch (e) {
+      await this.close();
+      if (e.code === 'TOKEN_REJECTED' && cached && retry) {
+        this.token = null;
+        return this.connect(t, user, false);
+      }
+      this.settle(e, s?.codes);
+      throw e;
+    }
+    this.settle(null, s.codes);
+    return s;
   }
   withSession(fn, options = {}) {
     // Also protect direct callers: there is one owner of the selected controller.
@@ -35,7 +110,7 @@ export class LiveDriver {
     this.tail = result.catch(() => {});
     return result;
   }
-  async useSession(fn, { interactive = true, forceFresh = false, telemetry = trace(this.logger), deadline } = {}) {
+  async useSession(fn, { interactive = true, forceFresh = false, user = false, telemetry = trace(this.logger), deadline } = {}) {
     clearTimeout(this.idleTimer);
     await this.closing;
     const started = performance.now();
@@ -43,25 +118,17 @@ export class LiveDriver {
     if (s && (!s.healthy || this.clock() >= s.expiresAt)) { await this.close(); s = null; }
     telemetry.record('session_reuse', started, 'ok', { reused: Boolean(s) });
     try {
-      if (!s) {
-        await this.authenticate(telemetry);
-        const devices = devicesFromResponse(await telemetry.stage('device_list', () => this.request('/api/authenticated/function/getdevicelistnew?controllerID=null&typeName=null')));
-        const device = devices.find(d => String(d.id) === String(this.controllerId));
-        if (!device) throw new Error('Controller not found in this account');
-        if (device.busy) throw new Error('Controller busy; leave the Tucor website on Device List');
-        s = new Session(this, device);
-        this.session = s;
-        await s.open(telemetry);
-        await s.fresh(telemetry);
-      } else {
-        await s.fresh(telemetry, forceFresh);
+      if (!s) s = await this.connect(telemetry, user);
+      else {
+        try { await s.fresh(telemetry, forceFresh); } catch (e) { this.settle(e, s.codes); throw e; }
       }
       s.telemetry = telemetry;
       s.deadline = deadline;
       if (interactive) s.keepUntil = this.clock() + this.idleMs;
       return await fn(s);
     } catch (e) {
-      await this.close();
+      // A refused request (an AppError carries an HTTP status) leaves a healthy session usable.
+      if (!(e.status && this.session?.healthy)) await this.close();
       throw e;
     } finally {
       if (this.session) {
@@ -95,6 +162,7 @@ class Session {
     this.waiters = new Set();
     this.components = new Map();
     this.observed = { controllerMode: null, rainShutDown: null, stations: null };
+    this.codes = [];
     this.socket.on('message', message => this.receive(message));
     this.socket.on('disconnect', () => this.fail(new Error('Tucor connection lost; command outcome may be unknown')));
   }
@@ -104,7 +172,13 @@ class Session {
     if (typeof m === 'string') { try { m = JSON.parse(m); } catch { return; } }
     if (!m || typeof m !== 'object') return;
     if (m.category === 'server' && m.command === 'login' && m.data?.status === 'BAD') {
-      this.fail(new Error('Tucor socket login rejected')); return;
+      this.fail(tokenRejected('Tucor socket login rejected')); return;
+    }
+    if (m.category === 'server' && typeof m.data?.code === 'string') {
+      // Status codes only (I00 connecting, I01 connected, I20 timeout); never packet contents.
+      const code = m.data.code.slice(0, 16);
+      this.driver.logger({ event: 'tucor_server', code });
+      if (this.codes.at(-1) !== code) this.codes = [...this.codes, code].slice(-8);
     }
     const at = this.driver.clock();
     const previous = this.components.get(m.component);
@@ -119,6 +193,11 @@ class Session {
     this.events.push({ sequence: ++this.sequence, message: m });
     if (this.events.length > 256) this.events.shift();
     for (const check of [...this.waiters]) check();
+    // Pushed updates keep the app current while a session is open, without extra requests.
+    if (this.driver.session === this && this.healthy && ['Main', 'Flow', 'ElectricFlow', 'Stations'].includes(m.component)) {
+      const snapshot = this.snapshot();
+      if (snapshot.receivedAt) this.driver.onSnapshot?.(snapshot);
+    }
   }
   snapshot() {
     const state = summarize([...this.components.values()]);
@@ -183,6 +262,8 @@ class Session {
     const from = this.sequence;
     this.send({ category: 'route', data: '/home' });
     for (const component of ['Header', 'Home']) for (const command of ['Created', 'Mounted']) this.send({ component, command });
+    // Tucor can keep a controller in station-only mode across sessions; ask for the full dashboard stream.
+    this.send({ component: 'Header', command: 'SetState', position: 'Up' });
     this.send({ component: 'Header', command: 'Refresh' });
     await this.status(t, from);
   }
@@ -238,7 +319,8 @@ class Session {
     const release = this.selected && this.socket.connected;
     if (release) this.socket.emit('message', { category: 'server', command: 'deselect', data: { type: 'device', item: this.device.id } });
     this.fail(new Error('Tucor session closed; inspect status before retrying'));
-    if (release) await sleep(150);
+    // Give the release time to reach Tucor so the controller is not left looking busy.
+    if (release) await sleep(this.driver.releaseMs);
     this.socket.close();
   }
 }

@@ -23,6 +23,8 @@ export class Engine {
     this.store.interruptPending();
     this.current = this.store.get('lastObservation');
     this.error = null;
+    // An open session streams controller updates; take them instead of asking again.
+    this.driver.onSnapshot = snapshot => this.accept(snapshot);
   }
   serial(fn, priority = 0) {
     const next = new Promise((resolve, reject) => this.jobs.push({ fn, priority, resolve, reject }));
@@ -90,6 +92,8 @@ export class Engine {
       apiVersion: 1, mode: this.mode, controlEnabled: this.allowControl, limits: LIMITS,
       controller: state?.controller ?? null, available: Boolean(state && age < 180000 && !this.error),
       observedAt: state?.receivedAt ?? null, error: this.error,
+      connection: { ...(this.driver.connection?.() ?? { open: this.mode === 'demo' }), checking: Boolean(this.refreshing) },
+      weatherSource: this.weatherSource ?? null,
       status: state?.status ?? {}, alarms: state?.alarms ?? [], zones,
       rain: this.store.get('rain'), policy: this.store.get('policy', DEFAULT_POLICY),
       weatherDecision: this.store.get('weatherDecision'), events: this.store.events(),
@@ -150,14 +154,14 @@ export class Engine {
     return this.submit(key, kind, body, fn, deadline).completion;
   }
   writable() { if (!this.allowControl) throw new AppError('Live controls are disabled; enable only for supervised validation', 403); }
-  async withCurrent(fn) {
+  async withCurrent(fn, { user = true } = {}) {
     return this.driver.withSession(async session => {
       this.accept(session.snapshot());
       if (this.activeDeadline && this.clock() > this.activeDeadline) throw new AppError('Command expired while connecting; nothing was sent', 400);
       const result = await fn(session);
       this.accept(session.snapshot());
       return result ?? { ok: true };
-    }, { interactive: true, telemetry: this.activeTrace ?? trace(this.logger), deadline: this.activeDeadline });
+    }, { interactive: user, user, telemetry: this.activeTrace ?? trace(this.logger), deadline: this.activeDeadline });
   }
   async start(zone, minutes) {
     this.writable(); number(minutes, LIMITS.minMinutes, LIMITS.maxMinutes, true);
@@ -212,7 +216,17 @@ export class Engine {
       await session.rain(hours);
       this.store.set('rain', hours ? { source, reason, until: new Date(this.clock() + hours * 3600000).toISOString() } : null);
       return { ok: true };
-    });
+    }, { user: source !== 'weather' });
+  }
+  // Answers from 2core's own record whether a weather hold is already in place, without asking Tucor.
+  // A delay set at the controller is only discovered, and preserved, when rain() connects.
+  knownHold(hours) {
+    const rain = this.store.get('rain');
+    const remaining = rain ? Date.parse(rain.until) - this.clock() : 0;
+    if (!(remaining > 0)) return null;
+    if (rain.source !== 'weather') return 'Existing manual rain delay preserved';
+    if (remaining >= hours * 3600000 - 3600000) return 'Weather delay already covers this period';
+    return null;
   }
   configurePolicy(patch) {
     const policy = { ...this.store.get('policy', DEFAULT_POLICY), ...patch };
@@ -232,13 +246,34 @@ export class Engine {
     const decision = { ...evaluateWeather(sample, policy, this.clock()), at: new Date(this.clock()).toISOString(), mode: policy.mode, applied: false };
     this.store.set('weatherDecision', decision);
     if (policy.mode === 'automatic' && decision.wet && this.allowControl) {
-      const result = await this.rain(policy.holdHours, 'weather', decision.reason);
-      decision.applied = !result.preserved;
-      decision.preserved = result.reason;
+      const known = this.knownHold(policy.holdHours);
+      if (known) decision.preserved = known;
+      else {
+        const result = await this.rain(policy.holdHours, 'weather', decision.reason);
+        decision.applied = !result.preserved;
+        decision.preserved = result.reason;
+      }
     }
     if (decision.wet && !this.allowControl) decision.blocked = 'Live control is disabled';
     this.store.set('weatherDecision', decision);
     return { ok: true, decision };
+  }
+  // In-process weather source: serialized with commands, recorded like one.
+  observeWeather(sample) {
+    return this.serial(async () => {
+      try {
+        const { decision } = await this.weather(sample);
+        if (decision.applied) this.store.event('/api/weather', { outcome: 'confirmed', message: decision.reason });
+        return decision;
+      } catch (e) {
+        this.store.set('weatherDecision', { wet: true, reason: `Rain delay not set: ${e.message}`, at: new Date(this.clock()).toISOString(), mode: this.store.get('policy', DEFAULT_POLICY).mode, applied: false });
+        this.store.event('/api/weather', { outcome: 'failed', message: e.message });
+        throw e;
+      }
+    });
+  }
+  weatherUnavailable(reason) {
+    this.store.set('weatherDecision', { wet: false, reason, at: new Date(this.clock()).toISOString(), mode: this.store.get('policy', DEFAULT_POLICY).mode, applied: false });
   }
   preferences(zone, body) {
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);

@@ -8,9 +8,7 @@ research/assets/
 research/source/
 secrets/
 tailscale-runtime/
-.venv/
 __pycache__/
-.pytest_cache/
 data/
 *.pyc
 !deploy/.env.example

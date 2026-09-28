@@ -2,9 +2,11 @@
 
 [![Validate](https://github.com/teich/2core/actions/workflows/validate.yml/badge.svg)](https://github.com/teich/2core/actions/workflows/validate.yml)
 
-2core is a self-hosted bridge for Tucor irrigation controllers. It provides a phone-friendly garden interface, a local HTTP API, and a **native Home Assistant integration for 2026.09** without requiring MQTT.
+2core is a self-hosted bridge for Tucor irrigation controllers. It provides a phone-friendly garden interface, a local HTTP API, and weather-aware rain delays driven by a Tempest station through Home Assistant.
 
-The bridge is the single client responsible for Tucor sessions, command serialization, local preferences, and weather decisions. Browsers and Home Assistant talk to the bridge over the local network; the bridge talks to Tucor's cloud service. Tucor account credentials stay on the bridge and are never shared with Home Assistant.
+The bridge is the single client responsible for Tucor sessions, command serialization, local preferences, and weather decisions. Phones talk to the bridge over the local network; the bridge talks to Tucor's cloud service and reads weather from Home Assistant. Tucor account credentials stay on the bridge.
+
+**2core is designed to be a light, polite Tucor client.** It never polls Tucor in the background. It connects only while someone is using the app, when a command is sent, or when a weather decision needs to write a rain delay. Hard limits (20 sessions per hour, 6 password logins per day) and backoff after failures hold even if a client misbehaves, and persist across restarts.
 
 Live controller reads have been verified during protocol research. Physical start/stop and rain-delay writes are implemented from the vendor frontend's protocol, but should be validated with someone present at the irrigation system before unattended use. Live writes are disabled by default.
 
@@ -29,27 +31,26 @@ The simulator never connects to Tucor or operates irrigation hardware. Its garde
 
 ```mermaid
 flowchart LR
-  Phone[Phone web app] --> Bridge[2core Docker service]
-  Tempest[Tempest entities] --> HA[Native Home Assistant integration]
-  Forecast[Optional HA hourly forecast] --> HA
-  HA -->|Authenticated local HTTP API| Bridge
-  Bridge -->|HTTPS + legacy Socket.IO| Cloud[Tucor cloud]
+  Phone[Phone web app] -->|Authenticated local HTTP API| Bridge[2core Docker service]
+  Tempest[Tempest station] --> HA[Home Assistant]
+  Bridge -->|Reads weather entities every 5 min| HA
+  Bridge -->|HTTPS + legacy Socket.IO, only when needed| Cloud[Tucor cloud]
   Cloud --> Controller[Tucor controller]
   Bridge --> SQLite[(Local SQLite)]
 ```
 
-A single local service owns command serialization, credentials, run ownership, weather decisions, and durable request records. The phone and HA use the same API and see the same state. This avoids separate clients racing for Tucor's sessionful controller connection. Other clients can use the same authenticated API.
+A single local service owns command serialization, credentials, run ownership, weather decisions, and durable request records. This avoids separate clients racing for Tucor's sessionful controller connection. Other clients can use the same authenticated API. Home Assistant is only a weather source: it never controls or monitors irrigation.
 
-**This still depends on Tucor's cloud; it is not direct LAN control.** The native HA integration talks locally to 2core. Tucor schedules and the bounded watering timer remain on the controller; the app does not need to stay open.
+**This still depends on Tucor's cloud; it is not direct LAN control.** Tucor schedules and the bounded watering timer remain on the controller; the app does not need to stay open.
 
 ## Features
 
 - Zone buttons for **1, 5, 15, or 60 minutes**, countdown, explicit stop, and “Stop & run next.” Only one test run at a time. Search, favorites, walking order, local aliases, and leak notes.
 - Controller voltage/current/flow, active-zone count, rain-delay status, and command activity.
 - Manual rain delay and a weather policy with **off / observe / automatic** modes. Observe is the default.
-- HA zone `valve` entities, status `sensor` entities, rain-delay `number`, weather-mode `select`, and timed-run actions. Unnamed station slots start disabled in HA.
 - Durable duplicate-request protection, command deadlines, rejection of overlapping runs, and explicit unknown-outcome handling. No automatic write retries.
-- Immediate server acceptance: lock your phone once the request is accepted and check confirmation when you return. Stop-and-next runs entirely on the bridge. Opening the app prepares a connection; short warm sessions avoid repeated Tucor logins during use.
+- Immediate server acceptance: lock your phone once the request is accepted and check confirmation when you return. Stop-and-next runs entirely on the bridge.
+- Opening the app connects to Tucor in the background. While you use it, one session stays open and streams controller updates; after about ten minutes without a tap, the app stops asking and the controller is released. The status pill shows whether the view is live, checked a moment ago, or paused. Activity shows Tucor sessions and logins against their limits, plus recent connection outcomes.
 
 The mobile interface adapts the `claude-zones` prototype: compact zone rows open a duration/details sheet; a separate Walk view offers a zone rail, water countdown, and explicit stop-and-next control. A bottom dock keeps an owned run’s stop button accessible across all views. System dark mode, safe-area spacing, and reduced motion are supported. GPU water shaders adapted from the prototype add refraction, caustics, bubbles, spring-driven sloshing, and touch ripples. WebGPU targets current iPhones over HTTPS, with display-paced vessel animation at up to 3× pixel density and a 30 fps ambient pond. A CSS fallback survives unavailable/lost GPU contexts. Rendering pauses offscreen/when hidden; reduced motion uses static water. Controller health lives under Activity. Walking never advances automatically, and the UI never offers stop for external runs.
 
@@ -59,76 +60,41 @@ Historical charts and water totals are not yet part of the dashboard. Read-only 
 
 The production service requires Docker, Node.js 24 in the image, an existing Tucor account, and network access to Tucor's cloud service. Start with live control disabled, verify that the controller inventory and readings are correct, and then perform the supervised hardware checks before enabling writes.
 
-See **[deploy/README.md](deploy/README.md)** for Docker installation, secret creation, backup guidance, and the hardware-validation sequence. The checked-in `.env` example contains no account credentials. Weather entities are configured later in Home Assistant and are not needed to bring up the bridge.
+See **[deploy/README.md](deploy/README.md)** for Docker installation, secret creation, backup guidance, and the hardware-validation sequence. The checked-in `.env` example contains no account credentials. Weather is configured later and is not needed to bring up the bridge.
 
-## Home Assistant installation with HACS
+## Weather from Home Assistant
 
-The Home Assistant integration is distributed from this repository as a HACS custom repository. It is not listed in HACS's default catalog.
+2core reads rain data from Home Assistant's REST API every five minutes (not at all while weather mode is off). Home Assistant needs no custom integration. On the Docker server:
 
-1. Open HACS in Home Assistant.
-2. Open the three-dot menu and select **Custom repositories**.
-3. Add `https://github.com/teich/2core` with the category **Integration**.
-4. Find **2core Irrigation** in HACS and select **Download**.
-5. Restart Home Assistant when HACS prompts you.
-6. Go to **Settings → Devices & services → Add integration**, search for **2core Irrigation**, and enter the 2core server URL and access key.
+1. In Home Assistant, open your profile → **Security** → **Long-lived access tokens** and create one for 2core.
+2. In the server's `.env`, set `HA_URL` to an address the Docker server can reach, for example `http://homeassistant.local:8123`.
+3. Run `python3 tools/configure-secrets.py --ha-token`. It verifies the token and saves it to `secrets/ha_token`. Then it lists matching entities with their current values and saves your choices to `.env`:
+   - **Rain rate:** sensors with device class `precipitation_intensity` in `mm/h` or `in/h`.
+   - **Recent rainfall total:** sensors with device class `precipitation` in `mm` or `in`. Choose rain today or over the last 24 hours, **not lifetime, yearly, or previous-minute amounts**.
+   - **Hourly forecast (optional):** `weather.*` entities that support hourly forecasts.
 
-Use the bridge's LAN or private-network address—an address that Home Assistant itself can reach. `localhost` would refer to Home Assistant, not the 2core server. Tucor credentials remain on the Docker server. HACS only installs the files under `custom_components/tucor_2core`; it does not install or update the 2core server.
+   To change entities later without re-entering the token, run `python3 tools/configure-secrets.py --ha-entities`. The choices are the `HA_RAIN_RATE_ENTITY`, `HA_RAIN_TOTAL_ENTITY`, and `HA_FORECAST_ENTITY` lines in `.env`, which you can also edit by hand.
+4. Recreate the service: `docker compose up -d --force-recreate`.
 
-For development or recovery without HACS, copy `custom_components/tucor_2core` into HA's `/config/custom_components/`, restart HA, and add the integration under Devices & services.
-
-After installation, open the integration's **Configure** dialog to select optional rain-intensity, recent-rainfall, and hourly-forecast entities. Start with the **Weather mode** entity set to `observe`; see [Rain intelligence](#rain-intelligence) before enabling automatic holds.
-
-Opening a HA valve uses a bounded default duration (1 minute initially, configurable). For an explicit duration, use:
-
-```yaml
-action: tucor_2core.start_zone
-data:
-  config_entry_id: YOUR_2CORE_CONFIG_ENTRY_ID
-  zone: 2
-  minutes: 5
-```
-
-Other actions: `tucor_2core.stop_zone`, `tucor_2core.stop_my_watering`, and `tucor_2core.set_rain_delay`. The action editor supplies selectors; no YAML is required. A valve close only stops a run owned by 2core, never an unrelated scheduled run.
+The Weather tab shows the latest decision and when it was made, or why weather is unavailable. A Home Assistant outage never adds or clears a delay; controller schedules continue as normal.
 
 ## Rain intelligence
 
-When ready, select optional weather entities in the integration's **Configure** options. HA sends observations every five minutes. Supported rain units: `mm/h`, `in/h`, `mm`, and `in`. Select recent accumulation (today or rolling 24 hours), **not lifetime rainfall**. Unsupported units and observations older than 30 minutes are ignored.
+Supported rain units: `mm/h`, `in/h`, `mm`, and `in`. Select recent accumulation (today or rolling 24 hours), **not lifetime rainfall**. Unsupported units and observations older than 30 minutes are ignored.
 
 Initial thresholds are 0.25 mm/h intensity, 3 mm recent accumulation, or 5 mm forecast rain with at least 70% probability. Any threshold can request a 12-hour hold. The optional forecast requires twelve complete hourly buckets and uses the lowest probability among hours predicting rain. Forecast data comes from a selected HA weather entity; a Tempest station alone need not supply it.
 
-Automatic mode adds a hold or extends its own hold at most approximately hourly while conditions stay wet. Existing manual/external holds are preserved. Dry/missing/stale readings never cancel a hold. Turning weather mode off stops future weather decisions; it does **not** clear a hold already on the controller. Clear delay is an explicit manual operation. A daily rainfall total can keep extending a hold until that sensor resets—choose the measurement and thresholds deliberately.
+Automatic mode adds a hold or extends its own hold at most approximately hourly while conditions stay wet. It decides from 2core's own record of the delay it set, so a rainy afternoon costs a few Tucor sessions, not one every five minutes. A delay set at the controller or in Tucor's app is discovered, and preserved, when 2core next connects to write. Existing manual/external holds are preserved. Dry/missing/stale readings never cancel a hold. Turning weather mode off stops future weather decisions; it does **not** clear a hold already on the controller. Clear delay is an explicit manual operation. A daily rainfall total can keep extending a hold until that sensor resets—choose the measurement and thresholds deliberately.
 
-Thresholds and duration can be updated through `/api/policy`; mode is also editable in HA and the web UI. See [server/API.md](server/API.md). Live control must be enabled separately on the server before Automatic can affect irrigation.
+Thresholds and duration can be updated through `/api/policy`; mode is also editable in the web UI. See [server/API.md](server/API.md). Live control must be enabled separately on the server before Automatic can affect irrigation.
 
 ## Validation
 
 ```sh
 npm test
-python3.14 -m venv .venv
-.venv/bin/pip install -r requirements-test.txt
-.venv/bin/python -m pytest -q
 ```
 
-Node tests cover protocol decoding, command duplication/expiry/restarts, run ownership, concurrency, weather decisions, and HTTP authentication. HA tests use **Home Assistant 2026.9.4** and exercise config/options flows, entity setup/actions/unload, unit normalization, and missing/stale weather. An optional end-to-end test connects actual HA code to a separate Docker simulator:
-
-```sh
-TWOCORE_TEST_URL=http://127.0.0.1:8878 .venv/bin/python -m pytest -q tests/test_docker_e2e.py
-```
-
-That test refuses a server reporting live mode and changes only simulator state. See [research/implementation-validation.md](research/implementation-validation.md) for the checks completed here and remaining hardware questions.
-
-HACS and Home Assistant metadata are also checked by the repository's `Validate` GitHub Actions workflow.
-
-## Home Assistant releases
-
-HACS updates are intentionally tied to GitHub releases, not ordinary backend commits. When the Home Assistant integration changes:
-
-1. Update `version` in `custom_components/tucor_2core/manifest.json` using semantic versioning.
-2. Run the Node and Python tests above.
-3. Commit and push the integration change.
-4. Create and push a matching `vVERSION` tag, for example `v0.2.1`.
-
-The release workflow verifies that the tag matches the manifest and creates the GitHub release consumed by HACS. Backend-only changes need no integration version bump or GitHub release. HACS users can then download the update and restart Home Assistant.
+Node tests cover protocol decoding, command duplication/expiry/restarts, run ownership, concurrency, weather decisions, Home Assistant weather reads, Tucor connection limits and backoff, and HTTP authentication. See [research/implementation-validation.md](research/implementation-validation.md) for the checks completed here and remaining hardware questions.
 
 ## Protocol research
 

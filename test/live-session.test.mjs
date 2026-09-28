@@ -12,13 +12,17 @@ class Cloud {
   factory = () => {
     const cloud = this;
     const socket = new class extends EventEmitter {
+      stationOnly = cloud.stickyStationOnly;
       open() { this.connected = true; super.emit('connect'); }
       close() { this.connected = false; super.emit('disconnect'); }
       receive(message) { super.emit('message', structuredClone(message)); }
       emit(event, data) {
         if (event !== 'message') return super.emit(event, data);
         cloud.sent.push(data);
-        if (data.command === 'login') this.receive({ category:'data', data:{ item:'User' } });
+        if (data.command === 'login') {
+          if (data.data.token === cloud.rejectToken) this.receive({ category:'server', command:'login', data:{ status:'BAD' } });
+          else this.receive({ category:'data', data:{ item:'User' } });
+        }
         if (data.command === 'select') {
           const selected = () => this.receive({ category:'server', data:{ code:'I01' } });
           if (cloud.selection) cloud.selection.promise.then(selected); else selected();
@@ -33,6 +37,7 @@ class Cloud {
           if (cloud.dropAfterStart) this.close();
         }
         if (data.component === 'Stations' && data.command === 'Stop') cloud.runs = cloud.runs.filter(s => !s.runningEntries.some(e => data.handleID.includes(e.handleID)));
+        if (data.component === 'Rainshutdown') cloud.main = { ...cloud.main, rainShutDown: data.command === 'Start' ? data.runtime : 0 };
         if (data.command === 'AutoStatus') { this.stationOnly = true; if (!cloud.silent) this.stations(); }
       }
       stations() { if (!cloud.silent) this.receive({ component:'Stations', data:cloud.runs }); }
@@ -41,13 +46,14 @@ class Cloud {
   };
   request = async path => {
     this.http.push(path);
-    if (path.includes('validate-token')) return { validatetoken:true };
+    if (this.httpFailure) throw new Error(this.httpFailure);
+    if (path.includes('get-token')) return 'fresh-token';
     return { getdevicelistnew:[{ devicelist:[{ ctrlid:2479, typename:'LTD', active:0 }] }] };
   };
 }
 async function fixture(t, options = {}) {
   const cloud = new Cloud(), logs = [];
-  const driver = new LiveDriver({ token:'secret-token', controllerId:2479, socketFactory:cloud.factory, logger:r => logs.push(r), waitMs:100, ...options });
+  const driver = new LiveDriver({ token:'secret-token', controllerId:2479, socketFactory:cloud.factory, logger:r => logs.push(r), waitMs:100, releaseMs:5, ...options });
   driver.request = cloud.request;
   const store = new Store();
   const engine = new Engine({ driver, store, mode:'live', allowControl:true, logger:r => logs.push(r), ...(options.clock ? { clock:options.clock } : {}) });
@@ -66,10 +72,10 @@ test('a start arriving during refresh reuses its session, with one cold handshak
   cloud.selection.resolve();
   await Promise.all([refreshing, starting]);
   assert.equal(cloud.sockets.length, 1);
-  assert.equal(cloud.http.length, 2);
+  assert.equal(cloud.http.length, 1);
   assert.equal(cloud.sent.filter(p => p.command === 'Start').length, 1);
   assert.ok(logs.some(r => r.stage === 'session_reuse' && r.reused));
-  for (const stage of ['token_validation','device_list','socket_connect','socket_login','controller_select','main_status','station_status','command_queue','start_confirmation']) assert.ok(logs.some(r => r.stage === stage), stage);
+  for (const stage of ['device_list','socket_connect','socket_login','controller_select','main_status','station_status','command_queue','start_confirmation']) assert.ok(logs.some(r => r.stage === stage), stage);
   assert.equal(JSON.stringify(logs).includes('secret-token'), false);
 });
 
@@ -212,4 +218,86 @@ test('warm reads restore full status after a command selects station-only update
   assert.equal(cloud.sockets[0].stationOnly, false);
   assert.equal(driver.session.snapshot().status.controllerMode, 2);
   assert.equal(cloud.sockets.length, 1);
+});
+
+test('a new session asks for the full status stream even if Tucor kept station-only mode', async t => {
+  const { engine, cloud } = await fixture(t);
+  cloud.stickyStationOnly = true;
+  await engine.refresh();
+  assert.equal(engine.state().status.controllerMode, 2);
+  const select = cloud.sent.findIndex(p => p.command === 'select');
+  assert.ok(cloud.sent.slice(select).findIndex(p => p.command === 'SetState') < cloud.sent.slice(select).findIndex(p => p.command === 'Refresh'));
+});
+
+test('the hourly session cap refuses before any Tucor contact and persists in the ledger', async t => {
+  const store = new Store();
+  const ledger = { load: () => store.get('guard'), save: v => store.set('guard', v) };
+  let now = Date.now();
+  const { driver, cloud } = await fixture(t, { clock:() => now, limits:{ sessionsPerHour:2, loginsPerDay:6 }, ledger, maxSessionMs:1000 });
+  await driver.withSession(async () => {});
+  now += 2000;
+  await driver.withSession(async () => {});
+  now += 2000;
+  await assert.rejects(driver.withSession(async () => {}, { user:true }), /connection limit reached \(2 per hour\)/);
+  assert.equal(cloud.sockets.length, 2);
+  const restarted = new LiveDriver({ token:'x', controllerId:2479, ledger, clock:() => now, limits:{ sessionsPerHour:2, loginsPerDay:6 } });
+  assert.equal(restarted.connection().sessionsLastHour, 2);
+});
+
+test('a failed connection backs off automatic contact but lets a person retry', async t => {
+  let now = Date.now();
+  const { driver, engine, cloud } = await fixture(t, { clock:() => now, random:() => 0.5 });
+  cloud.httpFailure = 'Tucor HTTP 502';
+  await assert.rejects(engine.refresh({ interactive:true }), /HTTP 502/);
+  cloud.httpFailure = null;
+  await assert.rejects(engine.refresh({ interactive:true }), /Waiting 1 min before contacting Tucor/);
+  assert.equal(cloud.http.length, 1);
+  assert.match(engine.state().connection.lastError, /HTTP 502/);
+  await command(engine, 'person-retry', () => engine.start('1', 1));
+  assert.equal(driver.connection().retryAt, null);
+  assert.equal(driver.connection().history[0].ok, true);
+});
+
+test('a rejected cached token costs one password login and no per-session token checks', async t => {
+  let now = Date.now();
+  const { driver, cloud } = await fixture(t, { clock:() => now, user:'garden', password:'pw', maxSessionMs:1000 });
+  cloud.rejectToken = 'secret-token';
+  await driver.withSession(async () => {});
+  now += 2000;
+  await driver.withSession(async () => {});
+  assert.deepEqual(cloud.http.filter(p => p.includes('token')), ['/api/get-token']);
+  assert.equal(driver.connection().loginsToday, 1);
+  assert.equal(cloud.sockets.length, 3);
+});
+
+test('pushed controller updates reach the app without another request', async t => {
+  const { engine, cloud } = await fixture(t);
+  await engine.refresh({ interactive:true });
+  const refreshes = cloud.sent.filter(p => p.command === 'Refresh').length;
+  cloud.sockets[0].receive({ component:'Stations', data:[{ StId:'2', isRunning:true, runningEntries:[{ handleID:9 }] }] });
+  assert.equal(engine.state().zones.find(z => z.id === '2').running, true);
+  assert.equal(cloud.sent.filter(p => p.command === 'Refresh').length, refreshes);
+});
+
+test('a refused command keeps the healthy session instead of logging in again', async t => {
+  const { engine, cloud } = await fixture(t);
+  cloud.runs = [{ StId:'2', isRunning:true, runningEntries:[{ handleID:7 }] }];
+  await assert.rejects(command(engine, 'refused-start', () => engine.start('1', 1)), /Another zone is running/);
+  cloud.runs = [];
+  cloud.sockets[0].stations();
+  await command(engine, 'second-start', () => engine.start('1', 1));
+  assert.equal(cloud.sockets.length, 1);
+});
+
+test('weather automation answers from its own record and connects only to write', async t => {
+  const { engine, cloud } = await fixture(t);
+  engine.configurePolicy({ mode:'automatic', holdHours:12 });
+  const wet = { intensityMmH:2, observedAt:new Date().toISOString() };
+  const first = await engine.observeWeather(wet);
+  assert.equal(first.applied, true);
+  const sessions = cloud.sockets.length;
+  const second = await engine.observeWeather(wet);
+  assert.equal(second.preserved, 'Weather delay already covers this period');
+  assert.equal(cloud.sockets.length, sessions);
+  assert.equal(cloud.sent.filter(p => p.component === 'Rainshutdown' && p.command === 'Start').length, 1);
 });

@@ -51,6 +51,6 @@ test('private Unix transport authenticates reads and restricts implicit writes t
   assert.equal((await request('/api/refresh',{Origin:'https://attacker.example'},'POST')).status,403);
   assert.equal((await request('/api/refresh',{Origin:'null'},'POST')).status,403);
   assert.equal((await request('/api/refresh',{Origin:origin},'POST')).status,200);
-  // Non-browser clients retain the explicit bearer-key path, including HA.
+  // Non-browser clients retain the explicit bearer-key path.
   assert.equal((await request('/api/refresh',{Authorization:`Bearer ${key}`},'POST')).status,200);
 });

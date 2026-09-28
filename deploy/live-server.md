@@ -7,7 +7,7 @@
 - Compose service: `two-core`
 - SQLite volume: `2core_irrigation-data`
 - Private credentials: `/opt/2core/secrets/`
-- Web/HA key: `/opt/2core/secrets/api_key`
+- Web access key: `/opt/2core/secrets/api_key`
 - Controller: 2479, LTD; 100 slots, 28 named zones.
 - Live manual controls: enabled. Weather policy: observe.
 
@@ -38,7 +38,7 @@ docker compose ps
 docker compose logs --tail 50
 ```
 
-Retrieve the access key locally in your terminal when signing into another device or configuring HA:
+Retrieve the access key locally in your terminal when signing into another device:
 
 ```sh
 ssh root@192.168.2.6 'cat /opt/2core/secrets/api_key'
@@ -63,4 +63,4 @@ With the user's authorization, zone 02 (Rear Lawn) was requested for one minute 
 
 Warm full-status reads measured 1.920–3.339 seconds during the checks; the final completion read took 2.487 seconds. These are individual measurements inside the deployed container, not percentile guarantees. The phone acknowledges acceptance independently of controller confirmation, and the live Tailscale page showed the confirmed run without requesting Tucor credentials. See `server/API.md` for pending-command/restart semantics and session timeouts.
 
-For Home Assistant, copy `/opt/2core/custom_components/tucor_2core` into HA's `/config/custom_components/`, restart HA, then add **2core Irrigation** with the server URL and access key above. Tempest selections can wait.
+Weather comes from Home Assistant over its REST API; see the main README's “Weather from Home Assistant” section. `HA_URL` and the entity settings go in `/opt/2core/.env`, and the token in `/opt/2core/secrets/ha_token`.

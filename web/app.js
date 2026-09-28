@@ -144,7 +144,7 @@ async function act(path, body = {}, label = 'Sending request…') {
   if (controlsBusy()) return false;
   busy = true; message(label); render();
   if (path === '/refresh') {
-    try { await api('/prepare', {}); message('Checking the controller in the background…'); return true; }
+    try { lastPrepare = Date.now(); await api('/prepare', {}); message('Checking the controller in the background…'); return true; }
     catch (e) { message(e.message, true); return false; }
     finally { busy = false; render(); }
   }
@@ -167,8 +167,20 @@ async function act(path, body = {}, label = 'Sending request…') {
     load(); return false;
   } finally { busy = false; render(); }
 }
-function prepare() {
-  if (key || implicitAuth) api('/prepare', {}).catch(() => {});
+// Tucor is only contacted while someone is actually using the app: on open, on
+// interaction after a pause, and once a minute during active use. Left open and
+// untouched, the app stops asking and the server releases the controller.
+const ACTIVE_MS = 10 * 60000, HEARTBEAT_MS = 60000;
+let lastInteraction = Date.now(), lastPrepare = 0;
+function prepare(force = false) {
+  if (!(key || implicitAuth) || (!force && Date.now() - lastPrepare < 20000)) return;
+  lastPrepare = Date.now();
+  api('/prepare', {}).catch(() => {});
+}
+function interacted() {
+  const paused = Date.now() - lastInteraction > HEARTBEAT_MS;
+  lastInteraction = Date.now();
+  if (paused) prepare();
 }
 function blockedReason() {
   if (!reachable) return 'Can’t reach the garden server.';
@@ -215,7 +227,7 @@ function describe(z, mode) {
     case 'running': return { text: `Watering · ends ${at(Date.parse(z.endsAt))}`, cls: 'live', short: clock(Date.parse(z.endsAt) - Date.now()), tone: 'water' };
     case 'unknown': return { text: z.owned ? 'Watering · end time unknown' : 'Watering · started at the controller', cls: 'live', short: 'Watering', tone: 'water' };
     case 'failed': return { text: `Didn’t ${failure.action}: ${failure.message}`, cls: 'fail', short: `Didn’t ${failure.action}`, tone: 'amber' };
-    case 'stale': return { text: `No word from the controller since ${state.observedAt ? at(Date.parse(state.observedAt)) : 'startup'}`, cls: 'stale', short: 'No signal', tone: 'idle' };
+    case 'stale': return { text: state.observedAt ? `Last checked at ${at(Date.parse(state.observedAt))}` : 'Not checked yet', cls: 'stale', short: 'Not live', tone: 'idle' };
     case 'offline': return { text: 'Can’t reach the garden server', cls: 'stale', short: 'Offline', tone: 'idle' };
     default: return { text: '', cls: '', short: 'Ready', tone: 'idle' };
   }
@@ -329,7 +341,7 @@ function render() {
   if (!state) return;
   const running = runningZones(), runs = lastRuns();
   showPending();
-  const status = !reachable ? ['Offline', 'bad'] : !state.available ? ['Checking controller', 'stale'] : state.mode === 'demo' ? ['Simulation', ''] : [`Connected · ${ago(state.observedAt)}`, ''];
+  const status = connectionStatus();
   $('connection-text').textContent = status[0]; $('connection').className = `status ${status[1]}`;
   $('mode-note').hidden = state.mode !== 'demo' && state.controlEnabled;
   $('mode-note').textContent = state.mode === 'demo' ? 'Simulation. Controls never reach real irrigation.' : 'Read-only. Watering is turned off on the server.';
@@ -337,6 +349,7 @@ function render() {
   $('voltage').textContent = state.status.voltageV == null ? '—' : `${state.status.voltageV} V`;
   $('current').textContent = state.status.current == null ? '—' : `${state.status.current} mA`;
   $('observed').textContent = state.observedAt ? ago(state.observedAt) : '—';
+  renderConnection();
   const zones = visibleZones();
   $('zone-count').textContent = `${zones.length} zones`;
   $('empty').hidden = zones.length > 0; $('zones').hidden = !zones.length;
@@ -356,18 +369,37 @@ function render() {
   $('policy-mode').disabled = controlsBusy();
   html('policy-details', `<dt>Rain intensity</dt><dd>${state.policy.intensityMmH} mm/h</dd><dt>Recent rain</dt><dd>${state.policy.accumulationMm} mm</dd><dt>Forecast</dt><dd>${state.policy.forecastMm} mm · ${state.policy.forecastProbability}%</dd><dt>Delay length</dt><dd>${state.policy.holdHours} h</dd>`);
   const d = state.weatherDecision;
-  $('weather-reason').textContent = d ? `${d.applied ? 'Delay set' : d.wet ? 'Would delay' : 'Watching'}: ${d.reason}${d.blocked ? `. ${d.blocked}` : ''}${d.preserved ? `. ${d.preserved}` : ''}` : 'No weather observations from Home Assistant yet.';
+  $('weather-reason').textContent = state.weatherSource?.configured === false ? (state.weatherSource.error ? `Home Assistant weather is misconfigured: ${state.weatherSource.error}.` : 'Home Assistant weather isn’t set up on the server yet.') : d ? `${d.applied ? 'Delay set' : d.wet ? 'Would delay' : 'Watching'} · ${ago(d.at)}: ${d.reason}${d.blocked ? `. ${d.blocked}` : ''}${d.preserved ? `. ${d.preserved}` : ''}` : 'No weather observations from Home Assistant yet.';
   html('activity', state.events.length ? state.events.map(e => `<div class="event"><strong>${escape(e.kind.replace('/api/','').replaceAll('/',' · '))}</strong> · <span class="${e.data.outcome === 'failed' ? 'failure' : ''}">${escape(e.data.outcome)}</span><small>${new Date(e.at).toLocaleString()}${e.data.message ? ` · ${escape(e.data.message)}` : ''}</small></div>`).join('') : '<p class="muted">Nothing yet.</p>');
   renderWalk(); renderSheet();
   if ($('findings-dialog').open) renderFindings();
   if (running.length === 0 && !pendingOp()) clearArmed = clearArmed && $('findings-dialog').open;
   tick();
 }
+function connectionStatus() {
+  const c = state.connection || {};
+  if (!reachable) return ['Offline', 'bad'];
+  if (state.mode === 'demo') return ['Simulation', ''];
+  if (c.checking) return ['Checking controller', 'stale'];
+  if (state.available) return [`${c.open ? 'Connected' : 'Checked'} · ${ago(state.observedAt)}`, ''];
+  if (c.retryAt) return ['Retrying later · tap for details', 'bad'];
+  if (state.error) return ['Controller unreachable', 'bad'];
+  return [state.observedAt ? `Paused · checked ${ago(state.observedAt)}` : 'Paused · tap to check', 'stale'];
+}
+function renderConnection() {
+  const c = state.connection;
+  $('tucor-group').hidden = !c?.limits;
+  $('tucor-sessions').textContent = c?.limits ? `${c.sessionsLastHour} of ${c.limits.sessionsPerHour}` : '—';
+  $('tucor-logins').textContent = c?.limits ? `${c.loginsToday} of ${c.limits.loginsPerDay}` : '—';
+  const note = c?.retryAt ? `After a failed connection, 2core waits until ${at(Date.parse(c.retryAt))} before connecting on its own. Your commands can still retry.` : c?.lastError ? `Last problem: ${c.lastError}` : '2core only connects while you use the app or when a rain delay needs setting.';
+  $('tucor-note').textContent = note;
+  html('tucor-history', (c?.history || []).map(h => `<div class="event"><span class="${h.ok ? '' : 'failure'}">${h.ok ? 'Connected' : escape(h.error)}</span><small>${new Date(h.at).toLocaleString()}${h.codes?.length ? ` · ${escape(h.codes.join(' '))}` : ''}</small></div>`).join(''));
+}
 function tick() {
   if (!state) return;
   const now = Date.now();
   document.querySelectorAll('[data-rem]').forEach(el => { const z = state.zones.find(z => z.id === el.dataset.rem); if (z?.endsAt) el.textContent = clock(Date.parse(z.endsAt) - now); });
-  if (reachable && state.available && state.observedAt && state.mode !== 'demo') $('connection-text').textContent = `Connected · ${ago(state.observedAt)}`;
+  if (reachable) $('connection-text').textContent = connectionStatus()[0];
 
   // Walk vessel
   const zone = getWalkZone(), mode = zoneMode(zone), info = describe(zone, mode);
@@ -440,9 +472,11 @@ async function waitUntilIdle(limit = 15000) {
 }
 
 /* ---------- events ---------- */
-$('login-form').addEventListener('submit', async e => { e.preventDefault(); key = $('access-key').value.trim(); sessionStorage.setItem('2core-key',key); prepare(); await load(); });
+$('login-form').addEventListener('submit', async e => { e.preventDefault(); key = $('access-key').value.trim(); sessionStorage.setItem('2core-key',key); prepare(true); await load(); });
 $('signout').addEventListener('click', () => { sessionStorage.removeItem('2core-key'); location.reload(); });
-for (const id of ['refresh', 'connection']) $(id).addEventListener('click', () => act('/refresh'));
+$('refresh').addEventListener('click', () => act('/refresh'));
+// The status pill checks now when paused, and explains when 2core is holding back.
+$('connection').addEventListener('click', () => state?.connection?.retryAt || state?.error ? showTab('activity') : act('/refresh'));
 $('stop').addEventListener('click', () => act('/stop'));
 $('walk-stop').addEventListener('click', () => act('/stop'));
 $('search').addEventListener('input', render);
@@ -547,11 +581,13 @@ $('notes-form').addEventListener('submit', async e => {
 });
 document.querySelectorAll('[data-rain]').forEach(b => b.addEventListener('click', () => act('/rain',{ hours:Number(b.dataset.rain) })));
 $('policy-mode').addEventListener('change', () => act('/policy',{ mode:$('policy-mode').value },'Saving weather mode…'));
-document.addEventListener('visibilitychange', () => { document.body.classList.toggle('page-hidden',document.hidden); if (!document.hidden) { prepare(); load(); } });
+document.addEventListener('visibilitychange', () => { document.body.classList.toggle('page-hidden',document.hidden); if (!document.hidden) { lastInteraction = Date.now(); prepare(); load(); } });
+for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, interacted, { capture:true, passive:true });
+setInterval(() => { if (!document.hidden && Date.now() - lastInteraction < ACTIVE_MS) prepare(); }, HEARTBEAT_MS);
 if (motionEnabled) waterFX.tilt.set(true).then(enabled => $('tilt').setAttribute('aria-pressed', String(enabled)));
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/service-worker.js').catch(() => {});
 setInterval(() => { if (!document.hidden && !$('notes-dialog').open) load(); },1500);
 setInterval(() => { if (!document.hidden) tick(); },1000);
-prepare();
+prepare(true);
 load();
 fetch('/healthz').then(r => r.json()).then(info => { $('demo-hint').hidden = info.mode !== 'demo'; }).catch(() => {});
