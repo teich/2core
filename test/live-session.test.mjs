@@ -301,3 +301,14 @@ test('weather automation answers from its own record and connects only to write'
   assert.equal(cloud.sockets.length, sessions);
   assert.equal(cloud.sent.filter(p => p.component === 'Rainshutdown' && p.command === 'Start').length, 1);
 });
+
+test('a rain delay cleared outside 2core stops counting as a known hold', async t => {
+  const { engine, cloud } = await fixture(t);
+  engine.configurePolicy({ mode:'automatic', holdHours:12 });
+  await command(engine, 'manual-hold', () => engine.rain(24));
+  cloud.main = { ...cloud.main, rainShutDown:0 };
+  await engine.refresh({ interactive:true, forceFresh:true });
+  assert.equal(engine.state().rain, null);
+  const decision = await engine.observeWeather({ intensityMmH:2, observedAt:new Date().toISOString() });
+  assert.equal(decision.applied, true);
+});

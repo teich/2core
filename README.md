@@ -76,7 +76,7 @@ See **[deploy/README.md](deploy/README.md)** for Docker installation, secret cre
    To change entities later without re-entering the token, run `python3 tools/configure-secrets.py --ha-entities`. The choices are the `HA_RAIN_RATE_ENTITY`, `HA_RAIN_TOTAL_ENTITY`, and `HA_FORECAST_ENTITY` lines in `.env`, which you can also edit by hand.
 4. Recreate the service: `docker compose up -d --force-recreate`.
 
-The Weather tab shows the latest decision and when it was made, or why weather is unavailable. A Home Assistant outage never adds or clears a delay; controller schedules continue as normal.
+The Weather tab shows whether Home Assistant is live, the latest rain readings against their thresholds (in the station's units), and the latest decision with its reason. When something is wrong, it says what: not set up, can't connect, or no fresh readings. A Home Assistant outage never adds or clears a delay; controller schedules continue as normal.
 
 ## Rain intelligence
 

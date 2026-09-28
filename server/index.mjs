@@ -37,7 +37,11 @@ const timers = [];
 if (mode === 'demo') timers.push(setInterval(() => engine.refresh().catch(() => {}), 2000));
 
 let weather = null;
-if (process.env.HA_URL) {
+if (mode === 'demo' && !process.env.HA_URL) {
+  // Simulated station so the Weather tab can be seen without Home Assistant.
+  weather = { describe: () => ({ configured: true, source: 'Simulator', entities: { rate: 'sensor.demo_rain_rate', total: 'sensor.demo_rain_today', forecast: 'weather.demo' } }),
+    sample: async () => ({ intensityMmH: 0.1, accumulationMm: 1.4, forecastMm: 2.2, forecastProbability: 40, unit: 'in', observedAt: new Date().toISOString() }) };
+} else if (process.env.HA_URL) {
   try {
     weather = new HomeAssistantWeather({ url: process.env.HA_URL, token: await secret('HA_TOKEN'), intensityEntity: process.env.HA_RAIN_RATE_ENTITY || undefined,
       accumulationEntity: process.env.HA_RAIN_TOTAL_ENTITY || undefined, forecastEntity: process.env.HA_FORECAST_ENTITY || undefined });
@@ -57,15 +61,16 @@ if (weather) {
     try {
       let sample;
       try { sample = await weather.sample(); }
-      catch (e) { engine.weatherUnavailable(`Can’t read Home Assistant: ${e.message}`); throw e; }
-      if (sample) await engine.observeWeather(sample); // records its own failures
-      else engine.weatherUnavailable('Home Assistant has no fresh rain readings');
+      catch (e) { engine.recordWeatherRead({ error: e.message }); throw e; }
+      if (!sample) { engine.recordWeatherRead({ error: 'No fresh rain readings from the selected entities' }); return; }
+      engine.recordWeatherRead({ sample });
+      await engine.observeWeather(sample); // records its own failures
     } catch (e) {
       logger({ event: 'weather_error', message: e.message });
     } finally { checking = false; }
   };
   timers.push(setInterval(check, Number(process.env.WEATHER_INTERVAL_MS) || 300000));
-  setTimeout(check, 10000).unref();
+  setTimeout(check, mode === 'demo' ? 1000 : 10000).unref();
 } else engine.weatherSource ??= { configured: false };
 const host = process.env.HOST ?? '127.0.0.1';
 const port = Number(process.env.PORT ?? 8787);

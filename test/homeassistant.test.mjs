@@ -37,7 +37,7 @@ test('the reader combines entities over the REST API with the bearer token', asy
   };
   const weather = new HomeAssistantWeather({ url: 'http://ha.local:8123', token: 'ha-token', intensityEntity: 'sensor.rain_rate', accumulationEntity: 'sensor.rain_today', forecastEntity: 'weather.home', fetch, clock: () => now });
   const sample = await weather.sample();
-  assert.deepEqual(sample, { intensityMmH: 1.2, accumulationMm: 4, forecastMm: 12, forecastProbability: 90, observedAt: new Date(now - 120000).toISOString() });
+  assert.deepEqual(sample, { intensityMmH: 1.2, accumulationMm: 4, forecastMm: 12, forecastProbability: 90, unit: 'mm', observedAt: new Date(now - 120000).toISOString() });
   assert.ok(calls.every(([, , auth]) => auth === 'Bearer ha-token'));
   assert.equal(calls.at(-1)[1], 'POST');
 });

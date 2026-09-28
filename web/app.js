@@ -374,19 +374,107 @@ function render() {
     const end = mode === 'running' ? `<span class="zone-end" data-rem="${z.id}"></span>` : `<span class="zone-end">${icon('next')}</span>`;
     return `<button class="zone${live ? ' running' : ''}${mode === 'starting' || mode === 'stopping' ? ' pending' : ''}" data-zone="${z.id}" aria-label="${escape(z.name)}, zone ${z.id}${live ? ', watering' : ''}"><span class="zone-num">${pad(z.id)}</span><span class="zone-text"><span class="zone-name"><span>${escape(z.name)}</span>${z.favorite ? icon('star', 'fav') : ''}${z.issues?.length ? icon('flag') : ''}</span><span class="zone-meta">${meta}</span></span>${end}</button>`;
   }).join(''));
-  const seconds = Number(state.status.rainShutDown) || 0;
-  $('rain-summary').textContent = seconds > 0 ? `On for about ${Math.ceil(seconds / 3600)} more hours.${state.rain?.reason ? ` ${state.rain.reason}.` : ''}` : 'Off. The controller’s schedule runs as normal.';
-  document.querySelectorAll('[data-rain]').forEach(b => b.disabled = !canControl());
-  if (document.activeElement !== $('policy-mode')) $('policy-mode').value = state.policy.mode;
-  $('policy-mode').disabled = controlsBusy();
-  html('policy-details', `<dt>Rain intensity</dt><dd>${state.policy.intensityMmH} mm/h</dd><dt>Recent rain</dt><dd>${state.policy.accumulationMm} mm</dd><dt>Forecast</dt><dd>${state.policy.forecastMm} mm · ${state.policy.forecastProbability}%</dd><dt>Delay length</dt><dd>${state.policy.holdHours} h</dd>`);
-  const d = state.weatherDecision;
-  $('weather-reason').textContent = state.weatherSource?.configured === false ? (state.weatherSource.error ? `Home Assistant weather is misconfigured: ${state.weatherSource.error}.` : 'Home Assistant weather isn’t set up on the server yet.') : d ? `${d.applied ? 'Delay set' : d.wet ? 'Would delay' : 'Watching'} · ${ago(d.at)}: ${d.reason}${d.blocked ? `. ${d.blocked}` : ''}${d.preserved ? `. ${d.preserved}` : ''}` : 'No weather observations from Home Assistant yet.';
+  renderWeather();
   html('activity', state.events.length ? state.events.map(e => `<div class="event"><strong>${escape(e.kind.replace('/api/','').replaceAll('/',' · '))}</strong> · <span class="${e.data.outcome === 'failed' ? 'failure' : ''}">${escape(e.data.outcome)}</span><small>${new Date(e.at).toLocaleString()}${e.data.message ? ` · ${escape(e.data.message)}` : ''}</small></div>`).join('') : '<p class="muted">Nothing yet.</p>');
   renderWalk(); renderSheet();
   if ($('findings-dialog').open) renderFindings();
   if (running.length === 0 && !pendingOp()) clearArmed = clearArmed && $('findings-dialog').open;
   tick();
+}
+/* ---------- weather ---------- */
+// Values arrive in millimeters; show them in whatever the station reports.
+const rainUnit = () => state.weatherReading?.sample?.unit || (navigator.language === 'en-US' ? 'in' : 'mm');
+// Readings show a trace as "<0.01"; thresholds (limit) always round to a plain figure.
+const depth = (mm, trace = true) => { const v = rainUnit() === 'in' ? mm / 25.4 : mm, places = rainUnit() === 'in' ? 2 : 1; return trace && v > 0 && v < 10 ** -places ? `<${(10 ** -places).toFixed(places)}` : v < 10 ? Math.max(v, trace ? 0 : 10 ** -places).toFixed(places) : Math.round(v).toString(); };
+const limit = mm => depth(mm, false);
+const because = (reason, trigger) => !trigger ? reason
+  : trigger.kind === 'intensity' ? `Raining ${depth(trigger.mm)} ${rainUnit()}/h`
+  : trigger.kind === 'accumulation' ? `${depth(trigger.mm)} ${rainUnit()} of recent rain`
+  : `Forecast of ${depth(trigger.mm)} ${rainUnit()} at ${Math.round(trigger.probability)}%`;
+const hoursLeft = s => s >= 3600 ? `${Math.round(s / 3600)} h` : `${Math.max(1, Math.ceil(s / 60))} min`;
+const whenAt = ms => { const days = Math.round((new Date(new Date(ms).toDateString()) - new Date(new Date().toDateString())) / 864e5); return `${days === 0 ? '' : days === 1 ? 'tomorrow ' : `${new Date(ms).toLocaleDateString([], { weekday: 'short' })} `}${at(ms)}`; };
+const MODE_TEXT = {
+  off: 'Weather is ignored and Home Assistant isn’t read.',
+  observe: 'Watches the weather and records what it would do. It never changes the controller.',
+  automatic: 'Sets a rain delay when a threshold is met. It never shortens a delay you set.',
+};
+function renderWeather() {
+  const unit = rainUnit(), policy = state.policy, now = Date.now();
+  // Rain delay, counted down from the controller's last report.
+  const observed = Date.parse(state.observedAt);
+  const reported = Number(state.status.rainShutDown) || 0;
+  const remaining = Math.max(0, reported - (Number.isFinite(observed) ? (now - observed) / 1000 : 0));
+  const on = remaining > 0, rain = state.rain, ours = on && rain && Math.abs(Date.parse(rain.until) - (now + remaining * 1000)) < 180000;
+  $('delay-card').classList.toggle('on', on);
+  $('delay-icon').className = `badge-icon${on ? ' water' : ''}`;
+  $('delay-title').textContent = on ? `${hoursLeft(remaining)} left` : 'Off';
+  const origin = !on ? '' : ours ? (rain.source === 'weather' ? `Set by the weather: ${because(rain.reason, rain.trigger)}` : 'Set from 2core') : 'Set at the controller or in Tucor';
+  const asOf = !state.available && state.observedAt ? ` As of ${at(observed)}.` : '';
+  $('delay-detail').textContent = on ? `Until ${whenAt(now + remaining * 1000)}. ${origin}.${asOf}` : `The controller’s schedule runs as normal.${asOf}`;
+  $('delay-meter').hidden = !(ours && rain.hours);
+  if (ours && rain.hours) $('delay-fill').style.width = `${Math.min(100, remaining / (rain.hours * 36))}%`;
+  document.querySelectorAll('[data-rain]').forEach(b => b.disabled = !canControl() || (b.dataset.rain === '0' && !on));
+
+  // Weather source health.
+  const source = state.weatherSource, reading = state.weatherReading, off = policy.mode === 'off';
+  const age = reading?.at ? now - Date.parse(reading.at) : Infinity;
+  const failing = reading?.error && (!reading.at || Date.parse(reading.errorAt) >= Date.parse(reading.at));
+  let pill, note;
+  if (!source?.configured) {
+    pill = source?.error ? ['Setup problem', 'bad'] : ['Not set up', ''];
+    note = source?.error ? `${source.error}.` : 'Set HA_URL in the server’s .env, then run tools/configure-secrets.py --ha-token to choose your Tempest sensors.';
+  } else if (off) {
+    pill = ['Paused', '']; note = 'Not reading while automatic rain delay is off.';
+  } else if (failing) {
+    pill = [/fresh/.test(reading.error) ? 'No readings' : 'Can’t connect', 'bad'];
+    note = `${reading.error}${reading.at ? `. Last good reading ${ago(reading.at)}` : ''}. Missing readings never count as dry.`;
+  } else if (reading?.at) {
+    pill = age < 11 * 60000 ? [`Live · ${ago(reading.at)}`, 'ok'] : [`Last read ${ago(reading.at)}`, 'warn'];
+    note = 'Checked every 5 minutes.';
+  } else {
+    pill = ['Connecting', 'warn']; note = 'Waiting for the first reading.';
+  }
+  $('station-title').textContent = source?.source === 'Simulator' ? 'Simulated station' : 'Home Assistant';
+  $('station-pill').className = `pill ${pill[1]}`; $('station-status').textContent = pill[0];
+  $('station-note').textContent = note;
+  const sample = source?.configured && reading?.sample, entities = source?.entities || {};
+  const tile = (label, configured, value, threshold, unitLabel, sub, wet = value >= threshold) => {
+    const has = configured && value != null;
+    return `<div class="reading${!has ? ' none' : wet ? ' wet' : ''}"><span class="label">${label}</span><strong>${has ? depth(value) : '—'}<small>${unitLabel}</small></strong><div class="meter"><i data-fill="${has ? Math.min(100, value / threshold * 100) : 0}"></i></div><span class="sub">${!configured ? 'Not selected' : !has ? 'No reading' : wet ? 'Over threshold' : sub}</span></div>`;
+  };
+  const chance = sample?.forecastProbability;
+  html('readings', [
+    tile('Rain now', entities.rate, sample?.intensityMmH, policy.intensityMmH, `${unit}/h`, `Delays at ${limit(policy.intensityMmH)}`),
+    tile('Recent', entities.total, sample?.accumulationMm, policy.accumulationMm, unit, `Delays at ${limit(policy.accumulationMm)}`),
+    // A forecast counts only when both its amount and its probability clear their thresholds.
+    tile('Next 12 h', entities.forecast, sample?.forecastMm, policy.forecastMm, chance == null ? unit : `${unit} · ${Math.round(chance)}%`,
+      `Delays at ${limit(policy.forecastMm)}, ${policy.forecastProbability}%+`, sample?.forecastMm >= policy.forecastMm && chance >= policy.forecastProbability),
+  ].join(''));
+  // The page's CSP forbids inline style attributes; set meter widths through the DOM.
+  $('readings').querySelectorAll('[data-fill]').forEach(el => { el.style.width = `${el.dataset.fill}%`; });
+  $('station-sources').hidden = !source?.configured || source.source === 'Simulator';
+  html('source-list', [['Rain now', entities.rate], ['Recent', entities.total], ['Forecast', entities.forecast]].map(([k, v]) => `<dt>${k}</dt><dd>${escape(v || '—')}</dd>`).join(''));
+
+  // Automation mode and its latest decision.
+  document.querySelectorAll('[data-mode]').forEach(b => { b.setAttribute('aria-checked', String(b.dataset.mode === policy.mode)); b.disabled = controlsBusy(); });
+  $('mode-explain').textContent = MODE_TEXT[policy.mode] + (policy.mode === 'automatic' && !state.controlEnabled ? ' Live control is off on the server, so nothing will be set.' : '');
+  const d = state.weatherDecision;
+  let icon, title, detail;
+  if (off) [icon, title, detail] = ['clock', 'Not watching', 'Choose Log only to see what 2core would do.'];
+  else if (!d) [icon, title, detail] = ['clock', 'No decision yet', source?.configured ? 'The first one comes with the next reading.' : 'Set up a weather source first.'];
+  else {
+    const when = `Checked ${ago(d.at)}`, why = because(d.reason, d.trigger);
+    if (/^Rain delay not set/.test(d.reason)) [icon, title, detail] = ['danger', 'Couldn’t set a delay', `${d.reason.replace(/^Rain delay not set: /, '')}. ${when}.`];
+    else if (!d.wet) [icon, title, detail] = ['leaf', 'Dry, nothing to do', /stale|missing/i.test(d.reason) ? `${d.reason}. ${when}.` : `No threshold met. ${when}.`];
+    else if (d.applied) [icon, title, detail] = ['water', `Set a ${policy.holdHours} h delay`, `${why}. ${when}.`];
+    else if (d.preserved) [icon, title, detail] = ['soft-water', 'Delay already in place', `${d.preserved}. ${when}.`];
+    else if (d.blocked) [icon, title, detail] = ['amber', `Would set a ${policy.holdHours} h delay`, `${why}. Live control is off. ${when}.`];
+    else [icon, title, detail] = ['amber', `Would set a ${policy.holdHours} h delay`, `${why}. Log only, so nothing changed. ${when}.`];
+  }
+  $('decision-icon').className = `badge-icon small ${icon === 'clock' ? '' : icon}`;
+  $('decision-icon').innerHTML = `<svg><use href="#i-${icon === 'leaf' ? 'check' : icon === 'danger' || icon === 'amber' ? 'alert' : icon === 'clock' ? 'clock' : 'rain'}"/></svg>`;
+  $('decision-title').textContent = title; $('decision-detail').textContent = detail;
+  $('policy-rule').textContent = `Delays ${policy.holdHours} h when rain reaches ${limit(policy.intensityMmH)} ${unit}/h, the recent total reaches ${limit(policy.accumulationMm)} ${unit}, or the next 12 hours forecast ${limit(policy.forecastMm)} ${unit} at ${policy.forecastProbability}% or more. Missing readings never count as dry.`;
 }
 function connectionStatus() {
   const c = state.connection || {};
@@ -593,7 +681,7 @@ $('notes-form').addEventListener('submit', async e => {
   await act(`/zones/${editing.id}/preferences`,body,'Saving zone details…');
 });
 document.querySelectorAll('[data-rain]').forEach(b => b.addEventListener('click', () => act('/rain',{ hours:Number(b.dataset.rain) })));
-$('policy-mode').addEventListener('change', () => act('/policy',{ mode:$('policy-mode').value },'Saving weather mode…'));
+$('policy-modes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b && b.getAttribute('aria-checked') !== 'true') act('/policy', { mode:b.dataset.mode }, 'Saving weather mode…'); });
 document.addEventListener('visibilitychange', () => { document.body.classList.toggle('page-hidden',document.hidden); if (!document.hidden) { lastInteraction = Date.now(); prepare(); load(); } });
 for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, interacted, { capture:true, passive:true });
 setInterval(() => { if (!document.hidden && Date.now() - lastInteraction < ACTIVE_MS) prepare(); }, HEARTBEAT_MS);

@@ -38,7 +38,7 @@ export class HomeAssistantWeather {
     Object.assign(this, { url: new URL(url), token, intensityEntity, accumulationEntity, forecastEntity, fetch, clock });
   }
   describe() {
-    return { configured: true, source: 'Home Assistant', entities: [this.intensityEntity, this.accumulationEntity, this.forecastEntity].filter(Boolean) };
+    return { configured: true, source: 'Home Assistant', entities: { rate: this.intensityEntity ?? null, total: this.accumulationEntity ?? null, forecast: this.forecastEntity ?? null } };
   }
   async call(path, body) {
     const http = this.fetch;
@@ -58,11 +58,14 @@ export class HomeAssistantWeather {
   // Returns a sample for Engine.weather, or null when nothing usable was reported.
   async sample() {
     const now = this.clock(), sample = {}, times = [];
+    let unit;
     for (const [id, key, intensity] of [[this.intensityEntity, 'intensityMmH', true], [this.accumulationEntity, 'accumulationMm', false]]) {
       if (!id) continue;
       const state = await this.entity(id);
       const value = rainMeasurement(state, intensity, now);
       if (value !== null) { sample[key] = value; times.push(Date.parse(state.last_reported ?? state.last_updated)); }
+      // Values are normalized to millimeters; remember what the station reports in, for display.
+      unit ??= state?.attributes?.unit_of_measurement?.startsWith('in') ? 'in' : state?.attributes?.unit_of_measurement?.startsWith('mm') ? 'mm' : undefined;
     }
     if (this.forecastEntity) {
       try {
@@ -71,10 +74,11 @@ export class HomeAssistantWeather {
           const response = await this.call('/api/services/weather/get_forecasts?return_response', { entity_id: this.forecastEntity, type: 'hourly' });
           const forecast = forecastRain(response?.service_response?.[this.forecastEntity]?.forecast, weather.attributes?.precipitation_unit, now);
           if (forecast) { Object.assign(sample, forecast); times.push(now); }
+          unit ??= weather.attributes?.precipitation_unit;
         }
       } catch { /* A forecast failure must not discard valid local rain observations. */ }
     }
     if (!times.length) return null;
-    return { ...sample, observedAt: new Date(Math.min(...times)).toISOString() };
+    return { ...sample, ...(unit ? { unit } : {}), observedAt: new Date(Math.min(...times)).toISOString() };
   }
 }

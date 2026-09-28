@@ -49,6 +49,10 @@ export class Engine {
     const runs = this.store.get('runs', []);
     const handles = state.stations.flatMap(s => (s.runningEntries ?? []).map(e => `${s.StId}:${e.handleID}`));
     this.store.set('runs', runs.filter(r => handles.includes(`${r.zone}:${r.handle}`)));
+    // A delay cleared at the controller or in Tucor's app must not keep answering knownHold().
+    const rain = this.store.get('rain'), remaining = Number(state.status?.rainShutDown);
+    if (rain && state.status?.rainShutDown != null && Number.isFinite(remaining) && remaining === 0
+      && Date.parse(rain.until) - Date.parse(state.receivedAt ?? new Date(this.clock()).toISOString()) > 120000) this.store.set('rain', null);
   }
   refresh({ interactive = false, forceFresh = true } = {}) {
     if (this.refreshing) {
@@ -93,7 +97,7 @@ export class Engine {
       controller: state?.controller ?? null, available: Boolean(state && age < 180000 && !this.error),
       observedAt: state?.receivedAt ?? null, error: this.error,
       connection: { ...(this.driver.connection?.() ?? { open: this.mode === 'demo' }), checking: Boolean(this.refreshing) },
-      weatherSource: this.weatherSource ?? null,
+      weatherSource: this.weatherSource ?? null, weatherReading: this.store.get('weatherReading'),
       status: state?.status ?? {}, alarms: state?.alarms ?? [], zones,
       rain: this.store.get('rain'), policy: this.store.get('policy', DEFAULT_POLICY),
       weatherDecision: this.store.get('weatherDecision'), events: this.store.events(),
@@ -201,7 +205,7 @@ export class Engine {
     // start performs all safety checks again after the confirmed stop.
     return this.start(zone, minutes);
   }
-  async rain(hours, source = 'manual', reason = 'Manual rain delay') {
+  async rain(hours, source = 'manual', reason = 'Manual rain delay', trigger = null) {
     this.writable(); number(hours, 0, 999, true);
     return this.withCurrent(async session => {
       if (Number(this.current.status.controllerMode) !== 2) throw new AppError('Rain delay requires Automatic mode');
@@ -214,7 +218,7 @@ export class Engine {
         if (remaining >= hours * 3600 - 3600) return { ok: true, preserved: true, reason: 'Weather delay already covers this period' };
       }
       await session.rain(hours);
-      this.store.set('rain', hours ? { source, reason, until: new Date(this.clock() + hours * 3600000).toISOString() } : null);
+      this.store.set('rain', hours ? { source, reason, ...(trigger ? { trigger } : {}), hours, until: new Date(this.clock() + hours * 3600000).toISOString() } : null);
       return { ok: true };
     }, { user: source !== 'weather' });
   }
@@ -249,7 +253,7 @@ export class Engine {
       const known = this.knownHold(policy.holdHours);
       if (known) decision.preserved = known;
       else {
-        const result = await this.rain(policy.holdHours, 'weather', decision.reason);
+        const result = await this.rain(policy.holdHours, 'weather', decision.reason, decision.trigger);
         decision.applied = !result.preserved;
         decision.preserved = result.reason;
       }
@@ -272,8 +276,11 @@ export class Engine {
       }
     });
   }
-  weatherUnavailable(reason) {
-    this.store.set('weatherDecision', { wet: false, reason, at: new Date(this.clock()).toISOString(), mode: this.store.get('policy', DEFAULT_POLICY).mode, applied: false });
+  // The weather source's health, kept apart from decisions: the last good sample survives a failed read.
+  recordWeatherRead({ sample = null, error = null }) {
+    const at = new Date(this.clock()).toISOString();
+    const previous = this.store.get('weatherReading') ?? {};
+    this.store.set('weatherReading', error ? { ...previous, error, errorAt: at } : { sample, at, error: null });
   }
   preferences(zone, body) {
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
