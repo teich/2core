@@ -1,0 +1,12 @@
+{
+  "domain": "tucor_2core",
+  "name": "2core Irrigation",
+  "codeowners": ["@teich"],
+  "config_flow": true,
+  "documentation": "https://github.com/teich/2core#home-assistant-installation-with-hacs",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/teich/2core/issues",
+  "requirements": [],
+  "version": "0.2.0"
+}

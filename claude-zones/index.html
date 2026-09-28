@@ -1,0 +1,1443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#EEF2EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#070B0A" media="(prefers-color-scheme: dark)">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<!--/shell-->
+<title>Garden Zones</title>
+<style>
+:root{
+  --ground:#EEF2EF; --blob-a:rgba(80,170,230,.22); --blob-b:rgba(120,190,140,.22);
+  --surface:#FFFFFF; --glass:rgba(255,255,255,.66); --glass-strong:rgba(255,255,255,.84);
+  --edge:rgba(255,255,255,.9); --shadow:0 10px 30px rgba(20,40,34,.10), 0 1px 2px rgba(20,40,34,.06);
+  --line:rgba(15,31,26,.09); --chip:rgba(15,31,26,.06); --chip-2:rgba(15,31,26,.11);
+  --ink:#0F1D19; --ink-2:#52635D; --ink-3:#8B9993;
+  --water:#0B84CF; --water-ink:#FFFFFF; --water-soft:rgba(11,132,207,.13); --water-fill:rgba(11,132,207,.20); --water-fill-2:rgba(11,132,207,.12);
+  --leaf:#2E9A58; --leaf-soft:rgba(46,154,88,.14);
+  --amber:#C27A00; --amber-soft:rgba(217,138,0,.15);
+  --danger:#DC3B40; --danger-soft:rgba(220,59,64,.12);
+  --scrim:rgba(10,20,17,.28);
+  --f-ui:-apple-system,"SF Pro Text",system-ui,"Helvetica Neue",sans-serif;
+  --f-num:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif;
+  --r-lg:30px; --r-md:22px; --r-sm:14px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#070B0A; --blob-a:rgba(40,130,200,.20); --blob-b:rgba(60,140,90,.16);
+    --surface:#121917; --glass:rgba(30,40,37,.58); --glass-strong:rgba(34,44,41,.86);
+    --edge:rgba(255,255,255,.09); --shadow:0 10px 30px rgba(0,0,0,.45), 0 1px 1px rgba(0,0,0,.3);
+    --line:rgba(255,255,255,.08); --chip:rgba(255,255,255,.07); --chip-2:rgba(255,255,255,.13);
+    --ink:#EAF2EE; --ink-2:#9DAEA7; --ink-3:#64736D;
+    --water:#3DB2F5; --water-ink:#04131C; --water-soft:rgba(61,178,245,.16); --water-fill:rgba(61,178,245,.24); --water-fill-2:rgba(61,178,245,.13);
+    --leaf:#4CC47A; --leaf-soft:rgba(76,196,122,.15);
+    --amber:#F2B233; --amber-soft:rgba(242,178,51,.16);
+    --danger:#FF6369; --danger-soft:rgba(255,99,105,.15);
+    --scrim:rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#070B0A; --blob-a:rgba(40,130,200,.20); --blob-b:rgba(60,140,90,.16);
+  --surface:#121917; --glass:rgba(30,40,37,.58); --glass-strong:rgba(34,44,41,.86);
+  --edge:rgba(255,255,255,.09); --shadow:0 10px 30px rgba(0,0,0,.45), 0 1px 1px rgba(0,0,0,.3);
+  --line:rgba(255,255,255,.08); --chip:rgba(255,255,255,.07); --chip-2:rgba(255,255,255,.13);
+  --ink:#EAF2EE; --ink-2:#9DAEA7; --ink-3:#64736D;
+  --water:#3DB2F5; --water-ink:#04131C; --water-soft:rgba(61,178,245,.16); --water-fill:rgba(61,178,245,.24); --water-fill-2:rgba(61,178,245,.13);
+  --leaf:#4CC47A; --leaf-soft:rgba(76,196,122,.15);
+  --amber:#F2B233; --amber-soft:rgba(242,178,51,.16);
+  --danger:#FF6369; --danger-soft:rgba(255,99,105,.15);
+  --scrim:rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:var(--ground)}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:17px;line-height:1.3;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;min-height:100dvh}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;touch-action:manipulation}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--water);outline-offset:2px}
+svg{display:block}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+.bg{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(70% 45% at 0% 0%,var(--blob-a),transparent 70%),
+    radial-gradient(60% 45% at 100% 100%,var(--blob-b),transparent 70%),
+    var(--ground)}
+
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+  border:.5px solid var(--edge);box-shadow:var(--shadow)}
+
+main{padding-inline:16px;padding-bottom:calc(150px + env(safe-area-inset-bottom,0px));max-width:560px;margin-inline:auto}
+.view{display:flex;flex-direction:column;gap:14px;padding-top:10px}
+
+/* header */
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding-top:6px}
+.eyebrow{margin:0 0 2px;font-size:13px;font-weight:600;color:var(--ink-2);display:flex;align-items:center;gap:6px;letter-spacing:.01em}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--leaf);box-shadow:0 0 0 3px var(--leaf-soft)}
+h1{margin:0;font-size:34px;line-height:1.05;font-weight:700;letter-spacing:-.025em;text-wrap:balance}
+.pill{height:38px;padding:0 14px;border-radius:19px;display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:600}
+.pill b{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--chip-2);display:inline-grid;place-items:center;font:700 13px var(--f-num)}
+.pill b.hot{background:var(--amber);color:#1b1200}
+
+/* ---------- Zones view ---------- */
+.search{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;flex-direction:column;gap:10px;margin-inline:-16px;padding:10px 16px 10px}
+.search::before{content:"";position:absolute;inset:0 0 -8px;z-index:-1;background:linear-gradient(var(--ground) 80%,transparent);pointer-events:none}
+.field{display:flex;align-items:center;gap:8px;height:46px;border-radius:23px;padding:0 14px;color:var(--ink-2)}
+.field input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--ink);font:400 17px var(--f-ui);height:100%}
+.field input::placeholder{color:var(--ink-3)}
+.field .clear{width:28px;height:28px;border-radius:14px;display:grid;place-items:center;color:var(--ink-3)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;height:34px;padding:0 14px;border-radius:17px;background:var(--chip);font-size:15px;font-weight:600;color:var(--ink-2);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--ground)}
+.chip .cdot{width:7px;height:7px;border-radius:50%;background:var(--water)}
+
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:10px 4px -4px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.sec-h span:last-child{letter-spacing:0;text-transform:none;font-weight:500;color:var(--ink-3)}
+
+.running{display:flex;flex-direction:column;gap:10px}
+.rcard{border-radius:var(--r-md);padding:14px;display:grid;grid-template-columns:48px 1fr auto;gap:4px 12px;align-items:center;position:relative;overflow:hidden}
+.rcard .rname{font-weight:600}
+.rcard .rmeta{font-size:14px;color:var(--ink-2)}
+.rcard .big{font:600 30px/1 var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--water);text-align:right}
+.rcard .bar{grid-column:1/-1;margin-top:10px}
+.rcard .acts{grid-column:1/-1;display:flex;gap:8px;margin-top:10px}
+.rcard .acts button{flex:1;height:42px;border-radius:21px;background:var(--chip);font-weight:600;font-size:15px}
+.rcard .acts .stop{background:var(--danger-soft);color:var(--danger)}
+.rcard .open{position:absolute;inset:0;z-index:0}
+.rcard > *:not(.open){position:relative;z-index:1;pointer-events:none}
+.rcard .acts{pointer-events:auto}
+.bar{height:6px;border-radius:3px;background:var(--chip-2);overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:inherit;background:var(--water);transition:width .9s linear}
+
+.group{border-radius:var(--r-md);overflow:hidden}
+.row{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;width:100%;min-height:66px;padding:10px 14px;text-align:left;position:relative}
+.row:not(:last-child)::after{content:"";position:absolute;left:70px;right:0;bottom:0;border-bottom:.5px solid var(--line)}
+.row:active{background:var(--chip)}
+.rtext{display:flex;flex-direction:column;gap:2px;min-width:0}
+.rname{font-weight:600;font-size:17px;display:flex;align-items:center;gap:6px;min-width:0}
+.rname .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rmeta{font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rmeta .live{color:var(--water);font-weight:600}
+.tag{flex:none;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:var(--water-soft);color:var(--water)}
+.flagged{flex:none;width:18px;height:18px;border-radius:9px;display:grid;place-items:center;background:var(--amber-soft);color:var(--amber)}
+.chev{color:var(--ink-3)}
+
+.badge{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--chip);font:650 18px var(--f-num);font-variant-numeric:tabular-nums;position:relative;flex:none}
+.badge.on{background:var(--water);color:var(--water-ink)}
+.badge.on::after{content:"";position:absolute;inset:0;border-radius:inherit;border:2px solid var(--water);animation:ripple 2.2s ease-out infinite}
+.badge.lg{width:56px;height:56px;border-radius:18px;font-size:24px}
+@keyframes ripple{from{transform:scale(1);opacity:.7}to{transform:scale(1.45);opacity:0}}
+.mini{width:36px;height:36px;transform:rotate(-90deg)}
+.mini circle{fill:none;stroke-width:4}
+.mini .trk{stroke:var(--chip-2)}
+.mini .val{stroke:var(--water);stroke-linecap:round;stroke-dasharray:87.96;transition:stroke-dashoffset .9s linear}
+.empty{padding:40px 20px;text-align:center;color:var(--ink-2)}
+
+/* ---------- Walk view ---------- */
+.rail-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px}
+.rail-head .prog{font-size:15px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.toggle{flex:none;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--ink-2);height:36px}
+.sw{width:44px;height:26px;border-radius:13px;background:var(--chip-2);position:relative;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+.toggle[aria-checked="true"] .sw{background:var(--leaf)}
+.toggle[aria-checked="true"] .sw::after{transform:translateX(18px)}
+
+.rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding:4px 16px 6px;scroll-padding-inline:16px}
+.rail::-webkit-scrollbar{display:none}
+.rz{flex:none;width:46px;height:46px;border-radius:15px;background:var(--chip);font:650 17px var(--f-num);font-variant-numeric:tabular-nums;color:var(--ink-2);position:relative;transition:transform .2s,background .2s}
+.rz.done{background:var(--leaf-soft);color:var(--leaf)}
+.rz.flag{background:var(--amber-soft);color:var(--amber)}
+.rz.flag::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.rz.soak{box-shadow:inset 0 0 0 2px var(--water)}
+.rz.cur{background:var(--water);color:var(--water-ink);transform:scale(1.06)}
+.rz:active{transform:scale(.94)}
+
+.stage{display:flex;flex-direction:column;align-items:center;gap:6px;touch-action:pan-y}
+.ring{position:relative;width:min(66vw,33dvh,290px);aspect-ratio:1;max-width:100%;margin-top:4px}
+.ring svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ring .trk{fill:none;stroke:var(--chip-2);stroke-width:5}
+.ring .arc{fill:none;stroke:var(--water);stroke-width:5;stroke-linecap:round;stroke-dasharray:603.19;transform:rotate(-90deg);transform-origin:100px 100px;transition:stroke-dashoffset .3s linear,stroke .3s}
+.ring .disc{fill:var(--glass-strong)}
+.water{transition:transform .6s cubic-bezier(.3,.8,.4,1)}
+.wave{fill:var(--water-fill)}
+.wave.b{fill:var(--water-fill-2)}
+.w1{animation:drift 3.6s linear infinite}
+.w2{animation:drift2 5.4s linear infinite}
+@keyframes drift{from{transform:translateX(0)}to{transform:translateX(-200px)}}
+@keyframes drift2{from{transform:translateX(-200px)}to{transform:translateX(0)}}
+.ring.idle .wave{fill:var(--chip)} .ring.idle .wave.b{fill:var(--chip)}
+.ring.idle .w1,.ring.idle .w2{animation-duration:14s}
+.ring.done .arc{stroke:var(--leaf)}
+.ring.warn .arc{stroke:var(--amber)}
+.ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center}
+.zlabel{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.znum{font:700 clamp(64px,24vw,104px)/.92 var(--f-num);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.ztime{font:600 22px var(--f-num);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.ztime.hot{color:var(--leaf)}
+.wname{margin:6px 0 0;font-size:26px;line-height:1.15;font-weight:700;letter-spacing:-.02em;text-align:center;text-wrap:balance}
+.wmeta{margin:0;font-size:15px;color:var(--ink-2);text-align:center;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center}
+
+.flow{width:100%;border-radius:var(--r-md);padding:12px 14px;display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.flow-top{display:flex;justify-content:space-between;align-items:baseline}
+.flow-k{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.flow-v{font-size:15px;color:var(--ink-2)}
+.flow-v b{font:700 22px var(--f-num);font-variant-numeric:tabular-nums;color:var(--ink);margin-right:2px}
+.flow-note{margin:0;font-size:14px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.flow.hi .flow-note{color:var(--amber);font-weight:600}
+.flow.lo .flow-note{color:var(--amber);font-weight:600}
+.flow.idle{opacity:.72}
+
+.controls{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.transport{display:grid;grid-template-columns:60px 1fr 60px;gap:10px;align-items:center}
+.circ{width:60px;height:60px;border-radius:30px;display:grid;place-items:center}
+.circ.stop{background:var(--danger-soft);color:var(--danger);-webkit-backdrop-filter:none;backdrop-filter:none;border:0;box-shadow:none}
+.cta{height:60px;border-radius:30px;background:var(--water);color:var(--water-ink);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-shadow:0 8px 22px color-mix(in oklab,var(--water) 35%,transparent);transition:transform .15s}
+.cta:active,.circ:active,.soft:active,.chip:active,.pill:active{transform:scale(.96)}
+.cta.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 10px color-mix(in oklab,var(--water) 18%,transparent)}}
+.cta.danger{background:var(--danger);color:#fff;box-shadow:0 8px 22px color-mix(in oklab,var(--danger) 30%,transparent)}
+.cta small{font-weight:600;opacity:.75;font-size:15px}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.soft{height:50px;border-radius:25px;background:var(--chip);font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.soft.flag{color:var(--amber);background:var(--amber-soft)}
+.seg{display:grid;grid-template-columns:auto repeat(4,1fr);gap:6px;align-items:center;border-radius:22px;padding:5px 5px 5px 14px}
+.seg span{font-size:15px;font-weight:600;color:var(--ink-2);margin-right:4px}
+.seg button{height:38px;border-radius:19px;font:600 16px var(--f-num)}
+.seg button[aria-checked="true"]{background:var(--ink);color:var(--ground)}
+
+/* ---------- dock ---------- */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.dock > *{pointer-events:auto}
+.acc{width:100%;max-width:528px;height:56px;border-radius:28px;display:flex;align-items:center;gap:10px;padding:0 6px 0 8px;text-align:left}
+.acc .badge{width:40px;height:40px;border-radius:20px;font-size:16px}
+.acc .t{flex:1;min-width:0;display:flex;flex-direction:column}
+.acc .t b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc .t span{font-size:13px;color:var(--ink-2)}
+.acc .x{height:44px;padding:0 14px;border-radius:22px;background:var(--danger-soft);color:var(--danger);font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px}
+.tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;width:min(100%,300px);height:62px;border-radius:31px;padding:4px}
+.tabs .lens{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);border-radius:27px;background:var(--chip-2);transition:transform .38s cubic-bezier(.3,1.3,.5,1)}
+.tabs[data-on="zones"] .lens{transform:translateX(100%)}
+.tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--ink-2);border-radius:27px}
+.tab[aria-selected="true"]{color:var(--water)}
+
+/* ---------- sheet ---------- */
+.scrim{position:fixed;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .3s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:8px;right:8px;bottom:8px;z-index:31;max-width:560px;margin-inline:auto;max-height:calc(100dvh - env(safe-area-inset-top,0px) - 24px);overflow:auto;overscroll-behavior:contain;
+  border-radius:36px;padding:8px 20px calc(env(safe-area-inset-bottom,0px) + 18px);background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);border:.5px solid var(--edge);box-shadow:0 -10px 40px rgba(0,0,0,.18);
+  transform:translateY(calc(100% + 20px));transition:transform .42s cubic-bezier(.2,.9,.25,1);visibility:hidden}
+.sheet.open{transform:none;visibility:visible}
+.sheet.drag{transition:none}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--chip-2);margin:2px auto 12px}
+.sh-head{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;margin-bottom:10px}
+.sh-head h2{margin:0;font-size:22px;line-height:1.15;font-weight:700;letter-spacing:-.015em;text-wrap:balance}
+.sh-head p{margin:2px 0 0;font-size:14px;color:var(--ink-2)}
+.xbtn{width:36px;height:36px;border-radius:18px;background:var(--chip);display:grid;place-items:center;color:var(--ink-2);align-self:start}
+.dur{display:flex;align-items:baseline;justify-content:center;gap:6px;margin-top:12px}
+.dur-n{font:700 76px/1 var(--f-num);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.dur-u{font:600 22px var(--f-num);color:var(--ink-2)}
+.ends{margin:4px 0 0;text-align:center;font-size:15px;color:var(--ink-2)}
+.ends b{color:var(--ink);font-weight:600}
+.ruler{position:relative;margin:14px -20px 4px;height:64px}
+.ruler::after{content:"";position:absolute;left:50%;top:0;height:40px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--water);pointer-events:none}
+.ticks{display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-inline:calc(50% - 5px);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
+.ticks::-webkit-scrollbar{display:none}
+.tk{flex:none;width:10px;scroll-snap-align:center;position:relative}
+.tk::before{content:"";position:absolute;left:4.5px;top:12px;width:1px;height:14px;background:var(--ink-3)}
+.tk.m5::before{top:8px;height:22px;width:1.5px;background:var(--ink-2)}
+.tk.m15::before{top:4px;height:30px;width:2px;left:4px;background:var(--ink)}
+.tk span{position:absolute;top:40px;left:50%;transform:translateX(-50%);font:600 12px var(--f-num);color:var(--ink-2)}
+.presets{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:6px -20px 16px;padding-inline:20px}
+.presets::-webkit-scrollbar{display:none}
+.presets .chip{flex:1 0 auto;justify-content:center;min-width:44px;padding:0 10px;height:40px;font-family:var(--f-num);font-size:16px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.gal{font-variant-numeric:tabular-nums}
+.bigtime{font:700 64px/1 var(--f-num);letter-spacing:-.03em;text-align:center;margin-top:14px;color:var(--water);font-variant-numeric:tabular-nums}
+.sheet .bar{margin:14px 0 18px;height:8px;border-radius:4px}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.issues{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 6px}
+.issue{min-height:64px;border-radius:18px;background:var(--chip);display:flex;align-items:center;gap:10px;padding:10px 14px;text-align:left;font-weight:600;font-size:16px;line-height:1.2}
+.issue svg{flex:none;color:var(--amber)}
+.issue.sug{background:var(--amber-soft);box-shadow:inset 0 0 0 1.5px var(--amber)}
+.flist{display:flex;flex-direction:column;margin:4px 0 14px}
+.fi{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:.5px solid var(--line)}
+.fi:last-child{border-bottom:0}
+.fi .badge{background:var(--amber-soft);color:var(--amber)}
+.fi b{display:block;font-size:16px}
+.fi span{font-size:14px;color:var(--ink-2)}
+.fi .rm{width:36px;height:36px;border-radius:18px;display:grid;place-items:center;color:var(--ink-3)}
+.hint{font-size:14px;color:var(--ink-2);margin:0 0 12px;text-align:center}
+
+/* toast */
+.toast{position:fixed;left:50%;z-index:40;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  display:flex;align-items:center;gap:12px;padding:8px 8px 8px 18px;border-radius:24px;min-height:48px;max-width:calc(100% - 32px);width:max-content;font-size:15px;font-weight:600;
+  transition:opacity .25s,transform .35s cubic-bezier(.2,1.2,.4,1)}
+.toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{height:34px;padding:0 14px;border-radius:17px;background:var(--water);color:var(--water-ink);font-weight:700;font-size:14px}
+.toast:not(.act){padding-right:18px}
+
+.hx{position:fixed;left:-200px;top:0;opacity:0;pointer-events:none}
+
+/* ---------- GPU layers ---------- */
+.pond{position:fixed;left:0;top:0;z-index:-1;width:100vw;pointer-events:none}
+.ring canvas.vessel{position:absolute;inset:0;width:100%;height:100%}
+.ring.gpu .disc,.ring.gpu .water-g{display:none}
+.ring.gpu .center{opacity:0}
+.spark{display:block;width:100%;height:44px}
+.flow-legend{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);margin-top:-2px}
+.flow-legend i{display:inline-block;width:14px;border-top:1.5px dashed var(--ink-3);vertical-align:middle;margin-right:5px}
+.tank{position:relative;border-radius:26px;overflow:hidden;margin-top:14px;padding:26px 0 22px;background:var(--chip);isolation:isolate}
+.tank canvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
+.tank .dur,.tank .bigtime{margin-top:0}
+.tank .ends{margin-top:6px}
+.tank .gal{font-weight:600;color:var(--ink)}
+
+/* water flows through progress bars at the zone's own rate */
+.bar i{background:linear-gradient(90deg,var(--water) 0 35%,color-mix(in oklab,var(--water),#fff 38%) 50%,var(--water) 65% 100%) 0 0/64px 100% repeat-x;animation:flowing var(--spd,1.4s) linear infinite}
+@keyframes flowing{to{background-position:64px 0}}
+
+/* ---------- view transitions ---------- */
+main{view-transition-name:main}
+.tabs{view-transition-name:tabs}
+.sheet{view-transition-name:sheet}
+.sheet.instant{transition:none}
+::view-transition-group(tabs){animation:none}
+::view-transition-old(tabs){display:none}
+::view-transition-new(tabs){animation:none}
+::view-transition-group(sheet),::view-transition-group(zbadge){animation-duration:.5s;animation-timing-function:cubic-bezier(.2,.9,.25,1)}
+::view-transition-new(sheet):only-child{animation:vt-sheet-in .5s cubic-bezier(.2,.9,.25,1) both}
+::view-transition-old(sheet):only-child{animation:vt-sheet-out .32s cubic-bezier(.4,0,1,1) both}
+@keyframes vt-sheet-in{from{transform:translateY(105%)}}
+@keyframes vt-sheet-out{to{transform:translateY(105%)}}
+:root[data-vt="fwd"]::view-transition-old(main){animation:vt-out-l .3s cubic-bezier(.4,0,.2,1) both}
+:root[data-vt="fwd"]::view-transition-new(main){animation:vt-in-r .45s cubic-bezier(.2,.9,.25,1) both}
+:root[data-vt="back"]::view-transition-old(main){animation:vt-out-r .3s cubic-bezier(.4,0,.2,1) both}
+:root[data-vt="back"]::view-transition-new(main){animation:vt-in-l .45s cubic-bezier(.2,.9,.25,1) both}
+@keyframes vt-out-l{to{transform:translateX(-14%);opacity:0;filter:blur(8px)}}
+@keyframes vt-in-r{from{transform:translateX(14%);opacity:0;filter:blur(8px)}}
+@keyframes vt-out-r{to{transform:translateX(14%);opacity:0;filter:blur(8px)}}
+@keyframes vt-in-l{from{transform:translateX(-14%);opacity:0;filter:blur(8px)}}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+}
+</style>
+
+<div class="bg" aria-hidden="true"></div>
+<canvas class="pond" id="pond" aria-hidden="true"></canvas>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-drop" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5c-.3 0-.6.2-.8.4C9.4 5.2 5 10.7 5 14.6 5 18.7 8.1 21.5 12 21.5s7-2.8 7-6.9c0-3.9-4.4-9.4-6.2-11.7-.2-.2-.5-.4-.8-.4Z"/></symbol>
+  <symbol id="i-feet" viewBox="0 0 24 24"><g fill="currentColor"><path d="M7.6 3c2 0 3.1 2.3 3 5-.1 2.2-.8 3.8-1 5.3-.1.8-.7 1.3-1.5 1.3H6.6c-.8 0-1.4-.6-1.5-1.3C4.8 11.6 4.3 9.8 4.4 8c.2-2.8 1.3-5 3.2-5Z"/><rect x="5.2" y="15.8" width="4.6" height="3.8" rx="1.9"/><path d="M16.4 6c1.9 0 3 2.2 3.2 5 .1 1.8-.4 3.6-.7 5.3-.1.7-.7 1.3-1.5 1.3h-1.5c-.8 0-1.4-.5-1.5-1.3-.2-1.5-.9-3.1-1-5.3-.1-2.7 1-5 3-5Z"/><rect x="14.2" y="18.8" width="4.6" height="3.4" rx="1.7"/></g></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path fill="currentColor" d="M5 2.8c.6 0 1 .4 1 1v.5c1.4-.7 3-.9 4.8-.3 1.6.5 3 1 5.2.2.7-.2 1.4.3 1.4 1v8.2c0 .4-.3.8-.7 1-2.7 1-4.6.4-6.3-.1-1.5-.5-2.9-.6-4.4.2v6.7c0 .6-.4 1-1 1s-1-.4-1-1V3.8c0-.6.4-1 1-1Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m15.5 15.5 4.5 4.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M16 5.5A2.5 2.5 0 0 0 13.5 3H6.5A3.5 3.5 0 0 0 3 6.5v7A2.5 2.5 0 0 0 5.5 16"/></symbol>
+</svg>
+
+<main>
+  <!-- WALK -->
+  <section class="view" id="v-walk" hidden>
+    <header class="top">
+      <div>
+        <p class="eyebrow" id="wEyebrow">Leak check</p>
+        <h1>Walk</h1>
+      </div>
+      <button class="pill glass" id="findBtn">Findings <b id="findN">0</b></button>
+    </header>
+
+    <div class="rail-head">
+      <span class="prog" id="wProg">Pick a starting zone</span>
+      <button class="toggle" id="autoBtn" role="switch" aria-checked="true">Auto-advance <i class="sw"></i></button>
+    </div>
+    <div class="rail" id="rail" aria-label="Zones"></div>
+
+    <div class="stage" id="stage">
+      <div class="ring idle" id="ring">
+        <canvas class="vessel" id="vessel" aria-hidden="true"></canvas>
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <defs><clipPath id="cp"><circle cx="100" cy="100" r="88"/></clipPath></defs>
+          <circle class="disc" cx="100" cy="100" r="88"/>
+          <g clip-path="url(#cp)" class="water-g">
+            <g class="water" id="water" style="transform:translateY(12px)">
+              <g class="w2"><path class="wave b" d="M0 4 Q50 -6 100 4 T200 4 T300 4 T400 4 V240 H0Z"/></g>
+              <g class="w1"><path class="wave" d="M0 0 Q50 -8 100 0 T200 0 T300 0 T400 0 V240 H0Z"/></g>
+            </g>
+          </g>
+          <circle class="trk" cx="100" cy="100" r="96"/>
+          <circle class="arc" id="arc" cx="100" cy="100" r="96" style="stroke-dashoffset:0"/>
+        </svg>
+        <div class="center">
+          <span class="zlabel">Zone</span>
+          <span class="znum" id="wNum">1</span>
+          <span class="ztime" id="wTime">1:00</span>
+        </div>
+      </div>
+      <h2 class="wname" id="wName"></h2>
+      <p class="wmeta" id="wMeta"></p>
+      <div class="flow glass idle" id="flow">
+        <div class="flow-top"><span class="flow-k">Line flow</span><span class="flow-v"><b id="fV">0.0</b>gpm</span></div>
+        <canvas class="spark" id="spark" aria-hidden="true"></canvas>
+        <div class="flow-legend"><span>Last 60 s</span><span><i></i>Expected</span></div>
+        <p class="flow-note" id="fNote">Expected about 9.5 gpm</p>
+      </div>
+    </div>
+
+    <div class="controls" id="wCtl"></div>
+  </section>
+
+  <!-- ZONES -->
+  <section class="view" id="v-zones" hidden>
+    <header class="top">
+      <div>
+        <p class="eyebrow"><i class="dot"></i><span id="zEyebrow">Controller online</span></p>
+        <h1>Zones</h1>
+      </div>
+    </header>
+    <div class="search">
+      <label class="field glass">
+        <svg width="20" height="20"><use href="#i-search"/></svg>
+        <input id="q" type="search" inputmode="search" autocomplete="off" placeholder="Zone name or number" aria-label="Search zones">
+        <button class="clear" id="qClear" hidden aria-label="Clear search"><svg width="16" height="16"><use href="#i-x"/></svg></button>
+      </label>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div id="zList" class="stack"></div>
+  </section>
+</main>
+
+<div class="dock">
+  <button class="acc glass" id="acc" hidden></button>
+  <nav class="tabs glass" id="tabs" role="tablist" data-on="zones">
+    <i class="lens" aria-hidden="true"></i>
+    <button class="tab" role="tab" data-tab="walk" aria-selected="false"><svg width="26" height="26"><use href="#i-feet"/></svg>Walk</button>
+    <button class="tab" role="tab" data-tab="zones" aria-selected="true"><svg width="26" height="26"><use href="#i-drop"/></svg>Zones</button>
+  </nav>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Zone">
+  <div class="grab" id="grab"></div>
+  <div id="sheetBody"></div>
+</section>
+<div class="toast glass" id="toast" role="status" aria-live="polite"><span id="toastMsg"></span><button id="toastBtn" hidden></button></div>
+<label class="hx" aria-hidden="true"><input type="checkbox" switch tabindex="-1"></label>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ---------------- Data ---------------- */
+const TYPE = { rotor: 'Rotor', spray: 'Spray', drip: 'Drip', bubbler: 'Bubbler', mist: 'Mist' };
+const AREAS = ['Front', 'Entry & deck', 'Patio', 'Gardens', 'Orchard', 'Rear yard', 'Side yard', 'Hillside'];
+const ZONES = [
+  ['Primary bedroom deck pots', 'Entry & deck', 'drip', 1.2],
+  ['Rear lawn', 'Rear yard', 'rotor', 9.5],
+  ['Rear lawn drip', 'Rear yard', 'drip', 2.1],
+  ['Timber steps', 'Gardens', 'drip', 1.6],
+  ['Patio upper', 'Patio', 'spray', 6.2],
+  ['Patio lower', 'Patio', 'spray', 5.8],
+  ['Citrus and entry pots', 'Entry & deck', 'bubbler', 3.4],
+  ['Rose arbor', 'Gardens', 'drip', 2.4],
+  ['Front lawn pop-ups', 'Front', 'spray', 7.8],
+  ['Front lawn terrace', 'Front', 'rotor', 8.6],
+  ['Orchard', 'Orchard', 'bubbler', 4.8],
+  ['Vegetable garden', 'Orchard', 'drip', 2.8],
+  ['Driveway border', 'Front', 'drip', 1.9],
+  ['Mailbox bed', 'Front', 'spray', 4.2],
+  ['East hedge', 'Side yard', 'drip', 2.2],
+  ['West hedge', 'Side yard', 'drip', 2.0],
+  ['Upper hillside natives', 'Hillside', 'drip', 2.6],
+  ['Lower hillside natives', 'Hillside', 'drip', 2.4],
+  ['Pool deck planters', 'Patio', 'drip', 1.5],
+  ['Lavender walk', 'Gardens', 'drip', 1.8],
+  ['Olive trees', 'Orchard', 'bubbler', 4.0],
+  ['Berry beds', 'Orchard', 'drip', 2.2],
+  ['Herb garden', 'Gardens', 'spray', 2.9],
+  ['Side yard lawn', 'Side yard', 'spray', 6.4],
+  ['Fire pit meadow', 'Rear yard', 'rotor', 10.2],
+  ['Guest cottage beds', 'Rear yard', 'drip', 1.7],
+  ['Oak understory', 'Hillside', 'drip', 1.3],
+  ['Fern grotto', 'Gardens', 'mist', 1.1],
+  ['North meadow', 'Rear yard', 'rotor', 9.8],
+  ['South meadow', 'Rear yard', 'rotor', 9.1],
+  ['Retaining wall succulents', 'Hillside', 'drip', 0.9],
+  ['Kitchen garden A', 'Orchard', 'drip', 2.3],
+  ['Kitchen garden B', 'Orchard', 'drip', 2.3],
+  ['Espalier fence', 'Side yard', 'drip', 1.2],
+  ['Cut-flower beds', 'Gardens', 'drip', 2.0],
+  ['Stone path moss', 'Gardens', 'mist', 0.8],
+  ['Entry courtyard', 'Entry & deck', 'spray', 4.6],
+  ['Lower terrace', 'Patio', 'spray', 5.1],
+].map(([name, area, type, gpm], i) => ({ id: i + 1, name, area, type, gpm, isNew: i >= 28 }));
+const Z = id => ZONES[id - 1];
+// Demo behaviour: zone 14 has a broken head (high flow), zone 22 a clogged filter (low flow).
+const FLOW_FACTOR = { 14: 1.62, 22: 0.42 };
+const ISSUES = ['Leak', 'Broken head', 'Misaligned head', 'Clogged / weak', 'Overspray', 'Dry spot', "Valve won't close", 'Other'];
+const PRESETS = [10, 15, 30, 45, 60, 90];
+const MAX_MIN = 120;
+
+/* ---------------- State ---------------- */
+const KEY = 'garden-zones-v1';
+const now = () => Date.now();
+function seed() {
+  const t = now(), last = {};
+  ZONES.forEach(z => { last[z.id] = t - (((z.id * 37) % 70) + 2) * 3600e3; });
+  return {
+    runs: {
+      11: { start: t - 38 * 60e3, end: t + 52 * 60e3, src: 'soak' },
+      8: { start: t - 12 * 60e3, end: t + 18 * 60e3, src: 'soak' },
+    },
+    last, findings: [], durs: { 11: 90, 8: 30 }, tab: 'zones',
+    walk: { per: 1, auto: true, active: false, complete: false, finished: false, zone: 1, endAt: 0, done: [] },
+  };
+}
+let S;
+try { S = JSON.parse(localStorage.getItem(KEY)); } catch { S = null; }
+if (!S || !S.walk) S = seed();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+const ui = { filter: 'All', q: '', sheet: null, sheetMode: '' };
+
+/* ---------------- Helpers ---------------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const icon = (id, s = 20) => `<svg width="${s}" height="${s}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+function clock(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+const at = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+function ago(ms) {
+  const h = (now() - ms) / 3600e3;
+  if (h < 1) return 'Watered just now';
+  if (h < 20) return `Watered ${Math.round(h)} h ago`;
+  if (h < 40) return 'Watered yesterday';
+  return `Watered ${Math.round(h / 24)} d ago`;
+}
+const hxEl = $('.hx');
+const haptic = () => { try { hxEl.click(); } catch {} };
+const findingsFor = id => S.findings.filter(f => f.zone === id);
+const spd = z => Math.max(0.6, Math.min(3.2, 3.4 - z.gpm * 0.28)).toFixed(2);
+const RM = matchMedia('(prefers-reduced-motion: reduce)');
+const center = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+/* flow history for the sparkline: one sample per tick, last 70 s */
+const samples = [];
+
+/* wake lock keeps the screen on during a walk */
+let wake = null;
+async function wakeOn() { try { if (!wake && 'wakeLock' in navigator) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch {} }
+function wakeOff() { try { wake && wake.release(); } catch {} wake = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.walk.active) wakeOn(); });
+
+/* ---------------- Controller actions (demo) ---------------- */
+function start(id, min, src = 'soak') { const t = now(); S.runs[id] = { start: t, end: t + min * 60e3, src }; save(); }
+function stop(id) { if (!S.runs[id]) return; delete S.runs[id]; S.last[id] = now(); save(); }
+function extend(id, min) { const r = S.runs[id]; if (r) { r.end += min * 60e3; save(); } }
+const runIds = () => Object.keys(S.runs).map(Number).sort((a, b) => S.runs[a].end - S.runs[b].end);
+
+function flow(t = now()) {
+  let actual = 0, expected = 0, filling = false;
+  for (const id of Object.keys(S.runs).map(Number)) {
+    const r = S.runs[id], z = Z(id), ramp = Math.min(1, (t - r.start) / 6000);
+    if (ramp < 1) filling = true;
+    actual += z.gpm * (FLOW_FACTOR[id] || 1) * ramp * (1 + 0.035 * Math.sin(t / 900 + id * 1.7));
+    expected += z.gpm;
+  }
+  return { actual, expected, filling };
+}
+
+/* ---------------- Walk ---------------- */
+const W = () => S.walk;
+function walkGo(id) {
+  const w = W();
+  const dir = id >= w.zone ? 1 : -1;
+  if (w.active && S.runs[w.zone]?.src === 'walk' && w.zone !== id) stop(w.zone);
+  Object.assign(w, { active: true, complete: false, finished: false, zone: id, endAt: now() + w.per * 60e3 });
+  if (!S.runs[id]) start(id, w.per, 'walk');
+  save(); haptic(); wakeOn(); render();
+  FX.refill(dir);
+  FX.ripple(...center($('#ring')), 0.9, 'water');
+}
+function walkLeave() { const w = W(); if (S.runs[w.zone]?.src === 'walk') stop(w.zone); if (!w.done.includes(w.zone)) w.done.push(w.zone); }
+function walkNext() {
+  const w = W(); walkLeave();
+  if (w.zone >= ZONES.length) {
+    Object.assign(w, { active: false, complete: true, finished: false }); save(); wakeOff(); haptic(); render();
+    FX.refill(1);
+    [0, 220, 480, 760].forEach((d, i) => setTimeout(() => FX.ripple(innerWidth * (0.2 + 0.6 * Math.random()), innerHeight * (0.2 + 0.5 * Math.random()), 1 - i * 0.12, 'leaf'), d));
+    return;
+  }
+  walkGo(w.zone + 1);
+}
+function walkPrev() { const w = W(); if (w.zone > 1) { if (S.runs[w.zone]?.src === 'walk') stop(w.zone); walkGo(w.zone - 1); } }
+function walkStop() { const w = W(); walkLeave(); Object.assign(w, { active: false, finished: false }); save(); wakeOff(); render(); toast(`Walk paused at zone ${w.zone}`); }
+function walkMore() {
+  const w = W();
+  if (w.finished) { w.finished = false; w.endAt = now() + 60e3; if (!S.runs[w.zone]) start(w.zone, 1, 'walk'); }
+  else { w.endAt += 60e3; if (S.runs[w.zone]?.src === 'walk') extend(w.zone, 1); }
+  save(); haptic(); render();
+}
+
+/* ---------------- Rendering: zones ---------------- */
+function miniRing(id) {
+  return `<svg class="mini" viewBox="0 0 36 36" aria-hidden="true"><circle class="trk" cx="18" cy="18" r="14"/><circle class="val" data-ring="${id}" cx="18" cy="18" r="14"/></svg>`;
+}
+function row(z) {
+  const r = S.runs[z.id], flagged = findingsFor(z.id).length;
+  const meta = r
+    ? `<span class="live">${r.src === 'walk' ? 'Testing' : 'Watering'}</span> · <span class="num" data-rem="${z.id}"></span> left`
+    : `${TYPE[z.type]} · ${ago(S.last[z.id] ?? now())}`;
+  return `<button class="row" data-zone="${z.id}">
+    <span class="badge${r ? ' on' : ''}">${z.id}</span>
+    <span class="rtext"><span class="rname"><span class="t">${esc(z.name)}</span>${z.isNew ? '<span class="tag">New</span>' : ''}${flagged ? `<span class="flagged" title="Flagged">${icon('flag', 11)}</span>` : ''}</span>
+    <span class="rmeta">${meta}</span></span>
+    ${r ? miniRing(z.id) : `<svg class="chev" width="16" height="16"><use href="#i-next"/></svg>`}
+  </button>`;
+}
+function renderChips() {
+  const n = runIds().length;
+  const opts = ['All', ...(n ? ['Watering'] : []), ...AREAS];
+  if (!opts.includes(ui.filter)) ui.filter = 'All';
+  $('#chips').innerHTML = opts.map(o => `<button class="chip" data-filter="${esc(o)}" aria-pressed="${o === ui.filter}">${o === 'Watering' ? '<i class="cdot"></i>' : ''}${esc(o)}${o === 'Watering' ? ` ${n}` : ''}</button>`).join('');
+}
+function renderZones() {
+  renderChips();
+  const q = ui.q.trim().toLowerCase(), running = runIds();
+  let html = '';
+  if (!q && ui.filter === 'All' && running.length) {
+    html += `<div class="sec-h"><span>Running now</span><span>${running.length} zone${running.length > 1 ? 's' : ''}</span></div><div class="running">`;
+    html += running.map(id => {
+      const z = Z(id), r = S.runs[id];
+      return `<div class="rcard glass">
+        <button class="open" data-zone="${id}" aria-label="Open ${esc(z.name)}"></button>
+        <span class="badge on">${id}</span>
+        <span class="rtext"><span class="rname"><span class="t">${esc(z.name)}</span></span><span class="rmeta">${r.src === 'walk' ? 'Walk test' : TYPE[z.type]} · ends ${at(r.end)}</span></span>
+        <span class="big" data-rem="${id}"></span>
+        <div class="bar"><i data-bar="${id}" style="--spd:${spd(z)}s"></i></div>
+        <div class="acts"><button data-add="${id}">+15 min</button><button class="stop" data-stop="${id}">Stop</button></div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+  let list = ZONES;
+  if (q) list = ZONES.filter(z => String(z.id) === q || z.name.toLowerCase().includes(q) || z.area.toLowerCase().includes(q));
+  else if (ui.filter === 'Watering') list = ZONES.filter(z => S.runs[z.id]);
+  else if (ui.filter !== 'All') list = ZONES.filter(z => z.area === ui.filter);
+
+  if (!list.length) html += `<p class="empty">No zones match “${esc(ui.q)}”.<br>Try a number like 14, or a word like lawn.</p>`;
+  else if (q || ui.filter !== 'All') {
+    if (q) list = [...list].sort((a, b) => (String(b.id) === q) - (String(a.id) === q) || a.id - b.id);
+    html += `<div class="sec-h"><span>${q ? 'Results' : esc(ui.filter)}</span><span>${list.length}</span></div><div class="group glass">${list.map(row).join('')}</div>`;
+  } else {
+    for (const a of AREAS) {
+      const zs = list.filter(z => z.area === a);
+      html += `<div class="sec-h"><span>${esc(a)}</span><span>${zs.length} zones</span></div><div class="group glass">${zs.map(row).join('')}</div>`;
+    }
+  }
+  $('#zList').innerHTML = html;
+}
+
+/* ---------------- Rendering: walk ---------------- */
+function renderWalk() {
+  const w = W(), z = Z(w.zone);
+  $('#autoBtn').setAttribute('aria-checked', w.auto);
+  const nF = S.findings.length;
+  $('#findN').textContent = nF; $('#findN').classList.toggle('hot', nF > 0);
+
+  $('#rail').innerHTML = ZONES.map(x => {
+    const c = ['rz'];
+    if (w.done.includes(x.id)) c.push('done');
+    if (findingsFor(x.id).length) c.push('flag');
+    if (S.runs[x.id]?.src === 'soak') c.push('soak');
+    if (x.id === w.zone && !w.complete) c.push('cur');
+    return `<button class="${c.join(' ')}" data-walk="${x.id}" aria-label="Zone ${x.id}, ${esc(x.name)}">${x.id}</button>`;
+  }).join('');
+  requestAnimationFrame(() => {
+    const el = $(`[data-walk="${w.zone}"]`), rail = $('#rail');
+    if (el) rail.scrollTo({ left: el.offsetLeft - rail.clientWidth / 2 + el.offsetWidth / 2, behavior: 'smooth' });
+  });
+
+  $('#wProg').textContent = w.complete ? `All ${ZONES.length} zones checked`
+    : w.active ? `${w.zone} of ${ZONES.length} · ${w.done.length} checked`
+    : w.done.length ? `Paused · ${w.done.length} of ${ZONES.length} checked` : 'Tap a number to pick a start';
+  $('#wEyebrow').textContent = w.active ? 'Walk in progress' : 'Leak check';
+
+  const ring = $('#ring');
+  ring.classList.toggle('idle', !w.active);
+  ring.classList.toggle('done', w.complete);
+  if (w.complete) {
+    $('#wNum').innerHTML = icon('check', 76); $('.zlabel').textContent = 'Done';
+    $('#wTime').textContent = `${nF} finding${nF === 1 ? '' : 's'}`;
+    $('#wName').textContent = 'Walk complete';
+    $('#wMeta').textContent = `${ZONES.length} zones checked`;
+  } else {
+    $('.zlabel').textContent = 'Zone'; $('#wNum').textContent = w.zone;
+    $('#wName').textContent = z.name;
+    const soaking = S.runs[w.zone]?.src === 'soak';
+    $('#wMeta').innerHTML = `${esc(z.area)} · ${TYPE[z.type]} · ST${z.id}${z.isNew ? ' <span class="tag">New</span>' : ''}${soaking ? ' · <span style="color:var(--water);font-weight:600">already watering</span>' : ''}`;
+  }
+  $('#flow').hidden = w.complete;
+
+  const next = w.zone < ZONES.length ? `Next · ${w.zone + 1}` : 'Finish';
+  let c;
+  if (w.complete) {
+    c = `<button class="cta" data-w="findings">${icon('flag', 20)} Review findings${nF ? ` (${nF})` : ''}</button>
+         <button class="soft" data-w="reset">Start a new walk</button>`;
+  } else if (w.active) {
+    c = `<div class="transport">
+        <button class="circ glass" data-w="prev" aria-label="Previous zone" ${w.zone === 1 ? 'disabled style="opacity:.4"' : ''}>${icon('prev', 26)}</button>
+        <button class="cta${w.finished ? ' pulse' : ''}" data-w="next">${next} ${icon('next', 20)}</button>
+        <button class="circ stop" data-w="stop" aria-label="Stop walk">${icon('stop', 22)}</button>
+      </div>
+      <div class="duo">
+        <button class="soft" data-w="more">${icon('plus', 18)} 1 min</button>
+        <button class="soft flag" data-w="flag">${icon('flag', 18)} Flag issue</button>
+      </div>`;
+  } else {
+    c = `<div class="seg glass" role="radiogroup" aria-label="Minutes per zone"><span>Each zone</span>${[1, 2, 3, 5].map(m => `<button role="radio" data-per="${m}" aria-checked="${w.per === m}">${m} min</button>`).join('')}</div>
+      <button class="cta" data-w="start">${icon('drop', 20)} ${w.done.length ? 'Resume' : 'Start'} at zone ${w.zone}</button>`;
+  }
+  $('#wCtl').innerHTML = c;
+}
+
+/* ---------------- Rendering: dock ---------------- */
+function renderDock() {
+  $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === S.tab));
+  $('#tabs').dataset.on = S.tab;
+  $('#v-walk').hidden = S.tab !== 'walk';
+  $('#v-zones').hidden = S.tab !== 'zones';
+  // On Walk, the walk zone is already front and centre; only surface other watering.
+  const ids = S.tab === 'walk' ? [] : runIds();
+  const acc = $('#acc');
+  const scrolledPast = S.tab === 'zones' ? window.scrollY > 260 : true;
+  acc.hidden = !ids.length || !scrolledPast;
+  if (!ids.length) return;
+  const first = Z(ids[0]);
+  acc.innerHTML = `<span class="badge on">${first.id}</span>
+    <span class="t"><b>${esc(first.name)}${ids.length > 1 ? ` +${ids.length - 1} more` : ''}</b><span><span class="num" data-rem="${first.id}"></span> left</span></span>
+    <span class="x" data-stopall role="button">${icon('stop', 14)} Stop${ids.length > 1 ? ' all' : ''}</span>`;
+  acc.dataset.ids = ids.join(',');
+}
+
+function render() {
+  renderDock();
+  if (S.tab === 'zones') renderZones(); else renderWalk();
+  if (ui.sheet?.kind === 'zone') {
+    const mode = S.runs[ui.sheet.id] ? 'run' : 'idle';
+    if (mode !== ui.sheetMode) renderSheet();
+  }
+  if (ui.sheet?.kind === 'findings') renderSheet();
+  live();
+}
+
+/* ---------------- Live updates (every tick) ---------------- */
+function live() {
+  const t = now();
+  $$('[data-rem]').forEach(el => { const r = S.runs[el.dataset.rem]; if (r) el.textContent = clock(r.end - t); });
+  $$('[data-bar]').forEach(el => { const r = S.runs[el.dataset.bar]; if (r) el.style.width = `${Math.min(100, (t - r.start) / (r.end - r.start) * 100)}%`; });
+  $$('[data-ring]').forEach(el => { const r = S.runs[el.dataset.ring]; if (r) el.style.strokeDashoffset = 87.96 * Math.min(1, (t - r.start) / (r.end - r.start)); });
+
+  const f = flow(t), n = runIds().length;
+  $('#zEyebrow').textContent = n ? `Controller online · ${f.actual.toFixed(1)} gpm` : 'Controller online · idle';
+
+  if (S.tab === 'walk') {
+    const w = W(), z = Z(w.zone);
+    let frac = 1, rem = w.per * 60e3;
+    if (w.active) { rem = Math.max(0, w.endAt - t); const total = Math.max(w.per * 60e3, w.endAt - (S.runs[w.zone]?.start ?? t)); frac = w.finished ? 0 : rem / total; }
+    if (w.complete) frac = 1;
+    $('#arc').style.strokeDashoffset = 603.19 * (1 - frac);
+    $('#water').style.transform = `translateY(${12 + (1 - frac) * 176}px)`;
+    const tEl = $('#wTime');
+    if (!w.complete) { tEl.textContent = w.active && w.finished ? 'Time’s up' : clock(rem); tEl.classList.toggle('hot', w.active && w.finished); }
+
+    const box = $('#flow'), running = w.active && !w.finished && S.runs[w.zone];
+    box.classList.toggle('idle', !running); box.classList.remove('hi', 'lo');
+    $('#ring').classList.remove('warn');
+    $('#fV').textContent = f.actual.toFixed(1);
+    // the vessel mirrors what the line is doing
+    const v = { level: frac, agit: 0.08, bub: 0, tone: 'idle' };
+    if (w.complete) Object.assign(v, { level: 0.92, agit: 0.18, tone: 'leaf' });
+    else if (w.active && w.finished) Object.assign(v, { level: 0, tone: 'leaf' });
+    if (!running) {
+      $('#fNote').textContent = w.complete ? 'Walk complete' : `Expect about ${z.gpm.toFixed(1)} gpm on this zone`;
+    } else {
+      // The controller only reports total line flow; judge this zone on its share of it.
+      const others = n - 1, otherGpm = f.expected - z.gpm;
+      const ratio = (f.actual - otherGpm) / z.gpm;
+      const tail = others ? ` · includes ${others} other zone${others > 1 ? 's' : ''}` : '';
+      Object.assign(v, { tone: 'water', agit: 0.3, bub: 0.18 });
+      if (t - S.runs[w.zone].start < 6000) { $('#fNote').textContent = 'Pressurizing the line…'; Object.assign(v, { agit: 0.6, bub: 1 }); }
+      else if (ratio > 1.25) { box.classList.add('hi'); $('#ring').classList.add('warn'); $('#fNote').textContent = `High flow · ${f.expected.toFixed(1)} expected. Look for a leak.`; Object.assign(v, { tone: 'amber', agit: 1, bub: 0.7 }); }
+      else if (ratio < 0.65) { box.classList.add('lo'); $('#ring').classList.add('warn'); $('#fNote').textContent = `Low flow · ${f.expected.toFixed(1)} expected. Clogged or valve not open?`; Object.assign(v, { tone: 'amber', agit: 0.04, bub: 0 }); }
+      else $('#fNote').textContent = `Normal · ${f.expected.toFixed(1)} expected${tail}`;
+    }
+    FX.ring(v, {
+      label: w.complete ? 'DONE' : 'ZONE',
+      num: w.complete ? '✓' : String(w.zone),
+      time: w.complete ? `${S.findings.length} finding${S.findings.length === 1 ? '' : 's'}` : $('#wTime').textContent,
+      hot: w.active && w.finished,
+    });
+    drawSpark(box.classList.contains('hi') || box.classList.contains('lo'));
+  }
+  if (ui.sheet?.kind === 'zone' && S.runs[ui.sheet.id]) {
+    const r = S.runs[ui.sheet.id], el = $('#shEnds');
+    if (el) el.innerHTML = `left · ends at <b>${at(r.end)}</b> · <span class="gal">≈ ${Math.round(Z(ui.sheet.id).gpm * (r.end - t) / 60e3).toLocaleString()} gal to go</span>`;
+    FX.tank({ level: 0.04 + 0.9 * Math.max(0, (r.end - t) / (r.end - r.start)), agit: 0.22, bub: 0.25, tone: 'water' });
+  }
+}
+
+/* sparkline: line flow over the last minute against what's expected */
+function drawSpark(warn) {
+  const c = $('#spark'), dpr = Math.min(devicePixelRatio || 1, 3);
+  const W_ = c.clientWidth, H_ = c.clientHeight; if (!W_) return;
+  if (c.width !== Math.round(W_ * dpr)) { c.width = Math.round(W_ * dpr); c.height = Math.round(H_ * dpr); }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W_, H_);
+  const t = now(), span = 60e3, pts = samples.filter(s => s.t > t - span - 1000);
+  if (pts.length < 2) return;
+  const cs = getComputedStyle(document.documentElement);
+  const col = cs.getPropertyValue(warn ? '--amber' : '--water').trim(), ink3 = cs.getPropertyValue('--ink-3').trim();
+  const max = Math.max(4, ...pts.map(s => Math.max(s.v, s.e) * 1.25));
+  const X = s => W_ - (t - s.t) / span * W_, Y = v => H_ - 3 - v / max * (H_ - 8);
+  // expected (dashed step line)
+  g.setLineDash([3, 3]); g.lineWidth = 1.2; g.strokeStyle = ink3; g.beginPath();
+  pts.forEach((s, i) => { const x = X(s), y = Y(s.e); i ? (g.lineTo(x, Y(pts[i - 1].e)), g.lineTo(x, y)) : g.moveTo(x, y); });
+  g.stroke(); g.setLineDash([]);
+  // actual (area + line)
+  g.beginPath(); pts.forEach((s, i) => i ? g.lineTo(X(s), Y(s.v)) : g.moveTo(X(s), Y(s.v)));
+  g.lineWidth = 2; g.lineJoin = 'round'; g.strokeStyle = col; g.stroke();
+  g.lineTo(X(pts.at(-1)), H_); g.lineTo(X(pts[0]), H_); g.closePath();
+  const gr = g.createLinearGradient(0, 0, 0, H_); gr.addColorStop(0, col + '55'); gr.addColorStop(1, col + '00');
+  g.fillStyle = gr; g.fill();
+  const e = pts.at(-1); g.beginPath(); g.arc(X(e) - 3, Y(e.v), 3.5, 0, 7); g.fillStyle = col; g.fill();
+}
+
+function tick() {
+  const t = now(); let changed = false;
+  const fl = flow(t); samples.push({ t, v: fl.actual, e: fl.expected });
+  while (samples.length && samples[0].t < t - 70e3) samples.shift();
+  for (const [id, r] of Object.entries(S.runs)) if (r.end <= t) { delete S.runs[id]; S.last[id] = r.end; changed = true; }
+  const w = W();
+  if (w.active && !w.finished && t >= w.endAt) {
+    if (w.auto) { walkNext(); return; }
+    w.finished = true; if (S.runs[w.zone]?.src === 'walk') stop(w.zone); haptic(); changed = true;
+  }
+  if (changed) { save(); render(); } else live();
+}
+
+/* ---------------- Sheet ---------------- */
+const sheet = $('#sheet'), scrim = $('#scrim'), body = $('#sheetBody');
+/* View transitions: the tapped zone badge morphs into the sheet header and back. */
+const canVT = () => !!document.startViewTransition && !RM.matches;
+function morph(update, fromBadge, toBadge) {
+  if (!canVT()) { update(); return; }
+  sheet.classList.add('instant');
+  if (fromBadge) fromBadge.style.viewTransitionName = 'zbadge';
+  const tr = document.startViewTransition(() => {
+    if (fromBadge) fromBadge.style.viewTransitionName = '';
+    update();
+    const to = toBadge?.();
+    if (fromBadge && to) to.style.viewTransitionName = 'zbadge';
+  });
+  tr.finished.finally(() => { sheet.classList.remove('instant'); $$('[style*="view-transition-name"]').forEach(e => { e.style.viewTransitionName = ''; }); });
+}
+function openSheet(s, fromEl) {
+  const badge = fromEl?.querySelector?.('.badge') || (fromEl?.classList?.contains('open') ? fromEl.parentElement.querySelector('.badge') : null);
+  morph(() => { ui.sheet = s; ui.sheetMode = ''; renderSheet(); scrim.classList.add('on'); sheet.classList.add('open'); sheet.style.transform = ''; sheet.scrollTop = 0; },
+    badge, () => $('.sh-head .badge', sheet));
+  haptic();
+}
+function closeSheet() {
+  if (!ui.sheet) return;
+  const id = ui.sheet.kind === 'zone' ? ui.sheet.id : null;
+  const from = id ? $('.sh-head .badge', sheet) : null;
+  morph(() => { ui.sheet = null; scrim.classList.remove('on'); sheet.classList.remove('open'); sheet.style.transform = ''; FX.attachTank(null); },
+    from, () => id && [...$$(`[data-zone="${id}"]`)].map(b => b.querySelector('.badge') || b.parentElement.querySelector('.badge')).find(b => b && b.getBoundingClientRect().bottom > 0 && b.getBoundingClientRect().top < innerHeight));
+}
+
+function head(z, sub) {
+  return `<div class="sh-head"><span class="badge lg${S.runs[z.id] ? ' on' : ''}">${z.id}</span>
+    <div><h2>${esc(z.name)}</h2><p>${sub}</p></div>
+    <button class="xbtn" data-close aria-label="Close">${icon('x', 16)}</button></div>`;
+}
+function renderSheet() {
+  const s = ui.sheet; if (!s) return;
+  if (s.kind === 'zone') {
+    const z = Z(s.id), r = S.runs[z.id];
+    ui.sheetMode = r ? 'run' : 'idle';
+    sheet.setAttribute('aria-label', z.name);
+    const sub = `${esc(z.area)} · ${TYPE[z.type]} · ${z.gpm.toFixed(1)} gpm`;
+    if (r) {
+      body.innerHTML = `${head(z, sub)}
+        <div class="tank"><canvas id="tankCv"></canvas>
+          <div class="bigtime" data-rem="${z.id}"></div>
+          <p class="ends" id="shEnds"></p>
+        </div>
+        <div class="trio" style="margin-top:14px">${[5, 15, 30].map(m => `<button class="soft" data-ext="${m}">+${m} min</button>`).join('')}</div>
+        <button class="cta danger" data-stop="${z.id}">${icon('stop', 18)} Stop watering</button>`;
+      FX.attachTank($('#tankCv'));
+    } else {
+      const d = S.durs[z.id] || 30;
+      body.innerHTML = `${head(z, sub)}
+        <div class="tank"><canvas id="tankCv"></canvas>
+          <div class="dur"><span class="dur-n" id="durN">${d}</span><span class="dur-u">min</span></div>
+          <p class="ends" id="ends"></p>
+        </div>
+        <div class="ruler"><div class="ticks" id="ticks">${Array.from({ length: MAX_MIN }, (_, i) => { const m = i + 1; return `<i class="tk${m % 15 === 0 ? ' m15' : m % 5 === 0 ? ' m5' : ''}">${m % 15 === 0 || m === 1 ? `<span>${m}</span>` : ''}</i>`; }).join('')}</div></div>
+        <div class="presets">${PRESETS.map(m => `<button class="chip" data-preset="${m}" aria-pressed="${m === d}">${m}</button>`).join('')}</div>
+        <div class="stack">
+          <button class="cta" id="goBtn" data-go="${z.id}"></button>
+          <button class="soft" data-test="${z.id}">Quick test · 1 min</button>
+        </div>`;
+      FX.attachTank($('#tankCv'));
+      ui.dur = 0; setDur(d);
+      requestAnimationFrame(() => { $('#ticks').scrollLeft = (d - 1) * 10; });
+    }
+    live();
+  } else if (s.kind === 'flag') {
+    const z = Z(s.id), f = flow(), ratio = S.runs[z.id] ? (f.actual - (f.expected - z.gpm)) / z.gpm : 1;
+    const sug = ratio > 1.25 ? 'Leak' : ratio < 0.65 ? 'Clogged / weak' : null;
+    body.innerHTML = `${head(z, `Flag a problem on zone ${z.id}`)}
+      <div class="issues">${ISSUES.map(i => `<button class="issue${i === sug ? ' sug' : ''}" data-issue="${esc(i)}">${icon('flag', 18)}${esc(i)}</button>`).join('')}</div>
+      ${sug ? `<p class="hint">Flow reading suggests <b>${esc(sug.toLowerCase())}</b>.</p>` : ''}`;
+  } else if (s.kind === 'findings') {
+    const list = [...S.findings].sort((a, b) => a.zone - b.zone || a.at - b.at);
+    body.innerHTML = `<div class="sh-head"><span class="badge lg" style="background:var(--amber-soft);color:var(--amber)">${icon('flag', 24)}</span>
+        <div><h2>Findings</h2><p>${list.length ? `${list.length} issue${list.length > 1 ? 's' : ''} across ${new Set(list.map(f => f.zone)).size} zones` : 'Nothing flagged yet'}</p></div>
+        <button class="xbtn" data-close aria-label="Close">${icon('x', 16)}</button></div>
+      ${list.length ? `<div class="flist">${list.map(f => `<div class="fi"><span class="badge">${f.zone}</span>
+          <div><b>${esc(f.issue)}</b><span>${esc(Z(f.zone).name)} · ${at(f.at)}</span></div>
+          <button class="rm" data-unflag="${f.at}" aria-label="Remove">${icon('x', 16)}</button></div>`).join('')}</div>
+        <div class="stack"><button class="cta" data-copy>${icon('copy', 18)} Copy list for the landscaper</button>
+        <button class="soft" data-clear>${ui.confirmClear ? 'Tap again to clear all' : 'Clear all'}</button></div>`
+      : `<p class="hint" style="margin:18px 0 22px">During a walk, tap <b>Flag issue</b> when you spot a leak, a broken head or a dry patch. Everything you flag lands here.</p>`}`;
+  }
+}
+function setDur(m) {
+  const z = Z(ui.sheet.id);
+  $('#durN').textContent = m;
+  $('#ends').innerHTML = `Ends at <b>${at(now() + m * 60e3)}</b> · <span class="gal">≈ ${Math.round(z.gpm * m).toLocaleString()} gal</span>`;
+  $('#goBtn').innerHTML = `${icon('drop', 20)} Water for ${m} min`;
+  $$('[data-preset]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.preset === m));
+  // the tank holds the water this run will use; scrolling the dial pours it in or out
+  FX.tank({ level: 0.06 + 0.86 * m / MAX_MIN, agit: 0.14, bub: 0, tone: 'water' }, ui.dur ? (m - ui.dur) : 0);
+  ui.dur = m;
+}
+body.addEventListener('scroll', e => {
+  if (e.target.id !== 'ticks') return;
+  const m = Math.min(MAX_MIN, Math.max(1, Math.round(e.target.scrollLeft / 10) + 1));
+  if (m !== ui.dur) { setDur(m); if (m % 5 === 0) haptic(); }
+}, true);
+
+/* drag the sheet down to dismiss */
+(() => {
+  let y0 = null, dy = 0;
+  const down = e => { if (e.target.closest('.ticks,button') || sheet.scrollTop > 0) return; y0 = e.clientY; dy = 0; sheet.classList.add('drag'); };
+  const move = e => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); sheet.style.transform = `translateY(${dy}px)`; };
+  const up = () => { if (y0 === null) return; sheet.classList.remove('drag'); y0 = null; if (dy > 110) closeSheet(); else sheet.style.transform = ''; };
+  sheet.addEventListener('pointerdown', down); window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+})();
+scrim.addEventListener('click', closeSheet);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && ui.sheet) closeSheet(); });
+
+/* ---------------- Toast ---------------- */
+let toastT;
+function toast(msg, action) {
+  const el = $('#toast'), btn = $('#toastBtn');
+  $('#toastMsg').textContent = msg;
+  btn.hidden = !action; el.classList.toggle('act', !!action);
+  if (action) { btn.textContent = action.label; btn.onclick = () => { action.fn(); el.classList.remove('on'); }; }
+  el.classList.add('on'); clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('on'), action ? 5000 : 2400);
+}
+
+/* ---------------- Events ---------------- */
+function stopAll(ids) {
+  const snap = Object.fromEntries(ids.map(id => [id, { ...S.runs[id] }]));
+  ids.forEach(id => { stop(id); if (W().active && W().zone === id) walkStop(); });
+  haptic(); render();
+  toast(`Stopped ${ids.length === 1 ? Z(ids[0]).name : `${ids.length} zones`}`, {
+    label: 'Undo', fn: () => { const t = now(); for (const [id, r] of Object.entries(snap)) if (r.end > t) S.runs[id] = r; save(); render(); },
+  });
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button,[data-stopall]'); if (!t) return;
+  const d = t.dataset;
+
+  if (d.tab) {
+    if (S.tab === d.tab) return;
+    const go = () => { S.tab = d.tab; save(); window.scrollTo(0, 0); render(); };
+    haptic();
+    if (!canVT()) { go(); return; }
+    document.documentElement.dataset.vt = d.tab === 'zones' ? 'fwd' : 'back';
+    document.startViewTransition(go).finished.finally(() => { delete document.documentElement.dataset.vt; });
+    return;
+  }
+  if ('stopall' in d) { e.stopPropagation(); FX.ripple(...center(t), 0.45, 'ink'); stopAll($('#acc').dataset.ids.split(',').map(Number)); return; }
+  if (t.id === 'acc') { S.tab = 'zones'; ui.filter = 'All'; ui.q = ''; $('#q').value = ''; save(); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (d.filter) { ui.filter = d.filter; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (d.zone) { openSheet({ kind: 'zone', id: +d.zone }, t); return; }
+  if (d.add) { extend(+d.add, 15); haptic(); render(); toast(`+15 min on ${Z(+d.add).name}`); return; }
+  if (d.stop) { const id = +d.stop; FX.ripple(...center(t), 0.45, 'ink'); if (ui.sheet) closeSheet(); stopAll([id]); return; }
+  if (d.ext) { FX.slosh(0.5, true); extend(ui.sheet.id, +d.ext); if (W().active && W().zone === ui.sheet.id && S.runs[ui.sheet.id]?.src === 'walk') W().endAt += +d.ext * 60e3; haptic(); live(); toast(`Added ${d.ext} min`); return; }
+  if (d.preset) { const m = +d.preset; $('#ticks').scrollTo({ left: (m - 1) * 10, behavior: 'smooth' }); setDur(m); haptic(); return; }
+  if (d.go) { const id = +d.go; FX.ripple(...center(t), 1.1, 'water'); S.durs[id] = ui.dur; start(id, ui.dur); closeSheet(); haptic(); render(); toast(`Watering ${Z(id).name} for ${ui.dur} min`); return; }
+  if (d.test) { const id = +d.test; FX.ripple(...center(t), 0.7, 'water'); start(id, 1); closeSheet(); haptic(); render(); toast(`Testing ${Z(id).name} for 1 min`); return; }
+  if ('close' in d) { closeSheet(); return; }
+
+  if (d.walk) { const id = +d.walk, w = W(); if (w.active) walkGo(id); else { w.zone = id; w.complete = false; save(); renderWalk(); live(); haptic(); } return; }
+  if (d.per) { W().per = +d.per; save(); renderWalk(); live(); haptic(); return; }
+  if (t.id === 'autoBtn') { W().auto = !W().auto; save(); renderWalk(); haptic(); return; }
+  if (t.id === 'findBtn') { ui.confirmClear = false; openSheet({ kind: 'findings' }); return; }
+  if (d.w) {
+    const w = W();
+    ({
+      start: () => walkGo(w.zone),
+      next: walkNext, prev: walkPrev, stop: walkStop, more: walkMore,
+      flag: () => openSheet({ kind: 'flag', id: w.zone }),
+      findings: () => { ui.confirmClear = false; openSheet({ kind: 'findings' }); },
+      reset: () => { Object.assign(w, { complete: false, active: false, finished: false, zone: 1, done: [] }); save(); render(); },
+    })[d.w]();
+    return;
+  }
+  if (d.issue) { const id = ui.sheet.id; FX.ripple(...center($('#ring')), 1.2, 'amber'); FX.slosh(0.6); S.findings.push({ zone: id, issue: d.issue, at: now() }); save(); closeSheet(); haptic(); render(); toast(`Flagged ${d.issue.toLowerCase()} on zone ${id}`); return; }
+  if (d.unflag) { S.findings = S.findings.filter(f => f.at !== +d.unflag); save(); render(); return; }
+  if ('clear' in d) { if (!ui.confirmClear) { ui.confirmClear = true; renderSheet(); return; } S.findings = []; ui.confirmClear = false; save(); render(); toast('Findings cleared'); return; }
+  if ('copy' in d) {
+    const txt = 'Irrigation findings\n' + [...S.findings].sort((a, b) => a.zone - b.zone).map(f => `Zone ${f.zone} (${Z(f.zone).name}): ${f.issue}`).join('\n');
+    navigator.clipboard?.writeText(txt).then(() => toast('Copied to clipboard'), () => toast('Couldn’t copy. Long-press the list to select it.'));
+    return;
+  }
+});
+
+/* search */
+const q = $('#q');
+q.addEventListener('input', () => { ui.q = q.value; $('#qClear').hidden = !q.value; renderZones(); live(); });
+$('#qClear').addEventListener('click', () => { q.value = ''; ui.q = ''; $('#qClear').hidden = true; renderZones(); live(); q.focus(); });
+
+/* swipe the ring left/right to change zone during a walk */
+(() => {
+  let x0 = null, y0 = 0;
+  const st = $('#stage');
+  st.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  st.addEventListener('touchend', e => {
+    if (x0 === null || !W().active) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) dx < 0 ? walkNext() : walkPrev();
+  }, { passive: true });
+})();
+
+/* show the mini player once the running cards scroll away */
+let lastAcc = null;
+window.addEventListener('scroll', () => { const past = window.scrollY > 260; if (past !== lastAcc) { lastAcc = past; renderDock(); live(); } }, { passive: true });
+
+/* =====================================================================
+   FX — WebGPU water. Every effect is driven by irrigation state:
+   vessel level = time left, agitation/bubbles = line flow & pressurizing,
+   background rain = total gallons per minute, ripples = actions you take.
+   Falls back to the SVG/CSS look when WebGPU isn't available.
+   ===================================================================== */
+const VESSEL_WGSL = /* wgsl */`
+struct U {
+  res: vec2f, time: f32, level: f32,
+  agit: f32, tilt: f32, shape: f32, dark: f32,
+  bub: f32, pad: f32, textOn: f32, alpha: f32,
+  tint: vec4f, deep: vec4f, glass: vec4f, hi: vec4f,
+};
+@group(0) @binding(0) var<uniform> u: U;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var tex: texture_2d<f32>;
+struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
+  var q = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(-1.0, 1.0), vec2f(3.0, 1.0));
+  var o: VO;
+  o.pos = vec4f(q[i], 0.0, 1.0);
+  o.uv = q[i] * vec2f(0.5, -0.5) + vec2f(0.5);
+  return o;
+}
+fn hash(n: f32) -> f32 { return fract(sin(n * 127.1) * 43758.5453); }
+@fragment fn fs(v: VO) -> @location(0) vec4f {
+  let t = u.time;
+  let asp = u.res.x / u.res.y;
+  var p = v.uv * 2.0 - vec2f(1.0);
+  p.y = -p.y;
+  p.x = p.x * asp;
+  let px = 2.0 / u.res.y;
+  let circ = u.shape < 0.5;
+  let R = select(1.0, 0.88, circ);
+  let sd = select(-1.0, length(p) - R, circ);
+  let inside = 1.0 - smoothstep(-px, px, sd);
+  let lvl = -R + u.level * 2.0 * R;
+  let a = u.agit;
+  let w = a * (0.05 * sin(p.x * 4.5 + t * 2.4) + 0.03 * sin(p.x * 10.0 - t * 3.7) + 0.015 * sin(p.x * 21.0 + t * 6.3))
+        + 0.012 * sin(p.x * 3.0 + t * 1.2);
+  let s = lvl + u.tilt * p.x + w;
+  let below = s - p.y;
+  let has = smoothstep(0.0, 0.015, u.level);
+  let water = smoothstep(-px, px, below) * inside * has;
+  let depth = clamp(below / (2.0 * R), 0.0, 1.0);
+  let wc = mix(u.tint.rgb, u.deep.rgb, sqrt(depth));
+  let q = p * 5.5;
+  let c1 = sin(q.x + t * 1.1 + sin(q.y * 1.4 + t * 0.9)) * sin(q.y * 1.2 - t * 0.8 + sin(q.x * 0.8 - t * 0.6));
+  let caus = pow(abs(c1), 5.0) * (1.0 - depth * 0.7);
+  var bub = 0.0;
+  for (var k = 0; k < 18; k = k + 1) {
+    let fk = f32(k);
+    let spd = 0.16 + hash(fk * 3.1) * 0.34;
+    let bx = (hash(fk + 0.5) * 2.0 - 1.0) * R * 0.72 + 0.025 * sin(t * 2.7 + fk * 1.9);
+    let yy = -R + fract(hash(fk * 7.3) + t * spd) * max(lvl + R, 0.0);
+    let br = (0.012 + hash(fk * 1.7) * 0.022) * R;
+    let d = length(p - vec2f(bx, yy));
+    bub = bub + (1.0 - smoothstep(br - px, br + px, d)) * (0.3 + 0.7 * smoothstep(br * 0.45, br, d));
+  }
+  bub = clamp(bub, 0.0, 1.0) * u.bub * water * smoothstep(0.0, 0.03, below);
+  let menis = exp(-abs(below) / (px * 2.2)) * inside * has;
+  let refr = vec2f(0.010 * sin(p.y * 17.0 + t * 2.1) + 0.006 * sin(p.x * 8.0 - t * 1.6),
+                   0.008 * sin(p.x * 13.0 + t * 1.8)) * (0.5 + a) * water;
+  let tx = textureSampleLevel(tex, samp, v.uv + refr, 0.0) * u.textOn;
+  var col = u.glass.rgb * u.glass.a * inside;
+  var al = u.glass.a * inside;
+  let wa = water * u.alpha;
+  col = wc * wa + col * (1.0 - wa);
+  al = wa + al * (1.0 - wa);
+  let hl = clamp(bub * 0.85 + menis * 0.75 + caus * 0.22 * water, 0.0, 1.0);
+  col = u.hi.rgb * hl + col * (1.0 - hl);
+  al = hl + al * (1.0 - hl);
+  let trgb = mix(tx.rgb, u.deep.rgb * tx.a, 0.3 * water);
+  col = trgb + col * (1.0 - tx.a);
+  al = tx.a + al * (1.0 - tx.a);
+  let rimW = select(0.0, 1.0, circ);
+  let rim = exp(-abs(sd + 0.012) / 0.01) * (0.3 + 0.35 * p.y / R) * rimW * inside;
+  let sp = exp(-pow(length((p - vec2f(-0.42, 0.5) * R) * vec2f(1.0, 1.8)) / (0.16 * R), 2.0)) * 0.3 * rimW * inside;
+  let g = clamp(rim + sp, 0.0, 1.0);
+  col = u.hi.rgb * g + col * (1.0 - g);
+  al = g + al * (1.0 - g);
+  return vec4f(min(col, vec3f(al)), al);
+}`;
+
+const POND_WGSL = /* wgsl */`
+struct P {
+  res: vec2f, time: f32, rain: f32,
+  scale: f32, dark: f32, count: f32, pad: f32,
+  rip: array<vec4f, 16>,
+  ripc: array<vec4f, 16>,
+};
+@group(0) @binding(0) var<uniform> u: P;
+struct VO { @builtin(position) pos: vec4f, };
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
+  var q = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(-1.0, 1.0), vec2f(3.0, 1.0));
+  var o: VO;
+  o.pos = vec4f(q[i], 0.0, 1.0);
+  return o;
+}
+fn h21(p: vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+fn wave(d: f32, age: f32, spd: f32, k: f32, wd: f32, dec: f32) -> f32 {
+  let x = d - age * spd;
+  return sin(x * k) * exp(-x * x / (wd * wd)) * exp(-age * dec);
+}
+fn height(p: vec2f) -> f32 {
+  var h = 0.0;
+  let n = i32(u.count);
+  for (var i = 0; i < 16; i = i + 1) {
+    if (i >= n) { break; }
+    let r = u.rip[i];
+    let age = u.time - r.z;
+    if (age > 0.0 && age < 5.0) {
+      h = h + r.w * wave(distance(p, r.xy), age, 300.0, 0.07, 70.0, 0.8) * smoothstep(0.0, 0.08, age);
+    }
+  }
+  if (u.rain > 0.001) {
+    let cs = 150.0;
+    let c0 = floor(p / cs);
+    for (var j = -1; j <= 1; j = j + 1) {
+      for (var i = -1; i <= 1; i = i + 1) {
+        let c = c0 + vec2f(f32(i), f32(j));
+        let per = 2.0 + h21(c) * 2.6;
+        let tt = u.time + h21(c + vec2f(13.7, 3.1)) * per;
+        let k = floor(tt / per);
+        let age = tt - k * per;
+        let sd = c + vec2f(k * 1.37, k * 2.11);
+        let on = step(h21(sd + vec2f(5.3, 1.1)), u.rain);
+        let ctr = (c + vec2f(h21(sd), h21(sd + vec2f(1.7, 9.2)))) * cs;
+        h = h + on * 0.5 * wave(distance(p, ctr), age, 60.0, 0.2, 16.0, 1.4) * smoothstep(0.0, 0.1, age);
+      }
+    }
+  }
+  return h;
+}
+fn tint(p: vec2f) -> vec4f {
+  var c = vec3f(0.0);
+  var ws = 0.0;
+  let n = i32(u.count);
+  for (var i = 0; i < 16; i = i + 1) {
+    if (i >= n) { break; }
+    let r = u.rip[i];
+    let age = u.time - r.z;
+    if (age > 0.0 && age < 5.0) {
+      let x = distance(p, r.xy) - age * 300.0;
+      let e = exp(-x * x / 8100.0) * exp(-age * 0.9) * r.w;
+      c = c + u.ripc[i].rgb * e;
+      ws = ws + e;
+    }
+  }
+  return vec4f(c, ws);
+}
+@fragment fn fs(v: VO) -> @location(0) vec4f {
+  let p = v.pos.xy / u.scale;
+  let e = 1.5;
+  let h0 = height(p);
+  let gx = (height(p + vec2f(e, 0.0)) - h0) / e;
+  let gy = (height(p + vec2f(0.0, e)) - h0) / e;
+  let n = normalize(vec3f(-gx * 10.0, -gy * 10.0, 1.0));
+  let L = normalize(vec3f(-0.45, -0.65, 0.62));
+  let dif = dot(n, L) - L.z;
+  let sp = pow(max(dot(reflect(-L, n), vec3f(0.0, 0.0, 1.0)), 0.0), 40.0);
+  let lit = clamp(dif * 2.2 + sp * 0.8, -1.0, 1.0);
+  let tc = tint(p);
+  let tw = clamp(tc.w, 0.0, 1.0);
+  let tcol = select(vec3f(1.0), tc.rgb / max(tc.w, 0.0001), tc.w > 0.0001);
+  let dark = u.dark > 0.5;
+  let hiBase = select(vec3f(1.0), vec3f(0.72, 0.88, 1.0), dark);
+  let hiCol = mix(hiBase, tcol, tw * 0.8);
+  let hiA = max(lit, 0.0) * select(0.6, 0.4, dark);
+  let shA = max(-lit, 0.0) * select(0.14, 0.4, dark);
+  let glowA = tw * 0.1 * select(1.0, 1.4, dark);
+  let col = hiCol * hiA + tcol * glowA;
+  let al = clamp(hiA + glowA + shA, 0.0, 1.0);
+  return vec4f(min(col, vec3f(al)), al);
+}`;
+
+const FX = (() => {
+  const noop = () => {};
+  const api = { ring: noop, tank: noop, attachTank: noop, ripple: noop, refill: noop, slosh: noop };
+  let gpu = null, pal = null;
+  const ripples = [];
+  const clock = () => (performance.now() / 1000) % 3600;
+
+  function hex(str) {
+    str = str.trim();
+    if (str[0] === '#') { const n = parseInt(str.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1]; }
+    const m = str.match(/[\d.]+/g).map(Number); return [m[0] / 255, m[1] / 255, m[2] / 255, m[3] ?? 1];
+  }
+  const mix = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
+  function readPal() {
+    const cs = getComputedStyle(document.documentElement), v = n => hex(cs.getPropertyValue(n));
+    const water = v('--water');
+    pal = {
+      dark: cs.colorScheme.includes('dark'),
+      water, leaf: v('--leaf'), amber: v('--amber'), idle: mix(v('--ink-3'), water, 0.35), ink: v('--ink-3'),
+      glass: v('--glass-strong'), inkCss: cs.getPropertyValue('--ink').trim(), ink2Css: cs.getPropertyValue('--ink-2').trim(),
+      leafCss: cs.getPropertyValue('--leaf').trim(),
+    };
+  }
+  function tones(tone) {
+    const b = pal[tone] || pal.water, W = [1, 1, 1], K = [0, 0, 0];
+    return pal.dark
+      ? { tint: mix(b, K, 0.25), deep: mix(b, K, 0.62), hi: mix(b, W, 0.72), alpha: 0.82 }
+      : { tint: mix(b, W, 0.55), deep: mix(b, W, 0.08), hi: [1, 1, 1], alpha: 0.72 };
+  }
+
+  /* ---- a glass vessel of water (the walk ring, the sheet's tank) ---- */
+  class Vessel {
+    constructor(canvas, shape, withText) {
+      this.c = canvas; this.shape = shape; this.withText = withText;
+      this.ctx = canvas.getContext('webgpu');
+      this.ctx.configure({ device: gpu.dev, format: gpu.fmt, alphaMode: 'premultiplied' });
+      this.buf = gpu.dev.createBuffer({ size: 112, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.u = new Float32Array(28);
+      this.s = { level: 0, lv: 0, target: 0, tilt: 0, tv: 0, agit: 0.1, agitT: 0.1, bub: 0, bubT: 0, tint: null, tone: 'idle' };
+      this.text = withText ? document.createElement('canvas') : null;
+      this.textKey = ''; this.dirty = true;
+      this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(canvas);
+      this.resize();
+    }
+    resize() {
+      const dpr = Math.min(devicePixelRatio || 1, 2.5), w = Math.max(1, Math.round(this.c.clientWidth * dpr)), h = Math.max(1, Math.round(this.c.clientHeight * dpr));
+      if (w === this.c.width && h === this.c.height && this.tex) return;
+      this.c.width = w; this.c.height = h;
+      const tw = this.text ? w : 1, th = this.text ? h : 1;
+      if (this.text) { this.text.width = tw; this.text.height = th; }
+      this.tex?.destroy();
+      this.tex = gpu.dev.createTexture({ size: [tw, th], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
+      this.bind = gpu.dev.createBindGroup({ layout: gpu.vpipe.getBindGroupLayout(0), entries: [
+        { binding: 0, resource: { buffer: this.buf } }, { binding: 1, resource: gpu.samp }, { binding: 2, resource: this.tex.createView() }] });
+      this.dirty = true;
+    }
+    setText(o) {
+      const key = JSON.stringify(o) + (pal.dark ? 'd' : 'l');
+      if (key !== this.textKey) { this.textKey = key; this.o = o; this.dirty = true; }
+    }
+    paintText() {
+      if (!this.text || !this.o) return;
+      const g = this.text.getContext('2d'), W_ = this.text.width, o = this.o;
+      const font = (wt, px) => `${wt} ${px}px ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif`;
+      g.clearRect(0, 0, W_, W_); g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = pal.ink2Css; g.font = font(700, Math.round(W_ * 0.044));
+      try { g.letterSpacing = `${Math.round(W_ * 0.006)}px`; } catch {}
+      g.fillText(o.label, W_ / 2, W_ * 0.29);
+      try { g.letterSpacing = '0px'; } catch {}
+      g.fillStyle = pal.inkCss;
+      if (o.num === '✓') {
+        g.lineWidth = W_ * 0.035; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = pal.inkCss;
+        g.beginPath(); g.moveTo(W_ * 0.38, W_ * 0.5); g.lineTo(W_ * 0.47, W_ * 0.59); g.lineTo(W_ * 0.63, W_ * 0.41); g.stroke();
+      } else {
+        g.font = font(700, Math.round(W_ * (o.num.length > 1 ? 0.34 : 0.36)));
+        g.fillText(o.num, W_ / 2, W_ * 0.5);
+      }
+      g.fillStyle = o.hot ? pal.leafCss : pal.ink2Css; g.font = font(600, Math.round(W_ * 0.074));
+      g.fillText(o.time, W_ / 2, W_ * 0.72);
+      gpu.dev.queue.copyExternalImageToTexture({ source: this.text }, { texture: this.tex, premultipliedAlpha: true }, [W_, this.text.height]);
+    }
+    set(v) { const s = this.s; s.target = v.level; s.agitT = RM.matches ? 0 : v.agit; s.bubT = RM.matches ? 0 : v.bub; s.tone = v.tone; }
+    step(dt) {
+      const s = this.s;
+      if (RM.matches) { s.level = s.target; s.tilt = 0; }
+      s.lv += ((s.target - s.level) * 34 - s.lv * 8.5) * dt; s.level = Math.max(0, Math.min(1, s.level + s.lv * dt));
+      s.tv += (-s.tilt * 55 - s.tv * 3.2) * dt; s.tilt = Math.max(-0.45, Math.min(0.45, s.tilt + s.tv * dt));
+      const k = 1 - Math.exp(-dt * 2.5);
+      s.agit += (s.agitT - s.agit) * k; s.bub += (s.bubT - s.bub) * k;
+      const tn = tones(s.tone);
+      if (!s.tint) s.tint = { ...tn };
+      for (const key of ['tint', 'deep', 'hi']) s.tint[key] = mix(s.tint[key], tn[key], 1 - Math.exp(-dt * 4));
+      s.tint.alpha = tn.alpha;
+    }
+    draw(t, dt) {
+      if (!this.c.clientWidth) return;
+      this.step(dt);
+      if (this.dirty) { this.paintText(); this.dirty = false; }
+      const s = this.s, u = this.u, glass = this.shape === 0 ? pal.glass : [0, 0, 0, 0];
+      u.set([this.c.width, this.c.height, t, s.level, s.agit, s.tilt, this.shape, pal.dark ? 1 : 0, s.bub, 0, this.text ? 1 : 0, s.tint.alpha,
+        ...s.tint.tint, 1, ...s.tint.deep, 1, glass[0], glass[1], glass[2], glass[3], ...s.tint.hi, 1]);
+      gpu.dev.queue.writeBuffer(this.buf, 0, u);
+      const enc = gpu.dev.createCommandEncoder();
+      const pass = enc.beginRenderPass({ colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+      pass.setPipeline(gpu.vpipe); pass.setBindGroup(0, this.bind); pass.draw(3); pass.end();
+      gpu.dev.queue.submit([enc.finish()]);
+    }
+    destroy() { this.ro.disconnect(); try { this.ctx.unconfigure(); } catch {} this.tex?.destroy(); this.buf.destroy(); }
+  }
+
+  /* ---- the water surface behind everything ---- */
+  class Pond {
+    constructor(canvas) {
+      this.c = canvas; this.ctx = canvas.getContext('webgpu');
+      this.ctx.configure({ device: gpu.dev, format: gpu.fmt, alphaMode: 'premultiplied' });
+      this.buf = gpu.dev.createBuffer({ size: 544, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      this.bind = gpu.dev.createBindGroup({ layout: gpu.ppipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: this.buf } }] });
+      this.u = new Float32Array(136); this.rain = 0; this.clean = false; this.frame = 0;
+      this.scale = 0.6; this.resize(); addEventListener('resize', () => this.resize());
+    }
+    resize() {
+      this.c.style.height = `${innerHeight}px`;
+      this.c.width = Math.round(innerWidth * this.scale); this.c.height = Math.round(innerHeight * this.scale); this.clean = false;
+    }
+    draw(t, rainT) {
+      this.rain += (rainT - this.rain) * 0.03;
+      while (ripples.length && t - ripples[0].t0 > 5) ripples.shift();
+      const active = this.rain > 0.01 || ripples.length;
+      if (!active && this.clean) return;
+      if (++this.frame % 2 && active) return;          // 30 fps is plenty for ambient water
+      const u = this.u; u.fill(0);
+      u.set([this.c.width, this.c.height, t, active ? this.rain : 0, this.scale, pal.dark ? 1 : 0, ripples.length, 0]);
+      ripples.slice(-16).forEach((r, i) => { u.set([r.x, r.y, r.t0, r.str], 8 + i * 4); u.set([...r.rgb, 0], 72 + i * 4); });
+      gpu.dev.queue.writeBuffer(this.buf, 0, u);
+      const enc = gpu.dev.createCommandEncoder();
+      const pass = enc.beginRenderPass({ colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+      if (active) { pass.setPipeline(gpu.ppipe); pass.setBindGroup(0, this.bind); pass.draw(3); }
+      pass.end(); gpu.dev.queue.submit([enc.finish()]);
+      this.clean = !active;
+    }
+  }
+
+  async function init() {
+    try {
+      if (!navigator.gpu) return;
+      const adapter = await navigator.gpu.requestAdapter(); if (!adapter) return;
+      const dev = await adapter.requestDevice();
+      const fmt = navigator.gpu.getPreferredCanvasFormat();
+      const mk = code => {
+        const module = dev.createShaderModule({ code });
+        return dev.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format: fmt }] }, primitive: { topology: 'triangle-list' } });
+      };
+      dev.pushErrorScope('validation');
+      gpu = { dev, fmt, vpipe: mk(VESSEL_WGSL), ppipe: mk(POND_WGSL), samp: dev.createSampler({ magFilter: 'linear', minFilter: 'linear' }) };
+      const err = await dev.popErrorScope();
+      if (err) { console.warn('FX disabled:', err.message); gpu = null; return; }
+      dev.lost.then(() => { gpu = null; $('#ring').classList.remove('gpu'); });
+    } catch (e) { console.warn('FX disabled:', e); gpu = null; return; }
+
+    readPal();
+    const reread = () => { readPal(); if (ring) ring.dirty = true; };
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', reread);
+    new MutationObserver(reread).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    const pond = new Pond($('#pond'));
+    const ring = new Vessel($('#vessel'), 0, true);
+    let tank = null, last = performance.now();
+    $('#ring').classList.add('gpu');
+
+    /* dragging across the ring sloshes the water */
+    let px0 = null;
+    $('#stage').addEventListener('pointerdown', e => { px0 = e.clientX; });
+    addEventListener('pointermove', e => { if (px0 === null) return; ring.s.tv += (e.clientX - px0) * -0.012; px0 = e.clientX; });
+    addEventListener('pointerup', () => { px0 = null; });
+
+    Object.assign(api, {
+      ring(v, text) { ring.set(v); ring.setText(text); },
+      tank(v, pour = 0) { if (!tank) return; tank.set(v); if (pour) tank.s.tv += Math.max(-1.2, Math.min(1.2, pour * 0.09)); },
+      attachTank(canvas) {
+        if (tank) { tank.destroy(); tank = null; }
+        if (canvas) { tank = new Vessel(canvas, 1, false); tank.s.tone = 'water'; }
+      },
+      ripple(x, y, str = 1, tone = 'water') {
+        if (RM.matches) return;
+        ripples.push({ x, y, t0: clock(), str, rgb: (pal[tone] || pal.water).slice(0, 3) });
+        while (ripples.length > 16) ripples.shift();
+      },
+      refill(dir = 1) { ring.s.level = 0; ring.s.lv = 0; ring.s.tv += -1.6 * dir; },
+      slosh(amt = 0.5, onTank) { const v = onTank ? tank : ring; if (v) v.s.tv += (Math.random() < 0.5 ? -1 : 1) * amt * 2; },
+    });
+
+    function frame(ts) {
+      const dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+      if (gpu && !document.hidden) {
+        const t = clock();
+        const f = flow();
+        pond.draw(t, RM.matches ? 0 : Math.min(0.85, f.actual / 16));
+        if (S.tab === 'walk') ring.draw(t, dt);
+        if (tank && ui.sheet) tank.draw(t, dt);
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    live();
+  }
+  api.init = init;
+  return api;
+})();
+
+render();
+FX.init();
+if (W().active) wakeOn();
+setInterval(tick, 250);
+})();
+</script>
+<!--shell-->
+</body>
+</html>

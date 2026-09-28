@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "claude-zones",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4178", "--bind", "127.0.0.1", "--directory", "claude-zones"],
+      "port": 4178
+    }
+  ]
+}

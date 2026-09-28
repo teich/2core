@@ -1,0 +1,43 @@
+{
+  "title": "2core Irrigation",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to 2core",
+        "description": "Enter the local 2core server address and access key. Tucor credentials stay on that server.",
+        "data": {
+          "url": "2core server URL",
+          "api_key": "Access key"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Update access key",
+        "data": {
+          "api_key": "Access key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The access key was rejected.",
+      "cannot_connect": "Cannot connect or controller inventory is not ready. Check the server address and status."
+    },
+    "abort": {
+      "already_configured": "This server is already configured.",
+      "reauth_successful": "Access key updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Timed runs and weather",
+        "description": "Weather inputs are optional. Choose Tempest rain intensity and recent accumulation (today or rolling 24 hours, never a lifetime total). An optional weather entity must supply a complete 12-hour hourly rain forecast. Choose Observe first in the Weather mode entity; Automatic enables rain delays when live controls are enabled on the server.",
+        "data": {
+          "default_minutes": "Default valve run (minutes)",
+          "intensity_entity": "Rain intensity (mm/h or in/h)",
+          "accumulation_entity": "Recent rainfall (mm or in)",
+          "weather_entity": "Optional hourly forecast"
+        }
+      }
+    }
+  }
+}

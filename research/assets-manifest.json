@@ -1,0 +1,74 @@
+{
+  "origin": "https://tucor.mysrc.online",
+  "retrieved": "2026-09-27",
+  "files": [
+    {
+      "file": "research/assets/app.37eafea5.js",
+      "sha256": "ef3c0b5bbfbe1973883b145e77938f362fc1d4d1c11a9f32cda93f2b3dfaa391"
+    },
+    {
+      "file": "research/assets/app.37eafea5.js.map",
+      "sha256": "aee116167a2704dca92c4e4b7420c0f57f077ecd535f61d40bf158945fdd69ce"
+    },
+    {
+      "file": "research/assets/chunk-0427b074.c9f52da3.js",
+      "sha256": "3eb8eda0472126de8e3bdb24d0bfe109cd4e76909d4dd228d09e30a4605ef321"
+    },
+    {
+      "file": "research/assets/chunk-13fe315a.27367405.js",
+      "sha256": "1a9f7589166b922cd5eb3e8da7d9ac440512d800ea972519766d771199994e2a"
+    },
+    {
+      "file": "research/assets/chunk-50c02815.406f0fea.js",
+      "sha256": "fbf6218c67c04e4bdb9726a157557f3908e5c41fe082b2ca44f756033578ea1b"
+    },
+    {
+      "file": "research/assets/chunk-50c02815.406f0fea.js.map",
+      "sha256": "7bb7ac50db7cb8877f0176dd466b342bc5d1eba90e781bf265a9d1877a43d457"
+    },
+    {
+      "file": "research/assets/chunk-61bd3018.fb71d865.js",
+      "sha256": "f339ac95f2f8adff3ad9a5cf02096e425ac22e03a1858a80210390b52544fd8b"
+    },
+    {
+      "file": "research/assets/chunk-61bd3018.fb71d865.js.map",
+      "sha256": "864080954b598ac71ff150f584b2e3593272f8f68f4a4981dae1449f3c6b4b45"
+    },
+    {
+      "file": "research/assets/chunk-627752fc.c4b5030c.js",
+      "sha256": "7e8935e62ecf388c2dace2b0da3c588c5791a45aa29bb4225ad994b11f5c1ed1"
+    },
+    {
+      "file": "research/assets/chunk-627752fc.c4b5030c.js.map",
+      "sha256": "3994432de0634771ed483e34e084fc13f8d009d306e287c0fd5f141b60e7e988"
+    },
+    {
+      "file": "research/assets/chunk-dab6c8fa.10b9e64d.js",
+      "sha256": "5626562fedbca33f3fbf52759c6aa1c08f8d3bb734cbe5a4d021faddc1cd9d5d"
+    },
+    {
+      "file": "research/assets/chunk-dab6c8fa.10b9e64d.js.map",
+      "sha256": "3a578db9b5e44e5762d4f309af61fc2e39d6e7e06e34199185fa203dae1b380f"
+    },
+    {
+      "file": "research/assets/chunk-vendors.5c8d2cca.js",
+      "sha256": "378da0a3cddb81b592a6d5fe252e20ccf9976b74eb23fd4185094db18b49c28b"
+    },
+    {
+      "file": "research/assets/chunk-vendors.5c8d2cca.js.map",
+      "sha256": "df6f78a466235eacd7868eda0f148424002da4f35a9355656bcf70212872700b"
+    },
+    {
+      "file": "research/assets/sso-app.6605415d.js",
+      "sha256": "6a9967ba5052294df620b72d3f5ae8167034677ed2d2753a1d268f534a25c4e6"
+    },
+    {
+      "file": "research/assets/sso-app.6605415d.js.map",
+      "sha256": "2a8377dd5db6a1e21ed6bae417a99f59d48487da4a3dd81741ed4720f6967518"
+    },
+    {
+      "file": "research/assets/sso.html",
+      "sha256": "32991ffb4c08293e9d4a305bbff299b8598c043c7c5c758ae55b844f3346ce0a"
+    }
+  ]
+}

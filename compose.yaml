@@ -1,0 +1,40 @@
+services:
+  two-core:
+    build: .
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:8787:8787"
+    environment:
+      MODE: live
+      ALLOW_LIVE_CONTROL: ${ALLOW_LIVE_CONTROL:-false}
+      CONTROLLER_ID: ${CONTROLLER_ID:-2479}
+      API_KEY_FILE: /run/secrets/api_key
+      TUCOR_USER_FILE: /run/secrets/tucor_user
+      TUCOR_PASSWORD_FILE: /run/secrets/tucor_password
+      TAILSCALE_SOCKET: ${TAILSCALE_SOCKET:-}
+      TAILSCALE_ORIGIN: ${TAILSCALE_ORIGIN:-}
+    secrets:
+      - api_key
+      - tucor_user
+      - tucor_password
+    volumes:
+      - irrigation-data:/app/data
+      - ./tailscale-runtime:/run/2core-tailscale
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 120s
+secrets:
+  api_key:
+    file: ./secrets/api_key
+  tucor_user:
+    file: ./secrets/tucor_user
+  tucor_password:
+    file: ./secrets/tucor_password
+volumes:
+  irrigation-data:

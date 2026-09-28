@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eef2ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b1210" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>2core · Garden controls</title>
+  <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <canvas id="pond" aria-hidden="true"></canvas>
+  <header class="top"><a class="brand" href="/" aria-label="2core home"><img src="/icon.svg" alt=""><span>2core <small>YOUR GARDEN, AT HAND</small></span></a><div><span id="connection" class="badge">Connecting</span><button id="signout" class="quiet" hidden>Lock</button></div></header>
+  <main>
+    <section id="login" class="login panel"><span class="eyebrow">A LITTLE CARE, ZONE BY ZONE</span><h1>Your garden.<br>At your fingertips.</h1><p>Enter your server’s access key to open the garden controls.</p><form id="login-form"><label for="access-key">2core access key</label><input id="access-key" type="password" autocomplete="current-password" required><button class="primary" type="submit">Open garden</button></form><p id="demo-hint" class="hint" hidden>Local demo key: <code>2core-demo</code>. Demo controls never connect to your irrigation.</p></section>
+    <div id="application" hidden>
+      <div class="intro"><div><span class="eyebrow" id="controller">YOUR GARDEN</span><h1 id="view-title">Garden zones</h1></div><button id="refresh" class="icon-button" aria-label="Refresh controller">↻</button></div>
+      <div id="mode-note" class="notice"></div>
+      <div id="message" role="status" aria-live="polite" hidden></div>
+      <section id="zones-view" aria-labelledby="view-title">
+        <div class="search-bar"><input id="search" type="search" placeholder="Find a zone…" aria-label="Find a zone"><div class="filters"><button id="favorites" aria-pressed="false">☆ Favorites</button><button id="show-unused" aria-pressed="false">Unused slots</button><span id="zone-count"></span></div></div>
+        <section id="active-card" class="active-card" hidden><div class="live-dot" aria-hidden="true"></div><div><span class="eyebrow">WATERING NOW</span><h2 id="active-name"></h2><p id="active-detail"></p></div><strong id="countdown" class="num"></strong><button id="active-open" class="soft">View run →</button></section>
+        <div class="section-label"><span>Your zones</span><span>Tap a zone to water or inspect</span></div><div id="zones" class="zones panel"></div><p id="empty" class="empty" hidden>No zones match. Try another name or filter.</p>
+      </section>
+      <section id="walk-view" hidden aria-labelledby="view-title">
+        <div class="walk-heading"><p id="walk-position"></p><span class="hint">One zone at a time</span></div>
+        <div id="walk-rail" class="rail" aria-label="Choose a zone for your walk"></div>
+        <div class="stage"><div id="water-orb" class="water-orb" aria-hidden="true"><div class="water-level"><div class="wave"></div><div class="wave second"></div></div><canvas id="vessel" aria-hidden="true"></canvas><div class="orb-label"><span>ZONE</span><strong id="walk-number">—</strong></div></div><h2 id="walk-name">Choose a zone</h2><div id="walk-time" class="num">Ready when you are</div><p id="walk-detail" class="muted"></p></div>
+        <div class="duration panel"><label for="walk-minutes">Run each zone for</label><select id="walk-minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option></select></div>
+        <button id="walk-start" class="primary wide">Start this zone</button><div class="walk-actions"><button id="walk-details" class="soft">Zone details</button><button id="next-zone" class="soft">Next zone →</button></div><p class="hint centered">You choose when to move on. The controller keeps the timer, even when your phone is locked.</p>
+      </section>
+      <section id="rain-view" hidden aria-labelledby="view-title">
+        <div class="panel rain-panel"><span class="eyebrow">A PAUSE FOR THE RAIN</span><h2>Let the weather help.</h2><p id="rain-summary">No rain delay.</p><div class="presets"><button data-rain="12">12 hours</button><button data-rain="24">24 hours</button><button data-rain="48">48 hours</button><button data-rain="0" class="outline">Clear delay</button></div><p class="hint">Zone testing is disabled during a rain hold.</p></div>
+        <div class="panel"><h2>Weather intelligence</h2><p class="muted">Home Assistant sends weather observations. Observe decisions or enable automatic holds.</p><label for="policy-mode">Weather mode</label><select id="policy-mode"><option value="off">Off</option><option value="observe">Observe only</option><option value="automatic">Automatic rain delay</option></select><dl id="policy-details"></dl><p id="weather-reason" class="weather-reason"></p><p class="hint">Automatic holds never shorten a manual delay. Missing or stale weather is not treated as dry weather.</p></div>
+      </section>
+      <section id="activity-view" hidden aria-labelledby="view-title"><section class="panel metrics"><h2>Controller health</h2><dl><dt>Voltage</dt><dd id="voltage">—</dd><dt>Current</dt><dd id="current">—</dd><dt>Flow</dt><dd id="flow">—</dd><dt>Last observed</dt><dd id="observed">—</dd></dl><p class="hint">Live controls use Tucor’s cloud. Your schedules stay on the controller.</p></section><h2 class="small-heading">Recent activity</h2><div id="activity" class="panel"></div></section>
+      <div class="dock"><section id="run-dock" class="run-dock" hidden aria-label="Current watering"><button id="dock-open"><span id="dock-name"></span><small id="dock-time" class="num"></small></button><button id="stop" class="stop">■ Stop</button></section><nav class="tabs" aria-label="Garden sections"><button data-tab="zones" aria-current="page"><span aria-hidden="true">▦</span>Zones</button><button data-tab="walk"><span aria-hidden="true">◉</span>Walk</button><button data-tab="rain"><span aria-hidden="true">☂</span>Weather</button><button data-tab="activity"><span aria-hidden="true">≋</span>Activity</button></nav></div>
+    </div>
+    <p id="login-error" role="alert"></p>
+  </main>
+  <dialog id="zone-dialog" class="sheet" aria-labelledby="sheet-name"><div class="grab" aria-hidden="true"></div><div class="sheet-head"><div><span class="eyebrow" id="sheet-number"></span><h2 id="sheet-name"></h2></div><button id="close-zone" class="icon-button" aria-label="Close zone controls">×</button></div><p id="sheet-status" class="muted"></p><div id="sheet-timer" class="num" hidden></div><div id="sheet-duration"><p class="duration-label">A little extra water</p><div class="duration-value"><canvas id="tank" aria-hidden="true"></canvas><strong id="duration-value" class="num">5</strong><span>minutes</span></div><div id="duration-presets" class="presets" aria-label="Run duration"> <button data-duration="1" aria-pressed="false">1 min</button><button data-duration="5" aria-pressed="true">5 min</button><button data-duration="15" aria-pressed="false">15 min</button><button data-duration="60" aria-pressed="false">1 hour</button></div></div><p id="sheet-blocked" class="hint"></p><button id="sheet-start" class="primary wide">Start watering</button><button id="sheet-stop" class="stop wide" hidden>■ Stop this zone</button><div class="sheet-secondary"><button id="sheet-favorite" class="soft" aria-pressed="false">☆ Favorite</button><button id="edit-zone" class="soft">Edit details</button></div><p id="sheet-notes" class="note-text"></p><p id="sheet-feedback" role="status" aria-live="polite"></p></dialog>
+  <dialog id="notes-dialog" class="sheet" aria-labelledby="notes-title"><div class="grab" aria-hidden="true"></div><form id="notes-form"><h2 id="notes-title">Zone details</h2><label for="zone-name">Display name</label><input id="zone-name" maxlength="80"><label for="zone-order">Walking order</label><input id="zone-order" type="number" min="0" max="1000"><label for="zone-notes">Inspection notes</label><textarea id="zone-notes" rows="4" maxlength="1000" placeholder="Leak by the oak, replace emitter…"></textarea><div class="dialog-actions"><button id="cancel-notes" type="button" class="outline">Cancel</button><button type="submit" class="primary">Save details</button></div></form></dialog>
+</body></html>
