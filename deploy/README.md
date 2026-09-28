@@ -19,7 +19,9 @@ The default binds to `127.0.0.1:8787`, suitable for an HTTPS reverse proxy on th
 
 Docker runs as non-root with a read-only image; SQLite lives in the `irrigation-data` volume. Back up that volume and the private secrets directory. There must be **one bridge process per controller**. Do not scale replicas or run a second live instance.
 
-Live mode starts **read-only**, regardless of any weather policy selection. It reads the controller about once per minute and releases the selection after each session. Browser/HA polls read the local cache. For controller troubleshooting or research, leave the vendor website on **Device List**. A busy controller or loss of connection makes 2core unavailable; it never forces another session off.
+Live mode starts **read-only**, regardless of any weather policy selection. It reads the controller about once per minute. Browser/HA polls read the local cache. Opening the app prepares a session in the background; interactive sessions remain warm for 90 seconds after use (ten-minute maximum). Background-only reads release selection after a one-second handoff window, and background polls never renew the interactive idle timeout. For controller troubleshooting or research, leave the vendor website on **Device List**. A busy controller or loss of connection makes 2core unavailable; it never forces another session off.
+
+The phone immediately acknowledges accepted commands, which continue on the bridge after locking or closing it. “Stop & run next” is one server operation. Acceptance is distinct from controller confirmation; reopen the app to see the outcome. A bridge restart marks unfinished commands as failed/unknown rather than replaying watering. JSON timing records in container stdout (`event=tucor_timing`) report operation IDs, queue delay, authentication, device discovery, socket/controller setup, status, write dispatch, and confirmation. They exclude credentials, URLs, and raw packets.
 
 ## Native Home Assistant 2026.09
 

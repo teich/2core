@@ -57,6 +57,10 @@ Set `ALLOW_LIVE_CONTROL=false` in `/opt/2core/.env` and recreate the service to 
 
 ## Deployment verification
 
-Live authentication and controller status reads succeeded from the LXC. The dashboard reports the real inventory and current readings. The app's authenticated browser session was opened and left available. No physical zone start/stop or rain-delay command was sent during deployment. The first one-minute physical run and explicit stop still need someone near the selected zone; see `deploy/README.md`.
+Live authentication, inventory, and status reads succeeded from the LXC. The latency update is deployed as release `20260928T011349Z-21591` (2026-09-27 local time). The original pre-update recovery snapshot is `/opt/2core/backups/20260928T010853Z-21070`.
+
+With the user's authorization, zone 02 (Rear Lawn) was requested for one minute through the asynchronous production API. The server returned 202 in 6 ms, dispatched Start on its existing session 2 ms after acceptance was recorded, and observed running handle 37 after 9.778 seconds. Subsequent fresh status confirmed automatic expiry: zone 02 stopped, ownership cleared, and no zones running. These are controller protocol observations, not a visual inspection of water flow. No live rain-delay change or explicit stop was sent in this validation.
+
+Warm full-status reads measured 1.920–3.339 seconds during the checks; the final completion read took 2.487 seconds. These are individual measurements inside the deployed container, not percentile guarantees. The phone acknowledges acceptance independently of controller confirmation, and the live Tailscale page showed the confirmed run without requesting Tucor credentials. See `server/API.md` for pending-command/restart semantics and session timeouts.
 
 For Home Assistant, copy `/opt/2core/custom_components/tucor_2core` into HA's `/config/custom_components/`, restart HA, then add **2core Irrigation** with the server URL and access key above. Tempest selections can wait.

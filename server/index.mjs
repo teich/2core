@@ -18,8 +18,9 @@ if (mode === 'live' && apiKey.length < 32) throw new Error('Set API_KEY or API_K
 const dir = process.env.DATA_DIR ?? `./data/${mode}`;
 await mkdir(dir, { recursive: true, mode: 0o700 });
 const store = new Store(`${dir}/2core.sqlite`);
-const driver = mode === 'demo' ? new DemoDriver() : new LiveDriver({ user: await secret('TUCOR_USER'), password: await secret('TUCOR_PASSWORD'), token: await secret('TUCOR_TOKEN'), controllerId: process.env.CONTROLLER_ID ?? '2479' });
-const engine = new Engine({ driver, store, mode, allowControl: process.env.ALLOW_LIVE_CONTROL === 'true' });
+const logger = record => console.log(JSON.stringify(record));
+const driver = mode === 'demo' ? new DemoDriver() : new LiveDriver({ user: await secret('TUCOR_USER'), password: await secret('TUCOR_PASSWORD'), token: await secret('TUCOR_TOKEN'), controllerId: process.env.CONTROLLER_ID ?? '2479', logger });
+const engine = new Engine({ driver, store, mode, logger, allowControl: process.env.ALLOW_LIVE_CONTROL === 'true' });
 const server = createServer(engine, apiKey);
 const tailscaleSocket = process.env.TAILSCALE_SOCKET;
 const tailscaleOrigin = process.env.TAILSCALE_ORIGIN;
@@ -45,9 +46,9 @@ if (tailscaleServer) {
 }
 for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, async () => {
   clearInterval(timer);
-  server.close();
-  tailscaleServer?.close();
+  await Promise.all([server, tailscaleServer].filter(Boolean).map(listener => new Promise(resolve => listener.close(resolve))));
   await engine.queue;
+  await driver.close?.();
   store.close();
   process.exit(0);
 });

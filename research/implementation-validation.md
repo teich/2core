@@ -24,3 +24,12 @@ The integration has not been installed on the user's actual HA instance or deplo
 - Estimates for owned-run countdowns use the app's clock; observed controller activity determines completion.
 - No manual test start during a rain hold, no configuration synchronization, no station/program editing, and no historical charts yet.
 - Legacy Socket.IO dependency audit: three moderate entries from the `parseuri` ReDoS advisory. The cloud origin is fixed, but dependency modernization still needs protocol compatibility testing.
+
+
+## Latency and phone-lock follow-up — 2026-09-27
+
+- 42 Node tests and 13 HA tests pass; the optional Docker/HA end-to-end test was skipped in this run. New coverage includes durable HTTP acceptance, client-independent completion, duplicate requests, restart uncertainty, queue expiry, refresh coalescing/priority, shared sessions, real receipt timestamps, stale status, disconnect after send, warm stream restoration, idle/lifetime expiry, and the deadline between rain Stop and Start.
+- A slow browser simulator confirmed that start and stop-and-next immediately show acceptance, survive page reload while pending, and finish without a follow-up request from the browser. Production Tailscale UI shows real inventory and confirmed activity without a Tucor login prompt.
+- Deployed release `20260928T011349Z-21591`. Live probes identified that `Stations/AutoStatus` suppresses full `Main` updates; the vendor `Header/SetState` dashboard-open message restores them. The driver and fake-cloud regression fixture now model that behavior.
+- Authorized live zone-02 one-minute test: HTTP acceptance 6 ms; Start dispatch 2 ms after recorded acceptance; running-handle confirmation 9.778 s. Handle 37 belonged to zone 2. A subsequent fresh read confirmed automatic expiry, ownership removal, and no running zones. Explicit live stop/next and rain-delay changes were not exercised in this follow-up.
+- Warm full-status reads took 1.920–3.339 s in these samples, including a 2.487 s read confirming expiry. Measurements are inside the deployed container and do not include phone networking. Cold connection and controller confirmation can still take seconds; the phone no longer waits for those to acknowledge acceptance.

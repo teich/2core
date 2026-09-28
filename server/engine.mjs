@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { trace } from './telemetry.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
 
 export class AppError extends Error {
@@ -11,37 +12,79 @@ export function number(value, min, max, integer = false) {
 const active = state => state.stations.filter(s => s.isRunning || s.runningEntries?.length);
 
 export class Engine {
-  constructor({ driver, store, mode = 'demo', allowControl = false, clock = Date.now }) {
-    Object.assign(this, { driver, store, mode, clock });
+  constructor({ driver, store, mode = 'demo', allowControl = false, clock = Date.now, logger = () => {} }) {
+    Object.assign(this, { driver, store, mode, clock, logger });
     this.allowControl = mode === 'demo' || allowControl;
     this.queue = Promise.resolve();
-    this.current = null;
+    this.jobs = [];
+    this.inflight = new Map();
+    this.store.interruptPending();
+    this.current = this.store.get('lastObservation');
     this.error = null;
   }
-  serial(fn) { const next = this.queue.then(fn); this.queue = next.catch(() => {}); return next; }
+  serial(fn, priority = 0) {
+    const next = new Promise((resolve, reject) => this.jobs.push({ fn, priority, resolve, reject }));
+    if (!this.draining) {
+      this.draining = true;
+      this.queue = Promise.resolve().then(async () => {
+        while (this.jobs.length) {
+          const index = this.jobs.findIndex(job => job.priority === 0);
+          const [job] = this.jobs.splice(index < 0 ? 0 : index, 1);
+          try { job.resolve(await job.fn()); } catch (e) { job.reject(e); }
+        }
+        this.draining = false;
+      });
+    }
+    return next;
+  }
   accept(state) {
     this.current = state;
     this.error = null;
+    this.observationVersion = (this.observationVersion ?? 0) + 1;
+    this.store.set('lastObservation', state);
     const runs = this.store.get('runs', []);
     const handles = state.stations.flatMap(s => (s.runningEntries ?? []).map(e => `${s.StId}:${e.handleID}`));
     this.store.set('runs', runs.filter(r => handles.includes(`${r.zone}:${r.handle}`)));
   }
-  async refresh() {
-    return this.serial(async () => {
-      try { await this.driver.withSession(async s => this.accept(s.snapshot())); }
-      catch (e) { this.error = e.message; throw e; }
+  refresh({ interactive = false, forceFresh = true } = {}) {
+    if (this.refreshing) {
+      // A foreground prepare arriving during a background read keeps that session warm.
+      this.refreshInteractive ||= interactive;
+      return this.refreshing;
+    }
+    this.refreshInteractive = interactive;
+    const version = this.observationVersion;
+    const t = trace(this.logger);
+    const queued = performance.now();
+    this.refreshing = this.serial(async () => {
+      t.record('refresh_queue', queued);
+      // A command ahead of this pending refresh already supplied a newer observation.
+      if (version !== this.observationVersion && !this.refreshInteractive) return this.state();
+      try {
+        await this.driver.withSession(async s => {
+          this.accept(s.snapshot());
+          if (this.refreshInteractive) s.keepUntil = this.clock() + (this.driver.idleMs ?? 90000);
+        }, { interactive: this.refreshInteractive, forceFresh, telemetry: t });
+      } catch (e) { this.error = e.message; throw e; }
       return this.state();
-    });
+    }, 1).finally(() => { this.refreshing = null; this.refreshInteractive = false; });
+    return this.refreshing;
+  }
+  prepare() {
+    // Fire-and-observe: opening the app must never wait for Tucor.
+    this.refresh({ interactive: true, forceFresh: false }).catch(() => {});
+    return { ok: true };
   }
   state() {
     const state = this.current;
-    const age = state ? this.clock() - Date.parse(state.receivedAt) : Infinity;
+    const age = state?.receivedAt ? this.clock() - Date.parse(state.receivedAt) : Infinity;
     const zones = (state?.stations ?? []).map(s => {
       const pref = this.store.get(`zone:${s.StId}`, {});
       const run = this.store.get('runs', []).find(r => r.zone === String(s.StId));
       return { id: String(s.StId), name: pref.name || s.name || s.label || `Zone ${s.StId}`, configured: Boolean(s.name), favorite: pref.favorite || false, order: pref.order ?? Number(s.StId), running: s.isRunning === null ? null : Boolean(s.isRunning || s.runningEntries?.length), owned: Boolean(run), endsAt: run?.endsAt ?? null, ...{ notes: pref.notes ?? '' } };
     }).sort((a, b) => a.order - b.order || Number(a.id) - Number(b.id));
     return {
+      operations: this.store.operations(),
       apiVersion: 1, mode: this.mode, controlEnabled: this.allowControl,
       controller: state?.controller ?? null, available: Boolean(state && age < 180000 && !this.error),
       observedAt: state?.receivedAt ?? null, error: this.error,
@@ -50,34 +93,59 @@ export class Engine {
       weatherDecision: this.store.get('weatherDecision'), events: this.store.events(),
     };
   }
-  async command(key, kind, body, fn, deadline) {
+  submit(key, kind, body, fn, deadline) {
     if (!/^[a-zA-Z0-9_-]{8,100}$/.test(key ?? '')) throw new AppError('A unique Idempotency-Key is required', 400);
     const fingerprint = createHash('sha256').update(JSON.stringify([kind, Object.keys(body).sort().map(k => [k, body[k]])])).digest('hex');
-    return this.serial(async () => {
-      const old = this.store.command(key);
-      if (old) {
-        if (old.fingerprint !== fingerprint) throw new AppError('Idempotency key was used for another command');
-        if (old.state !== 'succeeded') throw new AppError('Previous command failed or has an unknown outcome; refresh status before a new request');
-        return JSON.parse(old.result);
-      }
-      const expires = Date.parse(deadline);
-      if (!Number.isFinite(expires) || expires < this.clock() || expires > this.clock() + 120000) throw new AppError('Command expired or has an invalid deadline', 400);
-      this.store.begin(key, fingerprint);
+    const old = this.store.command(key);
+    if (old) {
+      if (old.fingerprint !== fingerprint) throw new AppError('Idempotency key was used for another command');
+      const completion = this.inflight.get(key) ?? (old.state === 'succeeded' ? Promise.resolve(JSON.parse(old.result)) : Promise.reject(new AppError('Previous command failed or has an unknown outcome; refresh status before a new request')));
+      completion.catch(() => {});
+      return { operation: this.store.operation(key), completion };
+    }
+    const expires = Date.parse(deadline);
+    if (!Number.isFinite(expires) || expires < this.clock() || expires > this.clock() + 120000) throw new AppError('Command expired or has an invalid deadline', 400);
+    if (this.inflight.size >= 32) throw new AppError('Too many pending commands; wait for confirmation', 429);
+    // Persist acceptance BEFORE acknowledging HTTP; execution belongs to the server.
+    this.store.acceptCommand(key, fingerprint, kind, body, deadline, new Date(this.clock()).toISOString());
+    const queued = performance.now();
+    const t = trace(this.logger, key, stage => {
+      const phase = stage === 'sending' ? 'sending' : stage.endsWith('_confirmation') ? 'confirming' : 'connecting';
+      this.store.phase(key, phase);
+    });
+    const completion = this.serial(async () => {
+      t.record('command_queue', queued);
       this.activeDeadline = expires;
+      this.activeTrace = t;
+      const started = performance.now();
       try {
+        if (this.clock() > expires) throw new AppError('Command expired while queued; nothing was sent', 400);
+        this.store.phase(key, 'connecting');
         const result = await fn();
         this.store.finish(key, 'succeeded', result);
+        this.store.phase(key, 'succeeded');
         this.store.event(kind, { ...body, outcome: 'confirmed' });
+        t.record('command_total', started);
         return result;
       } catch (e) {
         this.error = e instanceof AppError ? this.error : e.message;
         this.store.finish(key, 'failed', { error: e.message });
+        this.store.phase(key, 'failed');
         this.store.event(kind, { ...body, outcome: 'failed', message: e.message });
+        t.record('command_total', started, 'error');
         throw e;
       } finally {
         this.activeDeadline = null;
+        this.activeTrace = null;
+        this.inflight.delete(key);
       }
     });
+    this.inflight.set(key, completion);
+    completion.catch(() => {});
+    return { operation: this.store.operation(key), completion };
+  }
+  async command(key, kind, body, fn, deadline) {
+    return this.submit(key, kind, body, fn, deadline).completion;
   }
   writable() { if (!this.allowControl) throw new AppError('Live controls are disabled; enable only for supervised validation', 403); }
   async withCurrent(fn) {
@@ -87,7 +155,7 @@ export class Engine {
       const result = await fn(session);
       this.accept(session.snapshot());
       return result ?? { ok: true };
-    });
+    }, { interactive: true, telemetry: this.activeTrace ?? trace(this.logger), deadline: this.activeDeadline });
   }
   async start(zone, minutes) {
     this.writable(); number(minutes, 1, 60, true);
@@ -113,6 +181,18 @@ export class Engine {
       this.store.set('runs', this.store.get('runs', []).filter(r => !runs.some(stop => stop.handle === r.handle)));
       return { ok: true };
     });
+  }
+  async next(zone, minutes) {
+    this.writable(); number(minutes, 1, 60, true);
+    // Check the target before stopping anything. Both steps run under one command.
+    await this.withCurrent(async () => {
+      if (!this.current.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
+      const owned = this.store.get('runs', []);
+      if (active(this.current).some(s => !owned.some(r => r.zone === String(s.StId)))) throw new AppError('A zone was started outside 2core; stop it with the controller');
+    });
+    await this.stop();
+    // start performs all safety checks again after the confirmed stop.
+    return this.start(zone, minutes);
   }
   async rain(hours, source = 'manual', reason = 'Manual rain delay') {
     this.writable(); number(hours, 0, 999, true);

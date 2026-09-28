@@ -19,6 +19,7 @@ const r=await fetch('http://127.0.0.1:8787/api/state',{headers:{Authorization:`B
 if(!r.ok) throw new Error('Cannot inspect application state before deployment');
 const s=await r.json();
 if(s.zones?.some(z=>z.running)) {console.error('Watering is active. Deploy after it finishes.');process.exit(1);}
+if(s.operations?.some(o=>o.state==='pending')) {console.error('A command is pending. Deploy after it finishes.');process.exit(1);}
 JS
 backup="/opt/2core/backups/$release_id"
 mkdir -p "$backup"

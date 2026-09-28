@@ -235,3 +235,15 @@ browser offers CSV export after data is loaded.
 Do not use the configuration synchronization modal as a connection repair tool.
 No synchronization, edits to schedules, station setup, controller dial/mode
 changes, surveys, or watering commands were issued during this research.
+
+## Warm-session status reads (2026-09-27)
+
+Production read-only probes found that `Stations/AutoStatus` with `switch:on`
+selects station-only updates: sending it immediately after `Header/Refresh`
+can prevent the awaited `Main` packet. The captured vendor `Header.vue` sends
+`{component:"Header",command:"SetState",position:"Up"}` when opening its
+status dashboard. Send that before a warm `Header/Refresh` to restore the full
+`Main` + `Stations` stream. Repeated reads on one live session, including after
+station-only mode, returned in approximately 3.2 seconds. Do not append
+`Stations/AutoStatus` to a full-status read. Start/stop still use station-only
+updates for confirmation; the next full-status read restores dashboard mode.

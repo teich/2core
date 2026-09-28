@@ -3,12 +3,20 @@ const $ = id => document.getElementById(id);
 const implicitAuth = await import('./auth.js').then(m => m.detectImplicitAuthentication()).catch(() => false);
 let key = sessionStorage.getItem('2core-key') || '';
 let state, busy = false, loading = false, pendingLoad, editing, selected, walkId, tab = 'zones', minutes = 5;
+let reachable = false, tracked;
+try { tracked = JSON.parse(localStorage.getItem('2core-command') || 'null'); } catch { /* old or unavailable storage */ }
+const remember = value => {
+  tracked = value;
+  try { value ? localStorage.setItem('2core-command', JSON.stringify(value)) : localStorage.removeItem('2core-command'); } catch { /* server still retains status */ }
+};
+const pendingCommand = () => state?.operations?.find(o => o.state === 'pending') || tracked;
+const controlsBusy = () => busy || Boolean(pendingCommand());
 const runDurations = new Map();
 const waterFX = createWaterFX();
 const escape = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const uuid = () => globalThis.crypto?.randomUUID ? crypto.randomUUID() : `request-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const runningZones = () => state?.zones.filter(z => z.running) || [];
-const canControl = () => state?.available && state.controlEnabled && !busy;
+const canControl = () => reachable && state?.controlEnabled && !controlsBusy();
 const isPressed = id => $(id).getAttribute('aria-pressed') === 'true';
 const visibleZones = () => state.zones.filter(z => (z.configured || isPressed('show-unused')) && (!isPressed('favorites') || z.favorite) && `${z.name} ${z.id} ${z.notes}`.toLowerCase().includes($('search').value.trim().toLowerCase()));
 const walkZones = () => state.zones.filter(z => z.configured || isPressed('show-unused'));
@@ -26,47 +34,119 @@ function message(text, error = false) {
   $('message').hidden = !text; $('message').textContent = text; $('message').className = error ? 'error' : '';
   $('sheet-feedback').textContent = text; $('sheet-feedback').className = error ? 'failure' : '';
 }
-async function api(path, body) {
+async function api(path, body, options = {}) {
   const response = await fetch(`/api${path}`, {
-    method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${key}`, ...(body ? { 'Content-Type': 'application/json', 'Idempotency-Key': uuid() } : {}) },
-    body: body ? JSON.stringify({ ...body, deadline: new Date(Date.now() + 60000).toISOString() }) : undefined,
-    signal: AbortSignal.timeout(90000),
+    method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${key}`, ...(body ? { 'Content-Type': 'application/json', 'Idempotency-Key': options.id || uuid(), ...(options.async ? { Prefer:'respond-async' } : {}) } : {}) },
+    body: body ? JSON.stringify({ ...body, deadline: options.deadline || new Date(Date.now() + 60000).toISOString() }) : undefined,
+    signal: AbortSignal.timeout(options.async ? 15000 : 90000),
+    keepalive: Boolean(options.async),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Request failed');
+  if (!response.ok) { const error = new Error(data.error || 'Request failed'); error.status = response.status; throw error; }
   return data;
 }
 async function load() {
   if (!key && !implicitAuth) return false;
-  // A command refresh waits for any older poll, then reads fresh state.
-  if (loading) await pendingLoad;
+  if (loading) return pendingLoad;
   loading = true;
   let resolveLoad;
   pendingLoad = new Promise(resolve => { resolveLoad = resolve; });
   try {
     state = await api('/state');
+    reachable = true;
+    await reconcileCommand();
     $('login').hidden = true; $('application').hidden = false; $('signout').hidden = implicitAuth; $('login-error').textContent = '';
     render(); return true;
   } catch (e) {
+    reachable = false;
     $('connection').textContent = 'Offline'; $('connection').className = 'badge bad';
     if (!state) $('login-error').textContent = e.message;
-    else { state.available = false; render(); message(`${e.message}. Commands will not be queued or retried.`, true); }
+    else { state.available = false; render(); message(tracked ? 'Connection interrupted. Your request may still be running. Reopen the app to check; it will not be sent again.' : e.message, true); }
     return false;
   } finally { loading = false; resolveLoad(); }
 }
-async function act(path, body = {}, label = 'Waiting for controller confirmation…') {
-  if (busy) return false;
+function operationLabel(operation) {
+  const match = operation.kind?.match(/zones\/(\d+)\/(start|next|stop)/);
+  const name = match && (state?.zones.find(z => z.id === match[1])?.name || `zone ${match[1]}`);
+  if (match) return match[2] === 'stop' ? `Stop ${name}` : `${match[2] === 'next' ? 'Stop and start' : 'Start'} ${name} for ${operation.body.minutes} min`;
+  if (operation.kind === '/api/rain') return operation.body.hours ? `Rain delay for ${operation.body.hours} hours` : 'Clear rain delay';
+  if (operation.kind === '/api/stop') return 'Stop watering';
+  return 'Save changes';
+}
+async function reconcileCommand() {
+  if (!tracked) {
+    const pending = state.operations?.find(o => o.state === 'pending');
+    if (pending) remember({ id:pending.id, deadline:pending.deadline, accepted:true });
+  }
+  let operation = tracked && state.operations?.find(o => o.id === tracked.id);
+  if (tracked && !operation) {
+    try { operation = (await api(`/commands/${tracked.id}`)).operation; }
+    catch (error) {
+      if (error.status !== 404) throw error;
+      // An acknowledgement can be lost. Never send the request again automatically.
+      if (Date.now() > Date.parse(tracked.deadline)) {
+        remember(null);
+        message('The request was not accepted before its deadline. Check the controller before trying again.', true);
+      }
+    }
+  }
+  if (operation?.state === 'succeeded') {
+    const run = operation.result?.run;
+    if (run) { walkId = run.zone; runDurations.set(`${run.zone}:${run.endsAt}`, operation.body.minutes * 60000); }
+    remember(null);
+    message(`Confirmed: ${operationLabel(operation)}.`);
+  } else if (operation?.state === 'failed') {
+    remember(null);
+    message(`${operationLabel(operation)}: ${operation.result?.error || 'Not confirmed. Check the controller before trying again.'}`, true);
+  } else if (operation) {
+    remember({ ...tracked, accepted:true });
+  }
+}
+function showPending() {
+  const operation = state?.operations?.find(o => o.state === 'pending');
+  if (operation) {
+    const phase = operation.phase === 'confirming' ? 'Waiting for confirmation.' : operation.phase === 'queued' ? 'Waiting its turn.' : 'Connecting and checking the controller.';
+    message(`Accepted: ${operationLabel(operation)}. ${phase} You can lock your phone.`);
+  } else if (tracked) {
+    message(tracked.accepted ? 'Accepted. The server is handling it; you can lock your phone.' : 'Checking whether your request was accepted. It will not be sent again automatically.');
+  }
+}
+async function act(path, body = {}, label = 'Sending request…') {
+  if (controlsBusy()) return false;
   busy = true; message(label); render();
-  try { await api(path, body); if (!await load()) return false; message('Confirmed.'); return true; }
-  catch (e) { message(e.message, true); await load(); return false; }
-  finally { busy = false; render(); }
+  if (path === '/refresh') {
+    try { await api('/prepare', {}); message('Checking the controller in the background…'); return true; }
+    catch (e) { message(e.message, true); return false; }
+    finally { busy = false; render(); }
+  }
+  const request = { id:uuid(), kind:`/api${path}`, body, deadline:new Date(Date.now() + 60000).toISOString(), accepted:false };
+  remember(request);
+  try {
+    const result = await api(path, body, { ...request, async:true });
+    remember({ ...request, accepted:true });
+    if (result.operation) {
+      state.operations = [result.operation, ...(state.operations || []).filter(o => o.id !== result.operation.id)];
+      await reconcileCommand();
+    }
+    showPending();
+    // Status polling is independent of this tap and survives closing/reopening.
+    load();
+    return true;
+  } catch (e) {
+    if (e.status) remember(null);
+    message(e.status ? e.message : 'Could not confirm acceptance. Checking status; this request will not be sent again automatically.', true);
+    load(); return false;
+  } finally { busy = false; render(); }
+}
+function prepare() {
+  if (key || implicitAuth) api('/prepare', {}).catch(() => {});
 }
 function blockedReason() {
-  if (!state.available) return 'Controller unavailable. Refresh before watering.';
+  if (!reachable) return 'Cannot reach the garden server.';
   if (!state.controlEnabled) return 'Read-only mode. Live watering is disabled on the server.';
-  if (busy) return 'Waiting for controller confirmation…';
-  if (Number(state.status.rainShutDown) > 0) return 'Rain hold active. Clear it in Weather before testing a zone.';
-  if (runningZones().length) return 'A zone is already running. Stop it before starting another.';
+  if (controlsBusy()) return 'Your request is being handled. You can lock your phone.';
+  if (state.available && Number(state.status.rainShutDown) > 0) return 'Rain hold active. Clear it in Weather before testing a zone.';
+  if (state.available && runningZones().length) return 'A zone is already running. Stop it before starting another.';
   return '';
 }
 function showTab(name) {
@@ -87,7 +167,7 @@ function renderSheet() {
   if (!zone) return;
   $('sheet-number').textContent = `ZONE ${zone.id.padStart(2,'0')}`;
   $('sheet-name').textContent = zone.name;
-  $('sheet-status').textContent = !state.available ? 'Status unavailable' : zone.running ? zone.owned ? 'Watering now · Timer on the controller' : 'External run · Manage it on the controller' : 'Ready for a little attention';
+  $('sheet-status').textContent = !state.available ? 'The server will check the controller before watering.' : zone.running ? zone.owned ? 'Watering now · Timer on the controller' : 'External run · Manage it on the controller' : 'Ready for a little attention';
   $('sheet-duration').hidden = Boolean(zone.running);
   $('sheet-timer').hidden = !zone.running;
   $('sheet-blocked').textContent = blockedReason();
@@ -98,8 +178,8 @@ function renderSheet() {
   $('sheet-stop').disabled = !canControl();
   $('sheet-favorite').textContent = zone.favorite ? '★ Favorited' : '☆ Favorite';
   $('sheet-favorite').setAttribute('aria-pressed', String(zone.favorite));
-  $('sheet-favorite').disabled = busy;
-  $('edit-zone').disabled = busy;
+  $('sheet-favorite').disabled = controlsBusy();
+  $('edit-zone').disabled = controlsBusy();
   $('sheet-notes').textContent = zone.notes || 'No inspection notes yet.';
   $('duration-value').textContent = minutes;
   document.querySelectorAll('[data-duration]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.duration) === minutes)));
@@ -116,20 +196,21 @@ function renderWalk() {
   $('walk-start').disabled = !zone || Boolean(blockedReason());
   $('walk-start').textContent = zone?.running ? 'Watering now' : 'Start this zone';
   const running = runningZones();
-  $('next-zone').disabled = !canControl() || !zones.length || running.some(z => !z.owned) || Number(state.status.rainShutDown) > 0;
+  $('next-zone').disabled = !canControl() || !zones.length || (state.available && (running.some(z => !z.owned) || Number(state.status.rainShutDown) > 0));
   $('next-zone').textContent = running.length ? 'Stop & run next →' : 'Next zone →';
   $('walk-details').disabled = !zone;
-  $('walk-minutes').disabled = busy;
+  $('walk-minutes').disabled = controlsBusy();
   if (blockedReason() && !zone?.running) $('walk-detail').textContent = blockedReason();
 }
 function render() {
   if (!state) return;
   const running = runningZones();
-  $('connection').textContent = !state.available ? 'Unavailable' : state.mode === 'demo' ? 'Simulation' : 'Connected';
-  $('connection').className = `badge ${state.available ? '' : 'bad'}`;
+  showPending();
+  $('connection').textContent = !reachable ? 'Offline' : !state.available ? 'Checking controller' : state.mode === 'demo' ? 'Simulation' : 'Connected';
+  $('connection').className = `badge ${reachable ? '' : 'bad'}`;
   $('controller').textContent = state.controller?.name ?? 'YOUR GARDEN';
   $('mode-note').textContent = state.mode === 'demo' ? 'SIMULATION · Sample garden. Controls never affect real irrigation.' : state.controlEnabled ? 'LIVE · Timed watering and rain delays affect your irrigation.' : 'READ-ONLY · Live watering is disabled until supervised validation.';
-  $('refresh').disabled = busy;
+  $('refresh').disabled = controlsBusy();
   $('active-card').hidden = !running.length;
   $('active-name').textContent = running.map(z => z.name).join(', ');
   $('active-detail').textContent = running.some(z => !z.owned) ? 'Started outside 2core. Manage on the controller.' : 'The controller keeps the timer. You can put your phone away.';
@@ -148,7 +229,7 @@ function render() {
   $('rain-summary').textContent = seconds > 0 ? `Rain hold active · about ${Math.ceil(seconds/3600)} hours remaining.${state.rain?.reason ? ` ${state.rain.reason}.` : ''}` : 'No rain delay. Your normal schedule is in charge.';
   document.querySelectorAll('[data-rain]').forEach(b => b.disabled = !canControl());
   if (document.activeElement !== $('policy-mode')) $('policy-mode').value = state.policy.mode;
-  $('policy-mode').disabled = busy;
+  $('policy-mode').disabled = controlsBusy();
   html('policy-details', `<dt>Rain intensity</dt><dd>${state.policy.intensityMmH} mm/h</dd><dt>Recent accumulation</dt><dd>${state.policy.accumulationMm} mm</dd><dt>Forecast threshold</dt><dd>${state.policy.forecastMm} mm · ${state.policy.forecastProbability}%</dd><dt>Hold duration</dt><dd>${state.policy.holdHours} hours</dd>`);
   const d = state.weatherDecision;
   $('weather-reason').textContent = d ? `${d.applied ? 'Delay applied' : d.wet ? 'Would delay' : 'Observing'}: ${d.reason}${d.blocked ? `. ${d.blocked}` : ''}${d.preserved ? `. ${d.preserved}` : ''}` : 'Waiting for Home Assistant weather observations.';
@@ -185,7 +266,7 @@ async function startZone(id, duration) {
     walkId = id; render();
   }
 }
-$('login-form').addEventListener('submit', async e => { e.preventDefault(); key = $('access-key').value.trim(); sessionStorage.setItem('2core-key',key); await load(); });
+$('login-form').addEventListener('submit', async e => { e.preventDefault(); key = $('access-key').value.trim(); sessionStorage.setItem('2core-key',key); prepare(); await load(); });
 $('signout').addEventListener('click', () => { sessionStorage.removeItem('2core-key'); location.reload(); });
 $('refresh').addEventListener('click', () => act('/refresh'));
 $('stop').addEventListener('click', () => act('/stop'));
@@ -197,27 +278,14 @@ $('walk-rail').addEventListener('click', e => { const b = e.target.closest('[dat
 $('walk-start').addEventListener('click', () => startZone(getWalkZone().id,Number($('walk-minutes').value)));
 $('walk-details').addEventListener('click', () => openZone(getWalkZone().id));
 $('next-zone').addEventListener('click', async () => {
-  if (busy || $('next-zone').disabled) return;
+  if (controlsBusy() || $('next-zone').disabled) return;
   const zones = walkZones(), running = runningZones();
   const currentId = running[0]?.id || getWalkZone()?.id;
   const next = zones[(zones.findIndex(z => z.id === currentId) + 1) % zones.length];
   if (!running.length) { walkId = next.id; render(); $('walk-rail').querySelector('[aria-pressed=true]')?.scrollIntoView({ block:'nearest',inline:'center' }); return; }
-  // Hold the UI lock across both commands. Never start if stop or state refresh failed.
-  busy = true; message('Stopping the current zone…'); render();
-  try {
-    await api('/stop', {});
-    if (!await load()) return;
-    if (runningZones().length || !state.available || !state.controlEnabled || Number(state.status.rainShutDown) > 0) throw new Error('The controller is not ready for the next zone. Refresh and check its status.');
-    message('Starting the next zone…');
-    const duration = Number($('walk-minutes').value);
-    await api(`/zones/${next.id}/start`, { minutes:duration });
-    walkId = next.id;
-    if (!await load()) return;
-    const zone = state.zones.find(z => z.id === next.id);
-    if (zone?.endsAt) runDurations.set(`${zone.id}:${zone.endsAt}`,duration*60000);
-    message('Confirmed.');
-  } catch (e) { message(e.message,true); await load(); }
-  finally { busy = false; render(); }
+  // One accepted operation owns both steps, even while the phone is locked.
+  await act(`/zones/${next.id}/next`, { minutes:Number($('walk-minutes').value) });
+
 });
 for (const id of ['active-open','dock-open']) $(id).addEventListener('click', () => { const z = runningZones()[0]; if (z) openZone(z.id); });
 $('zone-dialog').addEventListener('close',tick);
@@ -234,15 +302,16 @@ $('edit-zone').addEventListener('click', () => {
 $('cancel-notes').addEventListener('click', () => { $('notes-dialog').close(); openZone(editing.id); });
 $('notes-form').addEventListener('submit', async e => {
   e.preventDefault();
-  if (busy) return;
+  if (controlsBusy()) return;
   const body = { name:$('zone-name').value, notes:$('zone-notes').value, order:Number($('zone-order').value) };
   $('notes-dialog').close(); openZone(editing.id);
   await act(`/zones/${editing.id}/preferences`,body,'Saving zone details…');
 });
 document.querySelectorAll('[data-rain]').forEach(b => b.addEventListener('click', () => act('/rain',{ hours:Number(b.dataset.rain) })));
 $('policy-mode').addEventListener('change', () => act('/policy',{ mode:$('policy-mode').value },'Saving weather mode…'));
-document.addEventListener('visibilitychange', () => { document.body.classList.toggle('page-hidden',document.hidden); if (!document.hidden && !busy) load(); });
-setInterval(() => { if (!document.hidden && !busy && !$('notes-dialog').open) load(); },5000);
+document.addEventListener('visibilitychange', () => { document.body.classList.toggle('page-hidden',document.hidden); if (!document.hidden) { prepare(); load(); } });
+setInterval(() => { if (!document.hidden && !$('notes-dialog').open) load(); },1500);
 setInterval(() => { if (!document.hidden) tick(); },1000);
+prepare();
 load();
 fetch('/healthz').then(r => r.json()).then(info => { $('demo-hint').hidden = info.mode !== 'demo'; }).catch(() => {});

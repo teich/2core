@@ -36,6 +36,11 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       }
       if (!implicit && !bearer) return json(401, { error: 'Enter the 2core access key' });
       if (req.method === 'GET' && path === '/api/state') return json(200, engine.state());
+      const operation = path.match(/^\/api\/commands\/([a-zA-Z0-9_-]{8,100})$/);
+      if (req.method === 'GET' && operation) {
+        const result = engine.store.operation(operation[1]);
+        return result ? json(200, { operation: result }) : json(404, { error: 'Command not found' });
+      }
       if (req.method !== 'POST') return json(405, { error: 'Method not allowed' });
       if (implicit && !bearer && req.headers.origin !== trustedOrigin) return json(403, { error: 'Same-origin request required for Tailscale commands' });
       if (!(req.headers['content-type'] ?? '').startsWith('application/json')) return json(415, { error: 'JSON required' });
@@ -44,18 +49,25 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       let body;
       try { body = JSON.parse(text); } catch { throw new AppError('Invalid JSON', 400); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AppError('JSON object required', 400);
+      if (path === '/api/prepare') return json(202, engine.prepare());
       if (path === '/api/refresh') { await engine.refresh(); return json(200, engine.state()); }
       const { deadline, ...payload } = body;
-      const zone = path.match(/^\/api\/zones\/(\d+)\/(start|stop|preferences)$/);
+      const zone = path.match(/^\/api\/zones\/(\d+)\/(start|stop|next|preferences)$/);
       let fn;
       if (zone) {
         const [, id, action] = zone;
-        fn = () => action === 'start' ? engine.start(id, payload.minutes) : action === 'stop' ? engine.stop(id) : engine.preferences(id, payload);
+        fn = () => action === 'start' ? engine.start(id, payload.minutes) : action === 'stop' ? engine.stop(id) : action === 'next' ? engine.next(id, payload.minutes) : engine.preferences(id, payload);
       } else if (path === '/api/stop') fn = () => engine.stop();
       else if (path === '/api/rain') fn = () => engine.rain(payload.hours);
       else if (path === '/api/policy') fn = () => engine.configurePolicy(payload);
       else if (path === '/api/weather') fn = () => engine.weather(payload);
       else return json(404, { error: 'Unknown API route' });
+      if (req.headers.prefer?.split(',').some(value => value.trim() === 'respond-async')) {
+        const { operation } = engine.submit(req.headers['idempotency-key'], path, payload, fn, deadline);
+        res.setHeader('Preference-Applied', 'respond-async');
+        if (operation) res.setHeader('Location', `/api/commands/${operation.id}`);
+        return json(operation?.state === 'pending' ? 202 : 200, { operation });
+      }
       const result = await engine.command(req.headers['idempotency-key'], path, payload, fn, deadline);
       json(200, result);
     } catch (e) { json(e.status ?? 503, { error: e.message }); }
