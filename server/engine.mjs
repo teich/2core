@@ -10,7 +10,7 @@ export function number(value, min, max, integer = false) {
   return value;
 }
 const active = state => state.stations.filter(s => s.isRunning || s.runningEntries?.length);
-export const LIMITS = Object.freeze({ minMinutes: 1, maxMinutes: 60, concurrentZones: 1, issues: 20 });
+export const LIMITS = Object.freeze({ minMinutes: 1, maxMinutes: 240, concurrentZones: 1, issues: 20 });
 const ISSUE_TEXT = 40;
 
 export class Engine {

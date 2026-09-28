@@ -61,7 +61,7 @@ test('timed run expires on controller and ownership is reconciled',async t=>{
   driver.runs[0].endsAt=Date.now()-1;
   await engine.refresh(); assert.equal(engine.state().zones[0].running,false);
   assert.deepEqual(store.get('runs'),[]);
-  for(const n of [0,-1,61,1.5,'5',NaN]) await assert.rejects(engine.start('1',n),/Expected integer/);
+  for(const n of [0,-1,241,1.5,'5',NaN]) await assert.rejects(engine.start('1',n),/Expected integer/);
 });
 
 test('rain policy observes by default, preserves manual holds, and never clears on dry data',async t=>{
@@ -147,13 +147,13 @@ test('state reports limits and the confirmed run timing the UI draws from', asyn
   const {engine} = await fixture(t, { clock: () => Date.parse('2026-09-28T10:00:00Z') });
   await engine.start('3', 15);
   const state = engine.state();
-  assert.deepEqual(state.limits, { minMinutes: 1, maxMinutes: 60, concurrentZones: 1, issues: 20 });
+  assert.deepEqual(state.limits, { minMinutes: 1, maxMinutes: 240, concurrentZones: 1, issues: 20 });
   const zone = state.zones.find(z => z.id === '3');
   assert.equal(zone.startedAt, '2026-09-28T10:00:00.000Z');
   assert.equal(zone.minutes, 15);
   assert.equal(zone.endsAt, '2026-09-28T10:15:00.000Z');
   assert.equal(state.zones.find(z => z.id === '4').startedAt, null);
-  await assert.rejects(engine.start('3', 61), /between 1 and 60/);
+  await assert.rejects(engine.start('3', 241), /between 1 and 240/);
 });
 
 test('zone issues are validated, normalized and returned with the zone', async t => {

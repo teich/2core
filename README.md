@@ -45,7 +45,7 @@ A single local service owns command serialization, credentials, run ownership, w
 
 ## Features
 
-- Zone buttons for **1, 5, 15, or 60 minutes**, countdown, explicit stop, and “Stop & run next.” Only one test run at a time. Search, favorites, walking order, local aliases, and leak notes.
+- Timed zone runs up to **4 hours** (a minute dial with 5-minute steps past the first hour), countdown, explicit stop, and “Stop & run next.” Only one run at a time. Search, favorites, walking order, local aliases, and leak notes.
 - Controller voltage/current/flow, active-zone count, rain-delay status, and command activity.
 - Manual rain delay and a weather policy with **off / observe / automatic** modes. Observe is the default.
 - Durable duplicate-request protection, command deadlines, rejection of overlapping runs, and explicit unknown-outcome handling. No automatic write retries.

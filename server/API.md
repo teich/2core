@@ -12,9 +12,9 @@ Every mutation below requires `Content-Type: application/json`, a unique `Idempo
 
 | POST path | Properties | Meaning |
 | --- | --- | --- |
-| `/api/zones/:id/start` | `minutes`: integer 1–60 | Single bounded run; rejects overlap, rain delay, non-Automatic mode |
+| `/api/zones/:id/start` | `minutes`: integer 1–240 | Single bounded run; rejects overlap, rain delay, non-Automatic mode |
 | `/api/zones/:id/stop` | none | Stop recorded owned handle for this zone |
-| `/api/zones/:id/next` | `minutes`: integer 1–60 | Confirm stop of owned runs, then check safety and start the target; one server-owned operation |
+| `/api/zones/:id/next` | `minutes`: integer 1–240 | Confirm stop of owned runs, then check safety and start the target; one server-owned operation |
 | `/api/stop` | none | Stop all recorded owned runs |
 | `/api/zones/:id/preferences` | optional `name`, `notes`, `order`, `favorite`, `issues` (up to 20 `{issue, at}`; `issue` ≤ 40 characters, `at` ISO time) | Local metadata; does not change Tucor configuration |
 | `/api/rain` | `hours`: integer 0–999 | Explicit manual hold replacement; 0 clears |

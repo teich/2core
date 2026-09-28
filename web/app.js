@@ -23,7 +23,13 @@ const canControl = () => reachable && state?.controlEnabled && !controlsBusy();
 const isPressed = id => $(id).getAttribute('aria-pressed') === 'true';
 const pad = id => String(id).padStart(2, '0');
 const icon = (name, cls = '') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-const limits = () => state?.limits ?? { minMinutes: 1, maxMinutes: 60 };
+const limits = () => state?.limits ?? { minMinutes: 1, maxMinutes: 240 };
+// Dial positions: every minute for the first hour, then five-minute steps.
+const dialSteps = () => { const max = limits().maxMinutes, out = []; for (let m = limits().minMinutes; m <= max; m += m < 60 ? 1 : 5) out.push(m); return out; };
+const stepIndex = m => { const steps = dialSteps(); let best = 0; steps.forEach((s, i) => { if (Math.abs(s - m) < Math.abs(steps[best] - m)) best = i; }); return best; };
+const snap = m => dialSteps()[stepIndex(m)];
+const hm = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+const duration = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
 const ISSUES = ['Leak', 'Broken head', 'Misaligned head', 'Clogged or weak', 'Overspray', 'Dry spot', 'Valve won’t close', 'Other'];
 const PHASE = { queued: 'Waiting its turn', connecting: 'Reaching the controller', sending: 'Sending', confirming: 'Waiting for confirmation' };
 const visibleZones = () => state.zones.filter(z => (z.configured || isPressed('show-unused')) && (!isPressed('favorites') || z.favorite) && (!isPressed('flagged') || z.issues?.length) && matches(z));
@@ -86,7 +92,7 @@ async function load() {
 function operationLabel(operation) {
   const match = operation.kind?.match(/zones\/(\d+)\/(start|next|stop)/);
   const name = match && (state?.zones.find(z => z.id === match[1])?.name || `zone ${match[1]}`);
-  if (match) return match[2] === 'stop' ? `Stop ${name}` : `${match[2] === 'next' ? 'Stop and start' : 'Start'} ${name} for ${operation.body.minutes} min`;
+  if (match) return match[2] === 'stop' ? `Stop ${name}` : `${match[2] === 'next' ? 'Stop and start' : 'Start'} ${name} for ${duration(operation.body.minutes)}`;
   if (operation.kind === '/api/rain') return operation.body.hours ? `Rain delay for ${operation.body.hours} hours` : 'Clear rain delay';
   if (operation.kind === '/api/stop') return 'Stop watering';
   if (operation.body?.issues) return 'Save flag';
@@ -262,15 +268,19 @@ function buildDial() {
   if ($('ticks').dataset.max === String(max)) return;
   $('ticks').dataset.max = String(max);
   $('ticks').setAttribute('aria-valuemax', String(max));
-  $('ticks').innerHTML = Array.from({ length: max }, (_, i) => { const m = i + 1; return `<i class="tk${m % 15 === 0 ? ' m15' : m % 5 === 0 ? ' m5' : ''}">${m % 15 === 0 || m === 1 ? `<span>${m}</span>` : ''}</i>`; }).join('');
-  $('duration-presets').innerHTML = [5, 15, 30, 45, 60].filter(m => m <= max).map(m => `<button data-duration="${m}" aria-pressed="false">${m}</button>`).join('');
+  // Past an hour each tick is five minutes: longer marks every quarter hour, labels every half hour.
+  $('ticks').innerHTML = dialSteps().map(m => {
+    const major = m < 60 ? m % 15 === 0 : m % 30 === 0, minor = m < 60 ? m % 5 === 0 : m % 15 === 0;
+    return `<i class="tk${major ? ' m15' : minor ? ' m5' : ''}">${major || m === 1 ? `<span>${m < 60 ? m : hm(m)}</span>` : ''}</i>`;
+  }).join('');
+  $('duration-presets').innerHTML = [5, 15, 30, 60, 120, 240].filter(m => m <= max).map(m => `<button data-duration="${m}" aria-pressed="false">${m < 60 ? m : `${m / 60}h`}</button>`).join('');
 }
-function setDial(m, smooth = true) { $('ticks').scrollTo({ left: (m - 1) * 10, behavior: smooth ? 'smooth' : 'instant' }); }
+function setDial(m, smooth = true) { $('ticks').scrollTo({ left: stepIndex(m) * 10, behavior: smooth ? 'smooth' : 'instant' }); }
 function renderSheet() {
   const zone = state?.zones.find(z => z.id === selected);
   if (!zone) return;
   buildDial();
-  minutes = Math.min(minutes, limits().maxMinutes);
+  minutes = snap(minutes);
   const mode = zoneMode(zone), info = describe(zone, mode);
   const showRun = ['running', 'unknown', 'stopping'].includes(mode) || (mode === 'stale' && zone.running);
   $('sheet-number').textContent = pad(zone.id);
@@ -283,7 +293,7 @@ function renderSheet() {
   $('sheet-blocked').textContent = showRun || mode === 'starting' ? '' : blockedReason();
   $('sheet-start').hidden = showRun || mode === 'starting';
   $('sheet-start').disabled = Boolean(blockedReason());
-  $('sheet-start').innerHTML = `${icon('drop')}Water for ${minutes} min`;
+  $('sheet-start').innerHTML = `${icon('drop')}Water for ${duration(minutes)}`;
   $('sheet-stop').hidden = !(zone.running && zone.owned) || mode === 'stopping';
   $('sheet-stop').disabled = !canControl();
   $('sheet-favorite').setAttribute('aria-pressed', String(zone.favorite));
@@ -292,8 +302,10 @@ function renderSheet() {
   for (const id of ['sheet-favorite', 'edit-zone', 'sheet-flag']) $(id).disabled = controlsBusy();
   html('sheet-issues', issueRows([zone]));
   $('sheet-notes').textContent = zone.notes || '';
-  $('duration-value').textContent = minutes;
+  $('duration-value').textContent = minutes < 60 ? minutes : hm(minutes);
+  $('duration-unit').textContent = minutes < 60 ? 'min' : minutes === 60 ? 'hour' : 'hours';
   $('ticks').setAttribute('aria-valuenow', String(minutes));
+  $('ticks').setAttribute('aria-valuetext', duration(minutes));
   document.querySelectorAll('[data-duration]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.duration) === minutes)));
 }
 function issueRows(zones) {
@@ -358,7 +370,7 @@ function render() {
     const issue = z.issues?.at(-1), last = runs[z.id];
     const meta = mode === 'starting' ? 'Starting…' : mode === 'stopping' ? 'Stopping…' : live ? (z.owned ? 'Watering' : 'Watering · started at the controller')
       : issue ? `<span class="issue">${escape(issue.issue)}</span> · flagged ${day(issue.at)}`
-      : last ? `Last run ${day(last.at)} · ${last.minutes} min` : escape((z.notes || '').split('\n')[0]);
+      : last ? `Last run ${day(last.at)} · ${duration(last.minutes)}` : escape((z.notes || '').split('\n')[0]);
     const end = mode === 'running' ? `<span class="zone-end" data-rem="${z.id}"></span>` : `<span class="zone-end">${icon('next')}</span>`;
     return `<button class="zone${live ? ' running' : ''}${mode === 'starting' || mode === 'stopping' ? ' pending' : ''}" data-zone="${z.id}" aria-label="${escape(z.name)}, zone ${z.id}${live ? ', watering' : ''}"><span class="zone-num">${pad(z.id)}</span><span class="zone-text"><span class="zone-name"><span>${escape(z.name)}</span>${z.favorite ? icon('star', 'fav') : ''}${z.issues?.length ? icon('flag') : ''}</span><span class="zone-meta">${meta}</span></span>${end}</button>`;
   }).join(''));
@@ -428,7 +440,7 @@ function tick() {
       tankState = { mode: 'starting', level: 0, tone: 'water', frost: false };
     } else {
       $('tank-caption').innerHTML = `Ends at <b>${at(now + minutes * 60000)}</b> if started now`;
-      tankState = { mode: 'idle', level: 0.06 + 0.86 * minutes / limits().maxMinutes, tone: sheetMode === 'failed' ? 'amber' : 'water', frost: !reachable || !state.available };
+      tankState = { mode: 'idle', level: 0.06 + 0.86 * stepIndex(minutes) / (dialSteps().length - 1), tone: sheetMode === 'failed' ? 'amber' : 'water', frost: !reachable || !state.available };
     }
     $('sheet-status').textContent = describe(sheetZone, sheetMode).text || 'Not running';
   }
@@ -514,14 +526,15 @@ $('close-findings').addEventListener('click', () => $('findings-dialog').close()
 
 // Minute dial: scroll to choose; the tank fills with the water the run will use.
 $('ticks').addEventListener('scroll', () => {
-  const m = Math.max(limits().minMinutes, Math.min(limits().maxMinutes, Math.round($('ticks').scrollLeft / 10) + 1));
+  const steps = dialSteps(), index = Math.max(0, Math.min(steps.length - 1, Math.round($('ticks').scrollLeft / 10)));
+  const m = steps[index];
   if (m === minutes) return;
-  waterFX.pour(m - minutes);
+  waterFX.pour(index - stepIndex(minutes));
   minutes = m; store('2core-minutes', m); renderSheet(); tick();
 }, { passive: true });
 $('ticks').addEventListener('keydown', e => {
   const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
-  if (step) { e.preventDefault(); setDial(Math.max(1, Math.min(limits().maxMinutes, minutes + step))); }
+  if (step) { const steps = dialSteps(); e.preventDefault(); setDial(steps[Math.max(0, Math.min(steps.length - 1, stepIndex(minutes) + step))]); }
 });
 $('duration-presets').addEventListener('click', e => { const b = e.target.closest('[data-duration]'); if (b) setDial(Number(b.dataset.duration)); });
 $('sheet-start').addEventListener('click', () => startZone(selected, minutes));
