@@ -19,7 +19,7 @@ const dir = process.env.DATA_DIR ?? `./data/${mode}`;
 await mkdir(dir, { recursive: true, mode: 0o700 });
 const store = new Store(`${dir}/2core.sqlite`);
 const logger = record => console.log(JSON.stringify(record));
-const driver = mode === 'demo' ? new DemoDriver() : new LiveDriver({ user: await secret('TUCOR_USER'), password: await secret('TUCOR_PASSWORD'), token: await secret('TUCOR_TOKEN'), controllerId: process.env.CONTROLLER_ID ?? '2479', logger });
+const driver = mode === 'demo' ? new DemoDriver({ delayMs: Number(process.env.DEMO_DELAY_MS) || 0 }) : new LiveDriver({ user: await secret('TUCOR_USER'), password: await secret('TUCOR_PASSWORD'), token: await secret('TUCOR_TOKEN'), controllerId: process.env.CONTROLLER_ID ?? '2479', logger });
 const engine = new Engine({ driver, store, mode, logger, allowControl: process.env.ALLOW_LIVE_CONTROL === 'true' });
 const server = createServer(engine, apiKey);
 const tailscaleSocket = process.env.TAILSCALE_SOCKET;

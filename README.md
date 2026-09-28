@@ -23,7 +23,7 @@ Open **http://127.0.0.1:8787** and enter `2core-demo`. Or use Docker:
 docker compose -f compose.demo.yaml up --build -d
 ```
 
-The simulator never connects to Tucor or operates irrigation hardware. Its garden names and readings are sample data. It supports timed runs, stop, next-zone walking, favorites, notes, list order, rain delays, and weather policy. Simulator runs reset on restart; preferences and activity persist. Use a separate data directory or volume for live mode.
+The simulator never connects to Tucor or operates irrigation hardware. Its garden names and readings are sample data. It supports timed runs, stop, next-zone walking, favorites, notes, list order, rain delays, and weather policy. Simulator runs reset on restart; preferences and activity persist. Use a separate data directory or volume for live mode. Set `DEMO_DELAY_MS=8000` to make the simulated controller take 8 seconds to answer, so the app's waiting states can be seen.
 
 ## Architecture
 

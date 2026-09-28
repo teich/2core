@@ -16,7 +16,7 @@ Every mutation below requires `Content-Type: application/json`, a unique `Idempo
 | `/api/zones/:id/stop` | none | Stop recorded owned handle for this zone |
 | `/api/zones/:id/next` | `minutes`: integer 1–60 | Confirm stop of owned runs, then check safety and start the target; one server-owned operation |
 | `/api/stop` | none | Stop all recorded owned runs |
-| `/api/zones/:id/preferences` | optional `name`, `notes`, `order`, `favorite` | Local metadata; does not change Tucor configuration |
+| `/api/zones/:id/preferences` | optional `name`, `notes`, `order`, `favorite`, `issues` (up to 20 `{issue, at}`; `issue` ≤ 40 characters, `at` ISO time) | Local metadata; does not change Tucor configuration |
 | `/api/rain` | `hours`: integer 0–999 | Explicit manual hold replacement; 0 clears |
 | `/api/policy` | any subset of policy fields below | Persist settings |
 | `/api/weather` | `observedAt`, optional `intensityMmH`, `accumulationMm`, `forecastMm`, `forecastProbability` | Submit normalized weather observation |
@@ -27,6 +27,6 @@ By default mutations wait for confirmation and return their existing result, pre
 
 Successful duplicate keys with identical payloads return the recorded result without re-executing. Concurrent duplicates join the same operation. Reusing a key for different content fails. Failed requests cannot be replayed; commands pending at server restart become failed with an explicit unknown-outcome message and are **not resumed**. Accepted work survives closing the phone, not a server crash. A failed write can have an unknown physical outcome; refresh and inspect before deliberately making a new request. Keys and operation records are retained indefinitely. The UI remembers its last request ID and checks status after reopening or losing an acknowledgement; it never automatically sends it again.
 
-`available` means the last successful controller observation is under three minutes old and no later connection error is recorded. `controlEnabled` is a separate server switch. Zone `endsAt` is an estimate for a confirmed owned run; the controller remains responsible for the timer. The UI keeps showing a run until a fresh observation confirms it stopped.
+`available` means the last successful controller observation is under three minutes old and no later connection error is recorded. `controlEnabled` is a separate server switch. `limits` reports `minMinutes`, `maxMinutes`, `concurrentZones` and the per-zone `issues` cap so clients need not hardcode them. Zone `startedAt`, `minutes` and `endsAt` describe a confirmed owned run (null otherwise); `endsAt` is an estimate; the controller remains responsible for the timer. The UI keeps showing a run until a fresh observation confirms it stopped.
 
 Typical errors: 400 invalid/expired request; 401 bad API key; 403 live controls disabled; 404 unknown route/zone; 409 conflicting/unsafe state or reused command; 503 connection failure or unconfirmed outcome. No automatic write retries. A successful response confirms an observed protocol state, not physical valve movement.

@@ -10,6 +10,8 @@ export function number(value, min, max, integer = false) {
   return value;
 }
 const active = state => state.stations.filter(s => s.isRunning || s.runningEntries?.length);
+export const LIMITS = Object.freeze({ minMinutes: 1, maxMinutes: 60, concurrentZones: 1, issues: 20 });
+const ISSUE_TEXT = 40;
 
 export class Engine {
   constructor({ driver, store, mode = 'demo', allowControl = false, clock = Date.now, logger = () => {} }) {
@@ -81,11 +83,11 @@ export class Engine {
     const zones = (state?.stations ?? []).map(s => {
       const pref = this.store.get(`zone:${s.StId}`, {});
       const run = this.store.get('runs', []).find(r => r.zone === String(s.StId));
-      return { id: String(s.StId), name: pref.name || s.name || s.label || `Zone ${s.StId}`, configured: Boolean(s.name), favorite: pref.favorite || false, order: pref.order ?? Number(s.StId), running: s.isRunning === null ? null : Boolean(s.isRunning || s.runningEntries?.length), owned: Boolean(run), endsAt: run?.endsAt ?? null, ...{ notes: pref.notes ?? '' } };
+      return { id: String(s.StId), name: pref.name || s.name || s.label || `Zone ${s.StId}`, configured: Boolean(s.name), favorite: pref.favorite || false, order: pref.order ?? Number(s.StId), running: s.isRunning === null ? null : Boolean(s.isRunning || s.runningEntries?.length), owned: Boolean(run), startedAt: run?.startedAt ?? null, minutes: run?.minutes ?? null, endsAt: run?.endsAt ?? null, notes: pref.notes ?? '', issues: pref.issues ?? [] };
     }).sort((a, b) => a.order - b.order || Number(a.id) - Number(b.id));
     return {
       operations: this.store.operations(),
-      apiVersion: 1, mode: this.mode, controlEnabled: this.allowControl,
+      apiVersion: 1, mode: this.mode, controlEnabled: this.allowControl, limits: LIMITS,
       controller: state?.controller ?? null, available: Boolean(state && age < 180000 && !this.error),
       observedAt: state?.receivedAt ?? null, error: this.error,
       status: state?.status ?? {}, alarms: state?.alarms ?? [], zones,
@@ -158,7 +160,7 @@ export class Engine {
     }, { interactive: true, telemetry: this.activeTrace ?? trace(this.logger), deadline: this.activeDeadline });
   }
   async start(zone, minutes) {
-    this.writable(); number(minutes, 1, 60, true);
+    this.writable(); number(minutes, LIMITS.minMinutes, LIMITS.maxMinutes, true);
     return this.withCurrent(async session => {
       if (!this.current.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
       if (this.current.stations.some(s => s.isRunning === null || s.runningEntries === null)) throw new AppError('Station activity is unknown; refresh before starting');
@@ -167,7 +169,8 @@ export class Engine {
       if (Number(this.current.status.rainShutDown) > 0) throw new AppError('Rain delay is active. Manual operation during rain delay is not yet validated');
       if (Number(this.current.status.controllerMode) !== 2) throw new AppError('Controller must already be in Automatic mode');
       const started = await session.start(zone, minutes);
-      const run = { zone, handle: started.handle, endsAt: new Date(this.clock() + minutes * 60000).toISOString() };
+      const now = this.clock();
+      const run = { zone, handle: started.handle, minutes, startedAt: new Date(now).toISOString(), endsAt: new Date(now + minutes * 60000).toISOString() };
       this.store.set('runs', [run]);
       return { ok: true, run };
     });
@@ -183,7 +186,7 @@ export class Engine {
     });
   }
   async next(zone, minutes) {
-    this.writable(); number(minutes, 1, 60, true);
+    this.writable(); number(minutes, LIMITS.minMinutes, LIMITS.maxMinutes, true);
     // Check the target before stopping anything. Both steps run under one command.
     await this.withCurrent(async () => {
       if (!this.current.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
@@ -247,6 +250,14 @@ export class Engine {
     }
     if (body.favorite !== undefined) { if (typeof body.favorite !== 'boolean') throw new AppError('Invalid favorite', 400); next.favorite = body.favorite; }
     if (body.order !== undefined) next.order = number(body.order, 0, 1000, true);
+    if (body.issues !== undefined) {
+      // Problems spotted on a walk: short labels with the time they were flagged.
+      if (!Array.isArray(body.issues) || body.issues.length > LIMITS.issues) throw new AppError(`Expected up to ${LIMITS.issues} issues`, 400);
+      next.issues = body.issues.map(item => {
+        if (!item || typeof item.issue !== 'string' || !item.issue.trim() || item.issue.length > ISSUE_TEXT || !Number.isFinite(Date.parse(item.at))) throw new AppError('Invalid issue', 400);
+        return { issue: item.issue.trim(), at: new Date(item.at).toISOString() };
+      });
+    }
     this.store.set(`zone:${zone}`, next);
     return { ok: true };
   }

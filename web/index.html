@@ -2,42 +2,125 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#eef2ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b1210" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eef2ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#070b0a" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>2core · Garden controls</title>
+  <title>2core</title>
   <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/style.css">
   <script src="/app.js" type="module"></script>
 </head>
 <body>
+  <svg class="sprite" aria-hidden="true">
+    <symbol id="i-drop" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5c-.3 0-.6.2-.8.4C9.4 5.2 5 10.7 5 14.6 5 18.7 8.1 21.5 12 21.5s7-2.8 7-6.9c0-3.9-4.4-9.4-6.2-11.7-.2-.2-.5-.4-.8-.4Z"/></symbol>
+    <symbol id="i-feet" viewBox="0 0 24 24"><g fill="currentColor"><path d="M7.6 3c2 0 3.1 2.3 3 5-.1 2.2-.8 3.8-1 5.3-.1.8-.7 1.3-1.5 1.3H6.6c-.8 0-1.4-.6-1.5-1.3C4.8 11.6 4.3 9.8 4.4 8c.2-2.8 1.3-5 3.2-5Z"/><rect x="5.2" y="15.8" width="4.6" height="3.8" rx="1.9"/><path d="M16.4 6c1.9 0 3 2.2 3.2 5 .1 1.8-.4 3.6-.7 5.3-.1.7-.7 1.3-1.5 1.3h-1.5c-.8 0-1.4-.5-1.5-1.3-.2-1.5-.9-3.1-1-5.3-.1-2.7 1-5 3-5Z"/><rect x="14.2" y="18.8" width="4.6" height="3.4" rx="1.7"/></g></symbol>
+    <symbol id="i-rain" viewBox="0 0 24 24"><path fill="currentColor" d="M7.5 15.5A4.5 4.5 0 0 1 7 6.53 6 6 0 0 1 18.4 8.1a3.75 3.75 0 0 1-.9 7.4Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m8.5 18-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="17.5" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path fill="currentColor" d="M5 2.8c.6 0 1 .4 1 1v.5c1.4-.7 3-.9 4.8-.3 1.6.5 3 1 5.2.2.7-.2 1.4.3 1.4 1v8.2c0 .4-.3.8-.7 1-2.7 1-4.6.4-6.3-.1-1.5-.5-2.9-.6-4.4.2v6.7c0 .6-.4 1-1 1s-1-.4-1-1V3.8c0-.6.4-1 1-1Z"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3.2c.4 0 .7.2.9.6l2.1 4.4 4.8.7c.8.1 1.1 1.1.6 1.7l-3.5 3.4.8 4.8c.1.8-.7 1.4-1.5 1L12 17.5l-4.3 2.3c-.7.4-1.6-.2-1.5-1l.8-4.8-3.5-3.4c-.6-.6-.2-1.6.6-1.7l4.8-.7 2.2-4.4c.2-.4.5-.6.9-.6Z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4.5H15"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m15.5 15.5 4.5 4.5"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/></symbol>
+    <symbol id="i-tilt" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-18 12 12)"/><path fill="currentColor" d="M5.6 15.6 17 11.9l-2.3 7.3a1.6 1.6 0 0 1-1.9 1l-5.5-1.8a1.6 1.6 0 0 1-1.1-1.8Z" opacity=".45"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M16 5.5A2.5 2.5 0 0 0 13.5 3h-7A3.5 3.5 0 0 0 3 6.5v7A2.5 2.5 0 0 0 5.5 16"/></symbol>
+  </svg>
+
   <canvas id="pond" aria-hidden="true"></canvas>
-  <header class="top"><a class="brand" href="/" aria-label="2core home"><img src="/icon.svg" alt=""><span>2core <small>YOUR GARDEN, AT HAND</small></span></a><div><span id="connection" class="badge">Connecting</span><button id="signout" class="quiet" hidden>Lock</button></div></header>
   <main>
-    <section id="login" class="login panel"><span class="eyebrow">A LITTLE CARE, ZONE BY ZONE</span><h1>Your garden.<br>At your fingertips.</h1><p>Enter your server’s access key to open the garden controls.</p><form id="login-form"><label for="access-key">2core access key</label><input id="access-key" type="password" autocomplete="current-password" required><button class="primary" type="submit">Open garden</button></form><p id="demo-hint" class="hint" hidden>Local demo key: <code>2core-demo</code>. Demo controls never connect to your irrigation.</p></section>
+    <section id="login" class="login">
+      <img src="/icon.svg" alt="" class="login-icon">
+      <h1>2core</h1>
+      <p>Enter the access key for your garden server.</p>
+      <form id="login-form"><label for="access-key">Access key</label><input id="access-key" type="password" autocomplete="current-password" required><button class="primary wide" type="submit">Open</button></form>
+      <p id="demo-hint" class="hint" hidden>Demo key: <code>2core-demo</code>. The demo never reaches real irrigation.</p>
+      <p id="login-error" role="alert"></p>
+    </section>
+
     <div id="application" hidden>
-      <div class="intro"><div><span class="eyebrow" id="controller">YOUR GARDEN</span><h1 id="view-title">Garden zones</h1></div><button id="refresh" class="icon-button" aria-label="Refresh controller">↻</button></div>
-      <div id="mode-note" class="notice"></div>
+      <header class="top">
+        <div class="top-row">
+          <button id="connection" class="status" aria-label="Controller status. Tap to check now"><i class="dot"></i><span id="connection-text">Connecting</span></button>
+          <div class="top-actions"><button id="refresh" class="icon-button" aria-label="Check the controller now"><svg><use href="#i-refresh"/></svg></button><button id="signout" class="text-button" hidden>Lock</button></div>
+        </div>
+        <h1 id="view-title">Zones</h1>
+        <p id="mode-note" class="mode-note" hidden></p>
+      </header>
       <div id="message" role="status" aria-live="polite" hidden></div>
+
       <section id="zones-view" aria-labelledby="view-title">
-        <div class="search-bar"><input id="search" type="search" placeholder="Find a zone…" aria-label="Find a zone"><div class="filters"><button id="favorites" aria-pressed="false">☆ Favorites</button><button id="show-unused" aria-pressed="false">Unused slots</button><span id="zone-count"></span></div></div>
-        <section id="active-card" class="active-card" hidden><div class="live-dot" aria-hidden="true"></div><div><span class="eyebrow">WATERING NOW</span><h2 id="active-name"></h2><p id="active-detail"></p></div><strong id="countdown" class="num"></strong><button id="active-open" class="soft">View run →</button></section>
-        <div class="section-label"><span>Your zones</span><span>Tap a zone to water or inspect</span></div><div id="zones" class="zones panel"></div><p id="empty" class="empty" hidden>No zones match. Try another name or filter.</p>
+        <div class="search-bar">
+          <label class="field"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Zone name or number" aria-label="Find a zone" autocomplete="off"></label>
+          <div class="filters"><button id="favorites" class="chip" aria-pressed="false"><svg><use href="#i-star"/></svg>Favorites</button><button id="flagged" class="chip" aria-pressed="false"><svg><use href="#i-flag"/></svg>Flagged</button><button id="show-unused" class="chip" aria-pressed="false">Unused slots</button><span id="zone-count"></span></div>
+        </div>
+        <div id="zones" class="zones group"></div>
+        <p id="empty" class="empty" hidden>No zones match. Try a number like 14, or part of a name.</p>
       </section>
+
       <section id="walk-view" hidden aria-labelledby="view-title">
-        <div class="walk-heading"><p id="walk-position"></p><span class="hint">One zone at a time</span></div>
-        <div id="walk-rail" class="rail" aria-label="Choose a zone for your walk"></div>
-        <div class="stage"><div id="water-orb" class="water-orb" aria-hidden="true"><div class="water-level"><div class="wave"></div><div class="wave second"></div></div><canvas id="vessel" aria-hidden="true"></canvas><div class="orb-label"><span>ZONE</span><strong id="walk-number">—</strong></div></div><h2 id="walk-name">Choose a zone</h2><div id="walk-time" class="num">Ready when you are</div><p id="walk-detail" class="muted"></p></div>
-        <div class="duration panel"><label for="walk-minutes">Run each zone for</label><select id="walk-minutes"><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option></select></div>
-        <button id="walk-start" class="primary wide">Start this zone</button><div class="walk-actions"><button id="walk-details" class="soft">Zone details</button><button id="next-zone" class="soft">Next zone →</button></div><p class="hint centered">You choose when to move on. The controller keeps the timer, even when your phone is locked.</p>
+        <div class="walk-head"><span id="walk-position"></span><button id="findings-open" class="chip">Findings <b id="findings-count">0</b></button></div>
+        <div id="walk-rail" class="rail" aria-label="Choose a zone"></div>
+        <div class="stage">
+          <h2 id="walk-name">Choose a zone</h2>
+          <div id="water-orb" class="water-orb">
+            <div class="water-level" aria-hidden="true"><div class="wave"></div><div class="wave second"></div></div>
+            <canvas id="vessel" aria-hidden="true"></canvas>
+            <div class="orb-label" aria-hidden="true"><span id="walk-number">ZONE</span><strong id="walk-time" class="num"></strong><em id="walk-word"></em></div>
+            <button id="tilt" class="tilt" hidden aria-pressed="false" aria-label="Let the water follow the phone's tilt"><svg><use href="#i-tilt"/></svg></button>
+          </div>
+          <p id="walk-state" class="walk-state" aria-live="polite"></p>
+          <p id="walk-detail" class="muted"></p>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Minutes per zone"><span>Each zone</span><button role="radio" data-walk-minutes="1" aria-checked="true">1 min</button><button role="radio" data-walk-minutes="2" aria-checked="false">2</button><button role="radio" data-walk-minutes="3" aria-checked="false">3</button><button role="radio" data-walk-minutes="5" aria-checked="false">5</button></div>
+        <button id="walk-start" class="primary wide"></button>
+        <div id="walk-transport" class="transport" hidden><button id="walk-stop" class="round stop" aria-label="Stop watering"><svg><use href="#i-stop"/></svg></button><button id="next-zone" class="primary wide"></button></div>
+        <div class="duo"><button id="walk-flag" class="soft flag"><svg><use href="#i-flag"/></svg>Flag issue</button><button id="walk-details" class="soft">Zone details</button></div>
       </section>
+
       <section id="rain-view" hidden aria-labelledby="view-title">
-        <div class="panel rain-panel"><span class="eyebrow">A PAUSE FOR THE RAIN</span><h2>Let the weather help.</h2><p id="rain-summary">No rain delay.</p><div class="presets"><button data-rain="12">12 hours</button><button data-rain="24">24 hours</button><button data-rain="48">48 hours</button><button data-rain="0" class="outline">Clear delay</button></div><p class="hint">Zone testing is disabled during a rain hold.</p></div>
-        <div class="panel"><h2>Weather intelligence</h2><p class="muted">Home Assistant sends weather observations. Observe decisions or enable automatic holds.</p><label for="policy-mode">Weather mode</label><select id="policy-mode"><option value="off">Off</option><option value="observe">Observe only</option><option value="automatic">Automatic rain delay</option></select><dl id="policy-details"></dl><p id="weather-reason" class="weather-reason"></p><p class="hint">Automatic holds never shorten a manual delay. Missing or stale weather is not treated as dry weather.</p></div>
+        <div class="group pad"><h2>Rain delay</h2><p id="rain-summary" class="muted"></p><div class="presets"><button data-rain="12">12 h</button><button data-rain="24">24 h</button><button data-rain="48">48 h</button><button data-rain="0" class="outline">Clear</button></div><p class="hint">Zones can’t be started during a rain delay.</p></div>
+        <div class="group pad"><h2>Automatic rain delay</h2><p class="muted">Home Assistant sends weather observations. 2core can log what it would do, or set the delay itself.</p><label for="policy-mode">Mode</label><select id="policy-mode"><option value="off">Off</option><option value="observe">Log only</option><option value="automatic">Set rain delays automatically</option></select><dl id="policy-details"></dl><p id="weather-reason" class="weather-reason"></p><p class="hint">Automatic delays never shorten a manual one. Missing or stale weather never counts as dry.</p></div>
       </section>
-      <section id="activity-view" hidden aria-labelledby="view-title"><section class="panel metrics"><h2>Controller health</h2><dl><dt>Voltage</dt><dd id="voltage">—</dd><dt>Current</dt><dd id="current">—</dd><dt>Flow</dt><dd id="flow">—</dd><dt>Last observed</dt><dd id="observed">—</dd></dl><p class="hint">Live controls use Tucor’s cloud. Your schedules stay on the controller.</p></section><h2 class="small-heading">Recent activity</h2><div id="activity" class="panel"></div></section>
-      <div class="dock"><section id="run-dock" class="run-dock" hidden aria-label="Current watering"><button id="dock-open"><span id="dock-name"></span><small id="dock-time" class="num"></small></button><button id="stop" class="stop">■ Stop</button></section><nav class="tabs" aria-label="Garden sections"><button data-tab="zones" aria-current="page"><span aria-hidden="true">▦</span>Zones</button><button data-tab="walk"><span aria-hidden="true">◉</span>Walk</button><button data-tab="rain"><span aria-hidden="true">☂</span>Weather</button><button data-tab="activity"><span aria-hidden="true">≋</span>Activity</button></nav></div>
+
+      <section id="activity-view" hidden aria-labelledby="view-title"><div class="group pad metrics"><h2>Controller</h2><dl><dt>Voltage</dt><dd id="voltage">—</dd><dt>Current</dt><dd id="current">—</dd><dt>Last heard</dt><dd id="observed">—</dd></dl><p class="hint">Commands go through Tucor’s cloud. Schedules stay on the controller.</p></div><h2 class="small-heading">Recent activity</h2><div id="activity" class="group pad"></div></section>
     </div>
-    <p id="login-error" role="alert"></p>
   </main>
-  <dialog id="zone-dialog" class="sheet" aria-labelledby="sheet-name"><div class="grab" aria-hidden="true"></div><div class="sheet-head"><div><span class="eyebrow" id="sheet-number"></span><h2 id="sheet-name"></h2></div><button id="close-zone" class="icon-button" aria-label="Close zone controls">×</button></div><p id="sheet-status" class="muted"></p><div id="sheet-timer" class="num" hidden></div><div id="sheet-duration"><p class="duration-label">A little extra water</p><div class="duration-value"><canvas id="tank" aria-hidden="true"></canvas><strong id="duration-value" class="num">5</strong><span>minutes</span></div><div id="duration-presets" class="presets" aria-label="Run duration"> <button data-duration="1" aria-pressed="false">1 min</button><button data-duration="5" aria-pressed="true">5 min</button><button data-duration="15" aria-pressed="false">15 min</button><button data-duration="60" aria-pressed="false">1 hour</button></div></div><p id="sheet-blocked" class="hint"></p><button id="sheet-start" class="primary wide">Start watering</button><button id="sheet-stop" class="stop wide" hidden>■ Stop this zone</button><div class="sheet-secondary"><button id="sheet-favorite" class="soft" aria-pressed="false">☆ Favorite</button><button id="edit-zone" class="soft">Edit details</button></div><p id="sheet-notes" class="note-text"></p><p id="sheet-feedback" role="status" aria-live="polite"></p></dialog>
-  <dialog id="notes-dialog" class="sheet" aria-labelledby="notes-title"><div class="grab" aria-hidden="true"></div><form id="notes-form"><h2 id="notes-title">Zone details</h2><label for="zone-name">Display name</label><input id="zone-name" maxlength="80"><label for="zone-order">Walking order</label><input id="zone-order" type="number" min="0" max="1000"><label for="zone-notes">Inspection notes</label><textarea id="zone-notes" rows="4" maxlength="1000" placeholder="Leak by the oak, replace emitter…"></textarea><div class="dialog-actions"><button id="cancel-notes" type="button" class="outline">Cancel</button><button type="submit" class="primary">Save details</button></div></form></dialog>
+
+  <canvas id="glass" aria-hidden="true"></canvas>
+  <div class="dock" id="dock" hidden>
+    <section id="run-dock" class="run-dock capsule" hidden aria-label="Current watering"><button id="dock-open"><span id="dock-name"></span><small id="dock-time" class="num"></small></button><button id="stop" class="stop"><svg><use href="#i-stop"/></svg>Stop</button></section>
+    <nav class="tabs capsule" id="tabs" aria-label="Sections"><button data-tab="zones" aria-current="page"><svg><use href="#i-drop"/></svg>Zones</button><button data-tab="walk"><svg><use href="#i-feet"/></svg>Walk</button><button data-tab="rain"><svg><use href="#i-rain"/></svg>Weather</button><button data-tab="activity"><svg><use href="#i-list"/></svg>Activity</button></nav>
+  </div>
+
+  <dialog id="zone-dialog" class="sheet" aria-labelledby="sheet-name">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span id="sheet-number" class="zone-num lg num"></span><div><h2 id="sheet-name"></h2><p id="sheet-status" class="muted"></p></div><button id="close-zone" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="tank" id="tank-box"><canvas id="tank" aria-hidden="true"></canvas><div class="dur" id="dur-block"><strong id="duration-value" class="num">30</strong><span>min</span></div><strong id="sheet-timer" class="num" hidden></strong><p id="tank-caption"></p></div>
+    <div id="sheet-duration">
+      <div class="ruler"><div class="ticks" id="ticks" tabindex="0" role="slider" aria-label="Minutes" aria-valuemin="1"></div></div>
+      <div id="duration-presets" class="presets" aria-label="Run duration"></div>
+    </div>
+    <p id="sheet-blocked" class="hint"></p>
+    <button id="sheet-start" class="primary wide"></button>
+    <button id="sheet-stop" class="stop wide" hidden><svg><use href="#i-stop"/></svg>Stop watering</button>
+    <div class="sheet-secondary"><button id="sheet-favorite" class="soft" aria-pressed="false"><svg><use href="#i-star"/></svg><span>Favorite</span></button><button id="sheet-flag" class="soft flag"><svg><use href="#i-flag"/></svg>Flag</button><button id="edit-zone" class="soft"><svg><use href="#i-pencil"/></svg>Edit</button></div>
+    <div id="sheet-issues" class="issue-list"></div>
+    <p id="sheet-notes" class="note-text"></p>
+    <p id="sheet-feedback" role="status" aria-live="polite"></p>
+  </dialog>
+
+  <dialog id="flag-dialog" class="sheet" aria-labelledby="flag-title">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span id="flag-number" class="zone-num lg num flagged"></span><div><h2 id="flag-title">Flag a problem</h2><p id="flag-zone" class="muted"></p></div><button id="close-flag" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div id="flag-options" class="issues"></div>
+  </dialog>
+
+  <dialog id="findings-dialog" class="sheet" aria-labelledby="findings-title">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span class="zone-num lg flagged"><svg><use href="#i-flag"/></svg></span><div><h2 id="findings-title">Findings</h2><p id="findings-summary" class="muted"></p></div><button id="close-findings" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div id="findings-list" class="issue-list"></div>
+    <div class="stack" id="findings-actions"><button id="findings-copy" class="primary wide"><svg><use href="#i-copy"/></svg>Copy list</button><button id="findings-clear" class="soft wide">Clear all</button></div>
+  </dialog>
+
+  <dialog id="notes-dialog" class="sheet" aria-labelledby="notes-title"><div class="grab" aria-hidden="true"></div><form id="notes-form"><h2 id="notes-title">Zone details</h2><label for="zone-name">Name</label><input id="zone-name" maxlength="80"><label for="zone-order">Walking order</label><input id="zone-order" type="number" min="0" max="1000"><label for="zone-notes">Notes</label><textarea id="zone-notes" rows="4" maxlength="1000" placeholder="Emitter by the oak needs replacing"></textarea><div class="dialog-actions"><button id="cancel-notes" type="button" class="outline">Cancel</button><button type="submit" class="primary">Save</button></div></form></dialog>
 </body></html>

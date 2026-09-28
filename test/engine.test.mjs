@@ -142,3 +142,25 @@ test('unknown rain or activity state cannot initiate watering',async t=>{
   await assert.rejects(engine.start('1',1),/Station activity is unknown/);
   assert.equal(driver.nextHandle,1);
 });
+
+test('state reports limits and the confirmed run timing the UI draws from', async t => {
+  const {engine} = await fixture(t, { clock: () => Date.parse('2026-09-28T10:00:00Z') });
+  await engine.start('3', 15);
+  const state = engine.state();
+  assert.deepEqual(state.limits, { minMinutes: 1, maxMinutes: 60, concurrentZones: 1, issues: 20 });
+  const zone = state.zones.find(z => z.id === '3');
+  assert.equal(zone.startedAt, '2026-09-28T10:00:00.000Z');
+  assert.equal(zone.minutes, 15);
+  assert.equal(zone.endsAt, '2026-09-28T10:15:00.000Z');
+  assert.equal(state.zones.find(z => z.id === '4').startedAt, null);
+  await assert.rejects(engine.start('3', 61), /between 1 and 60/);
+});
+
+test('zone issues are validated, normalized and returned with the zone', async t => {
+  const {engine} = await fixture(t);
+  engine.preferences('2', { issues: [{ issue: ' Leak ', at: '2026-09-28T10:00:00-07:00' }] });
+  assert.deepEqual(engine.state().zones.find(z => z.id === '2').issues, [{ issue: 'Leak', at: '2026-09-28T17:00:00.000Z' }]);
+  assert.deepEqual(engine.state().zones.find(z => z.id === '1').issues, []);
+  for (const issues of ['Leak', [{ issue: '', at: '2026-09-28T10:00:00Z' }], [{ issue: 'x'.repeat(41), at: '2026-09-28T10:00:00Z' }], [{ issue: 'Leak', at: 'soon' }], Array(21).fill({ issue: 'Leak', at: '2026-09-28T10:00:00Z' })])
+    assert.throws(() => engine.preferences('2', { issues }), /issue/);
+});
