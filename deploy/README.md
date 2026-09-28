@@ -25,9 +25,9 @@ Every new Tucor session counts against a limit of 20 per hour, and password logi
 
 The phone immediately acknowledges accepted commands, which continue on the bridge after locking or closing it. “Stop & run next” is one server operation. Acceptance is distinct from controller confirmation; reopen the app to see the outcome. A bridge restart marks unfinished commands as failed/unknown rather than replaying watering. JSON records in container stdout report Tucor server status codes (`event=tucor_server`, for example `I01` connected or `I20` session timeout) and timings (`event=tucor_timing`):  operation IDs, queue delay, authentication, device discovery, socket/controller setup, status, write dispatch, and confirmation. They exclude credentials, URLs, and raw packets.
 
-## Weather from Home Assistant
+## Weather from your Tempest
 
-Home Assistant needs no custom integration; 2core reads its entities over the REST API. See the main [README](../README.md#weather-from-home-assistant) for the `.env` settings and `python3 tools/configure-secrets.py --ha-token`. Keep **Weather mode = observe** until you have watched its decisions through a rain event.
+2core reads the station from WeatherFlow's API. See the main [README](../README.md#weather-from-your-tempest) for `python3 tools/configure-secrets.py --weatherflow`. Keep **Weather mode = observe** until you have watched its decisions through a rain event.
 
 Add the app to an iPhone home screen if useful; it has an app manifest. Commands require an active network connection, and the app intentionally does not cache or replay offline writes.
 

@@ -389,12 +389,12 @@ const depth = (mm, trace = true) => { const v = rainUnit() === 'in' ? mm / 25.4 
 const limit = mm => depth(mm, false);
 const because = (reason, trigger) => !trigger ? reason
   : trigger.kind === 'intensity' ? `Raining ${depth(trigger.mm)} ${rainUnit()}/h`
-  : trigger.kind === 'accumulation' ? `${depth(trigger.mm)} ${rainUnit()} of recent rain`
+  : trigger.kind === 'accumulation' ? `${depth(trigger.mm)} ${rainUnit()} of rain today`
   : `Forecast of ${depth(trigger.mm)} ${rainUnit()} at ${Math.round(trigger.probability)}%`;
 const hoursLeft = s => s >= 3600 ? `${Math.round(s / 3600)} h` : `${Math.max(1, Math.ceil(s / 60))} min`;
 const whenAt = ms => { const days = Math.round((new Date(new Date(ms).toDateString()) - new Date(new Date().toDateString())) / 864e5); return `${days === 0 ? '' : days === 1 ? 'tomorrow ' : `${new Date(ms).toLocaleDateString([], { weekday: 'short' })} `}${at(ms)}`; };
 const MODE_TEXT = {
-  off: 'Weather is ignored and Home Assistant isn’t read.',
+  off: 'Weather is ignored and the station isn’t read.',
   observe: 'Watches the weather and records what it would do. It never changes the controller.',
   automatic: 'Sets a rain delay when a threshold is met. It never shortens a delay you set.',
 };
@@ -422,7 +422,7 @@ function renderWeather() {
   let pill, note;
   if (!source?.configured) {
     pill = source?.error ? ['Setup problem', 'bad'] : ['Not set up', ''];
-    note = source?.error ? `${source.error}.` : 'Set HA_URL in the server’s .env, then run tools/configure-secrets.py --ha-token to choose your Tempest sensors.';
+    note = source?.error ? `${source.error}.` : 'On the server, run tools/configure-secrets.py --weatherflow to connect your Tempest.';
   } else if (off) {
     pill = ['Paused', '']; note = 'Not reading while automatic rain delay is off.';
   } else if (failing) {
@@ -430,30 +430,28 @@ function renderWeather() {
     note = `${reading.error}${reading.at ? `. Last good reading ${ago(reading.at)}` : ''}. Missing readings never count as dry.`;
   } else if (reading?.at) {
     pill = age < 11 * 60000 ? [`Live · ${ago(reading.at)}`, 'ok'] : [`Last read ${ago(reading.at)}`, 'warn'];
-    note = 'Checked every 5 minutes.';
+    note = `${source.source === 'Simulator' ? 'Sample data' : `Station ${source.station?.id} via WeatherFlow`}. Checked every 5 minutes.`;
   } else {
     pill = ['Connecting', 'warn']; note = 'Waiting for the first reading.';
   }
-  $('station-title').textContent = source?.source === 'Simulator' ? 'Simulated station' : 'Home Assistant';
+  $('station-title').textContent = source?.source === 'Simulator' ? 'Simulated station' : source?.station?.name || 'Tempest';
   $('station-pill').className = `pill ${pill[1]}`; $('station-status').textContent = pill[0];
   $('station-note').textContent = note;
-  const sample = source?.configured && reading?.sample, entities = source?.entities || {};
+  const sample = source?.configured && reading?.sample, configured = Boolean(source?.configured);
   const tile = (label, configured, value, threshold, unitLabel, sub, wet = value >= threshold) => {
     const has = configured && value != null;
     return `<div class="reading${!has ? ' none' : wet ? ' wet' : ''}"><span class="label">${label}</span><strong>${has ? depth(value) : '—'}<small>${unitLabel}</small></strong><div class="meter"><i data-fill="${has ? Math.min(100, value / threshold * 100) : 0}"></i></div><span class="sub">${!configured ? 'Not selected' : !has ? 'No reading' : wet ? 'Over threshold' : sub}</span></div>`;
   };
   const chance = sample?.forecastProbability;
   html('readings', [
-    tile('Rain now', entities.rate, sample?.intensityMmH, policy.intensityMmH, `${unit}/h`, `Delays at ${limit(policy.intensityMmH)}`),
-    tile('Recent', entities.total, sample?.accumulationMm, policy.accumulationMm, unit, `Delays at ${limit(policy.accumulationMm)}`),
+    tile('Rain now', configured, sample?.intensityMmH, policy.intensityMmH, `${unit}/h`, `Delays at ${limit(policy.intensityMmH)}`),
+    tile('Today', configured, sample?.accumulationMm, policy.accumulationMm, unit, `Delays at ${limit(policy.accumulationMm)}`),
     // A forecast counts only when both its amount and its probability clear their thresholds.
-    tile('Next 12 h', entities.forecast, sample?.forecastMm, policy.forecastMm, chance == null ? unit : `${unit} · ${Math.round(chance)}%`,
+    tile('Next 12 h', configured, sample?.forecastMm, policy.forecastMm, chance == null ? unit : `${unit} · ${Math.round(chance)}%`,
       `Delays at ${limit(policy.forecastMm)}, ${policy.forecastProbability}%+`, sample?.forecastMm >= policy.forecastMm && chance >= policy.forecastProbability),
   ].join(''));
   // The page's CSP forbids inline style attributes; set meter widths through the DOM.
   $('readings').querySelectorAll('[data-fill]').forEach(el => { el.style.width = `${el.dataset.fill}%`; });
-  $('station-sources').hidden = !source?.configured || source.source === 'Simulator';
-  html('source-list', [['Rain now', entities.rate], ['Recent', entities.total], ['Forecast', entities.forecast]].map(([k, v]) => `<dt>${k}</dt><dd>${escape(v || '—')}</dd>`).join(''));
 
   // Automation mode and its latest decision.
   document.querySelectorAll('[data-mode]').forEach(b => { b.setAttribute('aria-checked', String(b.dataset.mode === policy.mode)); b.disabled = controlsBusy(); });
@@ -474,7 +472,7 @@ function renderWeather() {
   $('decision-icon').className = `badge-icon small ${icon === 'clock' ? '' : icon}`;
   $('decision-icon').innerHTML = `<svg><use href="#i-${icon === 'leaf' ? 'check' : icon === 'danger' || icon === 'amber' ? 'alert' : icon === 'clock' ? 'clock' : 'rain'}"/></svg>`;
   $('decision-title').textContent = title; $('decision-detail').textContent = detail;
-  $('policy-rule').textContent = `Delays ${policy.holdHours} h when rain reaches ${limit(policy.intensityMmH)} ${unit}/h, the recent total reaches ${limit(policy.accumulationMm)} ${unit}, or the next 12 hours forecast ${limit(policy.forecastMm)} ${unit} at ${policy.forecastProbability}% or more. Missing readings never count as dry.`;
+  $('policy-rule').textContent = `Delays ${policy.holdHours} h when rain reaches ${limit(policy.intensityMmH)} ${unit}/h, today’s total reaches ${limit(policy.accumulationMm)} ${unit}, or the next 12 hours forecast ${limit(policy.forecastMm)} ${unit} at ${policy.forecastProbability}% or more. Missing readings never count as dry.`;
 }
 function connectionStatus() {
   const c = state.connection || {};

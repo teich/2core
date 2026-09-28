@@ -11,7 +11,7 @@
 - Controller: 2479, LTD; 100 slots, 28 named zones.
 - Live manual controls: enabled. Weather policy: observe.
 
-The app is bound to the LXC's LAN address. Docker starts at boot; Compose's restart policy restarts the app automatically. Tailscale Serve supplies HTTPS within the tailnet. No public exposure or HA installation was configured in this deployment.
+The app is bound to the LXC's LAN address. Docker starts at boot; Compose's restart policy restarts the app automatically. Tailscale Serve supplies HTTPS within the tailnet. No public exposure was configured in this deployment.
 
 ## Tailscale Serve
 
@@ -63,4 +63,4 @@ With the user's authorization, zone 02 (Rear Lawn) was requested for one minute 
 
 Warm full-status reads measured 1.920–3.339 seconds during the checks; the final completion read took 2.487 seconds. These are individual measurements inside the deployed container, not percentile guarantees. The phone acknowledges acceptance independently of controller confirmation, and the live Tailscale page showed the confirmed run without requesting Tucor credentials. See `server/API.md` for pending-command/restart semantics and session timeouts.
 
-Weather comes from Home Assistant over its REST API; see the main README's “Weather from Home Assistant” section. `HA_URL` and the entity settings go in `/opt/2core/.env`, and the token in `/opt/2core/secrets/ha_token`.
+Weather comes from the Tempest through WeatherFlow's API; see the main README's “Weather from your Tempest” section. Run `python3 /opt/2core/tools/configure-secrets.py --weatherflow` on the server; the token goes in `/opt/2core/secrets/weatherflow_token` and the station in `/opt/2core/.env`. The old `secrets/ha_token` file from the Home Assistant setup is no longer used and can be deleted.

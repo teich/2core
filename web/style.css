@@ -199,12 +199,6 @@ dt{color:var(--ink-2)}dd{margin:0;text-align:right;font-family:var(--f-num);font
 .reading.wet{background:var(--water-soft)}
 .reading.wet strong,.reading.wet .sub{color:var(--water)}
 .reading.none strong{color:var(--ink-3)}
-.sources summary{font-size:13px;font-weight:600;color:var(--ink-2);cursor:pointer;list-style:none;display:flex;align-items:center;gap:4px}
-.sources summary::-webkit-details-marker{display:none}
-.sources summary::after{content:"›";font-size:16px;transition:transform .2s}
-.sources[open] summary::after{transform:rotate(90deg)}
-.sources dl{font-size:13px;gap:8px;margin-top:10px}
-.sources dd{font:12px ui-monospace,monospace;color:var(--ink-2);overflow-wrap:anywhere;text-align:right}
 .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:18px;background:var(--chip)}
 .modes button{min-height:40px;border-radius:14px;padding:0 6px;background:transparent;font-size:15px;color:var(--ink-2);white-space:nowrap}
 .modes button[aria-checked=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}

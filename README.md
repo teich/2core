@@ -2,9 +2,9 @@
 
 [![Validate](https://github.com/teich/2core/actions/workflows/validate.yml/badge.svg)](https://github.com/teich/2core/actions/workflows/validate.yml)
 
-2core is a self-hosted bridge for Tucor irrigation controllers. It provides a phone-friendly garden interface, a local HTTP API, and weather-aware rain delays driven by a Tempest station through Home Assistant.
+2core is a self-hosted bridge for Tucor irrigation controllers. It provides a phone-friendly garden interface, a local HTTP API, and weather-aware rain delays driven by a Tempest weather station.
 
-The bridge is the single client responsible for Tucor sessions, command serialization, local preferences, and weather decisions. Phones talk to the bridge over the local network; the bridge talks to Tucor's cloud service and reads weather from Home Assistant. Tucor account credentials stay on the bridge.
+The bridge is the single client responsible for Tucor sessions, command serialization, local preferences, and weather decisions. Phones talk to the bridge over the local network; the bridge talks to Tucor's cloud service and reads weather from WeatherFlow's. Tucor account credentials stay on the bridge.
 
 **2core is designed to be a light, polite Tucor client.** It never polls Tucor in the background. It connects only while someone is using the app, when a command is sent, or when a weather decision needs to write a rain delay. Hard limits (20 sessions per hour, 6 password logins per day) and backoff after failures hold even if a client misbehaves, and persist across restarts.
 
@@ -32,14 +32,14 @@ The simulator never connects to Tucor or operates irrigation hardware. Its garde
 ```mermaid
 flowchart LR
   Phone[Phone web app] -->|Authenticated local HTTP API| Bridge[2core Docker service]
-  Tempest[Tempest station] --> HA[Home Assistant]
-  Bridge -->|Reads weather entities every 5 min| HA
+  Tempest[Tempest station] --> WF[WeatherFlow cloud]
+  Bridge -->|Reads rain + forecast every 5 min| WF
   Bridge -->|HTTPS + legacy Socket.IO, only when needed| Cloud[Tucor cloud]
   Cloud --> Controller[Tucor controller]
   Bridge --> SQLite[(Local SQLite)]
 ```
 
-A single local service owns command serialization, credentials, run ownership, weather decisions, and durable request records. This avoids separate clients racing for Tucor's sessionful controller connection. Other clients can use the same authenticated API. Home Assistant is only a weather source: it never controls or monitors irrigation.
+A single local service owns command serialization, credentials, run ownership, weather decisions, and durable request records. This avoids separate clients racing for Tucor's sessionful controller connection. Other clients can use the same authenticated API.
 
 **This still depends on Tucor's cloud; it is not direct LAN control.** Tucor schedules and the bounded watering timer remain on the controller; the app does not need to stay open.
 
@@ -62,29 +62,23 @@ The production service requires Docker, Node.js 24 in the image, an existing Tuc
 
 See **[deploy/README.md](deploy/README.md)** for Docker installation, secret creation, backup guidance, and the hardware-validation sequence. The checked-in `.env` example contains no account credentials. Weather is configured later and is not needed to bring up the bridge.
 
-## Weather from Home Assistant
+## Weather from your Tempest
 
-2core reads rain data from Home Assistant's REST API every five minutes (not at all while weather mode is off). Home Assistant needs no custom integration. On the Docker server:
+2core reads your Tempest station directly from WeatherFlow's API every five minutes (not at all while weather mode is off): the latest observation for current rain, plus the station forecast for today's total and the next 12 hours. That is two small requests per check. On the Docker server:
 
-1. In Home Assistant, open your profile → **Security** → **Long-lived access tokens** and create one for 2core.
-2. In the server's `.env`, set `HA_URL` to an address the Docker server can reach, for example `http://homeassistant.local:8123`.
-3. Run `python3 tools/configure-secrets.py --ha-token`. It verifies the token and saves it to `secrets/ha_token`. Then it lists matching entities with their current values and saves your choices to `.env`:
-   - **Rain rate:** sensors with device class `precipitation_intensity` in `mm/h` or `in/h`.
-   - **Recent rainfall total:** sensors with device class `precipitation` in `mm` or `in`. Choose rain today or over the last 24 hours, **not lifetime, yearly, or previous-minute amounts**.
-   - **Hourly forecast (optional):** `weather.*` entities that support hourly forecasts.
+1. Sign in at [tempestwx.com](https://tempestwx.com) and go to **Settings → Data Authorizations → Create Token**.
+2. Run `python3 tools/configure-secrets.py --weatherflow` and paste the token. It checks the token, lists the stations on the account with their Tempest serial numbers, saves the token to `secrets/weatherflow_token`, and writes `WEATHERFLOW_STATION_ID` to `.env`.
+3. Recreate the service: `docker compose -p 2core up -d --force-recreate`.
 
-   To change entities later without re-entering the token, run `python3 tools/configure-secrets.py --ha-entities`. The choices are the `HA_RAIN_RATE_ENTITY`, `HA_RAIN_TOTAL_ENTITY`, and `HA_FORECAST_ENTITY` lines in `.env`, which you can also edit by hand.
-4. Recreate the service: `docker compose up -d --force-recreate`.
-
-The Weather tab shows whether Home Assistant is live, the latest rain readings against their thresholds (in the station's units), and the latest decision with its reason. When something is wrong, it says what: not set up, can't connect, or no fresh readings. A Home Assistant outage never adds or clears a delay; controller schedules continue as normal.
+The Weather tab shows whether the station is live, the latest readings against their thresholds (in your Tempest account's units), and the latest decision with its reason. When something is wrong, it says what: not set up, rejected token, or no fresh readings. A WeatherFlow outage never adds or clears a delay; controller schedules continue as normal.
 
 ## Rain intelligence
 
-Supported rain units: `mm/h`, `in/h`, `mm`, and `in`. Select recent accumulation (today or rolling 24 hours), **not lifetime rainfall**. Unsupported units and observations older than 30 minutes are ignored.
+2core uses three measurements: the current rain rate (the last minute's rain from the station's latest observation, as an hourly rate), today's total since local midnight, and the station forecast's next 12 hours. Readings older than 30 minutes are ignored.
 
-Initial thresholds are 0.25 mm/h intensity, 3 mm recent accumulation, or 5 mm forecast rain with at least 70% probability. Any threshold can request a 12-hour hold. The optional forecast requires twelve complete hourly buckets and uses the lowest probability among hours predicting rain. Forecast data comes from a selected HA weather entity; a Tempest station alone need not supply it.
+Initial thresholds are 0.25 mm/h intensity, 3 mm today, or 5 mm forecast rain with at least 70% probability. Any threshold can request a 12-hour hold. The forecast requires twelve complete hourly buckets and uses the lowest probability among hours predicting rain.
 
-Automatic mode adds a hold or extends its own hold at most approximately hourly while conditions stay wet. It decides from 2core's own record of the delay it set, so a rainy afternoon costs a few Tucor sessions, not one every five minutes. A delay set at the controller or in Tucor's app is discovered, and preserved, when 2core next connects to write. Existing manual/external holds are preserved. Dry/missing/stale readings never cancel a hold. Turning weather mode off stops future weather decisions; it does **not** clear a hold already on the controller. Clear delay is an explicit manual operation. A daily rainfall total can keep extending a hold until that sensor resets—choose the measurement and thresholds deliberately.
+Automatic mode adds a hold or extends its own hold at most approximately hourly while conditions stay wet. It decides from 2core's own record of the delay it set, so a rainy afternoon costs a few Tucor sessions, not one every five minutes. A delay set at the controller or in Tucor's app is discovered, and preserved, when 2core next connects to write. Existing manual/external holds are preserved. Dry/missing/stale readings never cancel a hold. Turning weather mode off stops future weather decisions; it does **not** clear a hold already on the controller. Clear delay is an explicit manual operation. Today's total keeps meeting its threshold until midnight, so a morning downpour can keep extending the hold through the day.
 
 Thresholds and duration can be updated through `/api/policy`; mode is also editable in the web UI. See [server/API.md](server/API.md). Live control must be enabled separately on the server before Automatic can affect irrigation.
 
@@ -94,7 +88,7 @@ Thresholds and duration can be updated through `/api/policy`; mode is also edita
 npm test
 ```
 
-Node tests cover protocol decoding, command duplication/expiry/restarts, run ownership, concurrency, weather decisions, Home Assistant weather reads, Tucor connection limits and backoff, and HTTP authentication. See [research/implementation-validation.md](research/implementation-validation.md) for the checks completed here and remaining hardware questions.
+Node tests cover protocol decoding, command duplication/expiry/restarts, run ownership, concurrency, weather decisions, WeatherFlow reads, Tucor connection limits and backoff, and HTTP authentication. See [research/implementation-validation.md](research/implementation-validation.md) for the checks completed here and remaining hardware questions.
 
 ## Protocol research
 

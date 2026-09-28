@@ -4,7 +4,7 @@ import { DemoDriver } from './demo.mjs';
 import { LiveDriver } from './live.mjs';
 import { Engine } from './engine.mjs';
 import { createServer } from './http.mjs';
-import { HomeAssistantWeather } from './homeassistant.mjs';
+import { WeatherFlow } from './weatherflow.mjs';
 
 const secret = async name => {
   if (!process.env[`${name}_FILE`]) return process.env[name];
@@ -37,32 +37,26 @@ const timers = [];
 if (mode === 'demo') timers.push(setInterval(() => engine.refresh().catch(() => {}), 2000));
 
 let weather = null;
-if (mode === 'demo' && !process.env.HA_URL) {
-  // Simulated station so the Weather tab can be seen without Home Assistant.
-  weather = { describe: () => ({ configured: true, source: 'Simulator', entities: { rate: 'sensor.demo_rain_rate', total: 'sensor.demo_rain_today', forecast: 'weather.demo' } }),
+const weatherflowToken = await secret('WEATHERFLOW_TOKEN');
+if (weatherflowToken) {
+  weather = new WeatherFlow({ token: weatherflowToken, stationId: process.env.WEATHERFLOW_STATION_ID || undefined });
+} else if (mode === 'demo') {
+  // Simulated station so the Weather tab can be seen without a WeatherFlow account.
+  weather = { describe: () => ({ configured: true, source: 'Simulator', station: { id: 'demo', name: 'Garden simulator' } }),
     sample: async () => ({ intensityMmH: 0.1, accumulationMm: 1.4, forecastMm: 2.2, forecastProbability: 40, unit: 'in', observedAt: new Date().toISOString() }) };
-} else if (process.env.HA_URL) {
-  try {
-    weather = new HomeAssistantWeather({ url: process.env.HA_URL, token: await secret('HA_TOKEN'), intensityEntity: process.env.HA_RAIN_RATE_ENTITY || undefined,
-      accumulationEntity: process.env.HA_RAIN_TOTAL_ENTITY || undefined, forecastEntity: process.env.HA_FORECAST_ENTITY || undefined });
-  } catch (e) {
-    // A weather misconfiguration must not take down manual watering.
-    engine.weatherSource = { configured: false, error: e.message };
-    logger({ event: 'weather_error', message: e.message });
-  }
 }
+engine.weatherSource = weather;
 if (weather) {
-  engine.weatherSource = weather.describe();
   let checking = false;
   const check = async () => {
-    // Weather mode off means no Home Assistant reads either.
+    // Weather mode off means no WeatherFlow requests either.
     if (checking || engine.store.get('policy')?.mode === 'off') return;
     checking = true;
     try {
       let sample;
       try { sample = await weather.sample(); }
       catch (e) { engine.recordWeatherRead({ error: e.message }); throw e; }
-      if (!sample) { engine.recordWeatherRead({ error: 'No fresh rain readings from the selected entities' }); return; }
+      if (!sample) { engine.recordWeatherRead({ error: 'No fresh rain readings from the station' }); return; }
       engine.recordWeatherRead({ sample });
       await engine.observeWeather(sample); // records its own failures
     } catch (e) {
@@ -71,7 +65,7 @@ if (weather) {
   };
   timers.push(setInterval(check, Number(process.env.WEATHER_INTERVAL_MS) || 300000));
   setTimeout(check, mode === 'demo' ? 1000 : 10000).unref();
-} else engine.weatherSource ??= { configured: false };
+}
 const host = process.env.HOST ?? '127.0.0.1';
 const port = Number(process.env.PORT ?? 8787);
 server.listen(port, host, () => console.log(`2core ${mode} listening on http://${host}:${port}; live control ${engine.allowControl && mode === 'live' ? 'enabled' : 'disabled'}`));

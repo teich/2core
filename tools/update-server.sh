@@ -45,11 +45,11 @@ trap recover ERR
 for directory in lib server web deploy tools; do
   mv "$directory" "$backup/source-before-$directory"
 done
-# The Home Assistant integration moved into the bridge; keep its old copy with this backup.
+# The old Home Assistant integration is no longer deployed; keep its copy with this backup.
 if [[ -d custom_components ]]; then mv custom_components "$backup/source-before-custom_components"; fi
 tar -xzf "$archive" -C /opt/2core
-# Compose requires every secret file. An empty Home Assistant token leaves weather reads off.
-if [[ ! -e secrets/ha_token ]]; then install -m 444 /dev/null secrets/ha_token; fi
+# Compose requires every secret file. An empty WeatherFlow token leaves weather reads off.
+if [[ ! -e secrets/weatherflow_token ]]; then install -m 444 /dev/null secrets/weatherflow_token; fi
 "${compose[@]}" config --quiet
 "${compose[@]}" build
 "${compose[@]}" stop two-core
@@ -68,6 +68,6 @@ const key=readFileSync('/run/secrets/api_key','utf8').trim();
 const r=await fetch('http://127.0.0.1:8787/api/state',{headers:{Authorization:`Bearer ${key}`}});
 const s=await r.json();
 // 2core no longer contacts Tucor on startup, so controller availability is not checked here.
-console.log(JSON.stringify({http:r.status,mode:s.mode,controlEnabled:s.controlEnabled,configuredZones:s.zones?.filter(z=>z.configured).length,weatherMode:s.policy?.mode,weatherSource:s.weatherSource?.configured?'home-assistant':'not configured',tucorSessionsLastHour:s.connection?.sessionsLastHour,tucorRetryAt:s.connection?.retryAt},null,2));
+console.log(JSON.stringify({http:r.status,mode:s.mode,controlEnabled:s.controlEnabled,configuredZones:s.zones?.filter(z=>z.configured).length,weatherMode:s.policy?.mode,weatherSource:s.weatherSource?.configured?`tempest ${s.weatherSource.station?.id??''}`.trim():'not configured',tucorSessionsLastHour:s.connection?.sessionsLastHour,tucorRetryAt:s.connection?.retryAt},null,2));
 if(!r.ok) {console.error('App is deployed, but its API did not answer.');process.exit(2);}
 JS

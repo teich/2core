@@ -13,7 +13,7 @@ export function evaluateWeather(sample, policy, now = Date.now()) {
   if (finite(sample.intensityMmH) && sample.intensityMmH >= policy.intensityMmH) {
     reason = `Rain intensity ${sample.intensityMmH} mm/h`; trigger = { kind: 'intensity', mm: sample.intensityMmH };
   } else if (finite(sample.accumulationMm) && sample.accumulationMm >= policy.accumulationMm) {
-    reason = `Recent rainfall ${sample.accumulationMm} mm`; trigger = { kind: 'accumulation', mm: sample.accumulationMm };
+    reason = `Rainfall today ${sample.accumulationMm} mm`; trigger = { kind: 'accumulation', mm: sample.accumulationMm };
   } else if (finite(sample.forecastMm) && finite(sample.forecastProbability) && sample.forecastMm >= policy.forecastMm && sample.forecastProbability >= policy.forecastProbability) {
     reason = `Forecast ${sample.forecastMm} mm with ${sample.forecastProbability}% probability`; trigger = { kind: 'forecast', mm: sample.forecastMm, probability: sample.forecastProbability };
   }

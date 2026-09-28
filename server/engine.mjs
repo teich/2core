@@ -97,7 +97,7 @@ export class Engine {
       controller: state?.controller ?? null, available: Boolean(state && age < 180000 && !this.error),
       observedAt: state?.receivedAt ?? null, error: this.error,
       connection: { ...(this.driver.connection?.() ?? { open: this.mode === 'demo' }), checking: Boolean(this.refreshing) },
-      weatherSource: this.weatherSource ?? null, weatherReading: this.store.get('weatherReading'),
+      weatherSource: this.weatherSource?.describe() ?? { configured: false }, weatherReading: this.store.get('weatherReading'),
       status: state?.status ?? {}, alarms: state?.alarms ?? [], zones,
       rain: this.store.get('rain'), policy: this.store.get('policy', DEFAULT_POLICY),
       weatherDecision: this.store.get('weatherDecision'), events: this.store.events(),

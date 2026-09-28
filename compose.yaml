@@ -12,19 +12,16 @@ services:
       API_KEY_FILE: /run/secrets/api_key
       TUCOR_USER_FILE: /run/secrets/tucor_user
       TUCOR_PASSWORD_FILE: /run/secrets/tucor_password
-      # Weather source. Leave HA_URL empty to turn weather reads off.
-      HA_URL: ${HA_URL:-}
-      HA_TOKEN_FILE: /run/secrets/ha_token
-      HA_RAIN_RATE_ENTITY: ${HA_RAIN_RATE_ENTITY:-}
-      HA_RAIN_TOTAL_ENTITY: ${HA_RAIN_TOTAL_ENTITY:-}
-      HA_FORECAST_ENTITY: ${HA_FORECAST_ENTITY:-}
+      # Weather source: a Tempest station through WeatherFlow. An empty token turns weather reads off.
+      WEATHERFLOW_TOKEN_FILE: /run/secrets/weatherflow_token
+      WEATHERFLOW_STATION_ID: ${WEATHERFLOW_STATION_ID:-}
       TAILSCALE_SOCKET: ${TAILSCALE_SOCKET:-}
       TAILSCALE_ORIGIN: ${TAILSCALE_ORIGIN:-}
     secrets:
       - api_key
       - tucor_user
       - tucor_password
-      - ha_token
+      - weatherflow_token
     volumes:
       - irrigation-data:/app/data
       - ./tailscale-runtime:/run/2core-tailscale
@@ -43,7 +40,7 @@ secrets:
     file: ./secrets/tucor_user
   tucor_password:
     file: ./secrets/tucor_password
-  ha_token:
-    file: ./secrets/ha_token
+  weatherflow_token:
+    file: ./secrets/weatherflow_token
 volumes:
   irrigation-data:
