@@ -223,6 +223,29 @@ Program overview returned `[]` in the authenticated CLI test. That validates the
 request and empty response, not the availability of historical records. The
 browser offers CSV export after data is loaded.
 
+### Runtime history probe (2026-09-30)
+
+Read-only probes against controller 2479 (LTD) returned HTTP 200 and `[]` for
+`program/detailed` and `rawInformation/operation`, both before and during a
+confirmed live controller session. During that session, `water/daily` and
+`errorandstatus/errorandstatus` also returned empty arrays; `rawInformation/all`
+returned HTTP 404 despite being advertised in the history menu.
+
+The vendor History component defines program fields `station`, `start`, `stop`,
+`runtime` (seconds), `status`, and `stopReason`. Raw operation fields include
+station, timestamp, start/stop/pause/resume actions, and automatic/manual mode.
+These schemas suggest per-station runtime collection is possible when populated,
+but this account currently supplies no records through the tested endpoints.
+Retention, incremental query support, and runtime treatment of pauses therefore
+remain unverified. Empty history must not be interpreted as zero watering.
+
+Responses were saved in the production data volume under
+`/app/data/history-probes/2026-10-01T01-16-41-845Z/`. The probes used two guarded
+password logins and one controller session, which was released afterward. No
+watering, configuration synchronization, logging settings, or scheduled task
+was changed. Confirm history collection/upload availability with Tucor before
+implementing a daily runtime import.
+
 ## Next validation
 
 1. Pick an existing zone and a short supervised duration.
