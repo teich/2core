@@ -16,6 +16,11 @@ export class Store {
   set(key, value) {
     this.db.prepare('INSERT OR REPLACE INTO settings VALUES (?,?)').run(key, JSON.stringify(value));
   }
+  // Every setting whose key starts with prefix, keyed by the rest of the key.
+  prefixed(prefix) {
+    const rows = this.db.prepare("SELECT key, value FROM settings WHERE substr(key, 1, ?) = ?").all(prefix.length, prefix);
+    return Object.fromEntries(rows.map(row => [row.key.slice(prefix.length), JSON.parse(row.value)]));
+  }
   event(kind, data) {
     this.db.prepare('INSERT INTO events(at,kind,data) VALUES (?,?,?)').run(new Date().toISOString(), kind, JSON.stringify(data));
     this.db.exec('DELETE FROM events WHERE id NOT IN (SELECT id FROM events ORDER BY id DESC LIMIT 1000)');

@@ -46,6 +46,7 @@ A single local service owns command serialization, credentials, run ownership, w
 ## Features
 
 - Timed zone runs up to **4 hours** (a minute dial with 5-minute steps past the first hour), countdown, explicit stop, and “Stop & run next.” Only one run at a time. Search, favorites, walking order, local aliases, and leak notes.
+- A **watering plan** (Plan tab, laid out for a laptop): each zone's run length and how often, with the next fourteen nights that follow — two lanes per night, finishing just before sunrise, with rain holds, catch-ups and anything that doesn't fit called out. It is a preview only; controller schedules are unchanged. See [research/scheduling-plan.md](research/scheduling-plan.md).
 - Controller voltage/current/flow, active-zone count, rain-delay status, and command activity.
 - Manual rain delay and a weather policy with **off / observe / automatic** modes. Observe is the default.
 - Durable duplicate-request protection, command deadlines, rejection of overlapping runs, and explicit unknown-outcome handling. No automatic write retries.

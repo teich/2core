@@ -1,5 +1,5 @@
-const CACHE = '2core-shell-v1';
-const SHELL = ['/', '/style.css', '/app.js', '/auth.js', '/water.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
+const CACHE = '2core-shell-v2';
+const SHELL = ['/', '/style.css', '/app.js', '/auth.js', '/water.js', '/plan.js', '/planner.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

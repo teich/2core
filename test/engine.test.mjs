@@ -164,3 +164,31 @@ test('zone issues are validated, normalized and returned with the zone', async t
   for (const issues of ['Leak', [{ issue: '', at: '2026-09-28T10:00:00Z' }], [{ issue: 'x'.repeat(41), at: '2026-09-28T10:00:00Z' }], [{ issue: 'Leak', at: 'soon' }], Array(21).fill({ issue: 'Leak', at: '2026-09-28T10:00:00Z' })])
     assert.throws(() => engine.preferences('2', { issues }), /issue/);
 });
+
+test('watering intentions and night settings are validated, stored locally, and never reach Tucor', async t => {
+  const {engine,driver}=await fixture(t,{mode:'live'});
+  const server=createServer(engine,'test-access-key');
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve)); t.after(()=>server.close());
+  const base=`http://127.0.0.1:${server.address().port}`, headers={Authorization:'Bearer test-access-key','Content-Type':'application/json'};
+  const post=(path,body)=>fetch(`${base}/api${path}`,{method:'POST',headers,body:JSON.stringify(body)});
+  const res=await post('/zones/2/intent',{seconds:1500,cadence:{perWeek:2}});
+  assert.equal(res.status,200);
+  assert.deepEqual((await res.json()).intent,{seconds:1500,cadence:{perWeek:2},enabled:true,firstDue:null});
+  assert.equal((await post('/zones/2/intent',{firstDue:'2026-10-02',enabled:false})).status,200);
+  for (const bad of [{seconds:0},{seconds:14401},{cadence:{every:0}},{cadence:{every:2,perWeek:2}},{firstDue:'2026-02-30'},{colour:'red'}]) assert.equal((await post('/zones/2/intent',bad)).status,400, JSON.stringify(bad));
+  assert.equal((await post('/zones/99/intent',{seconds:60})).status,404);
+  assert.equal((await post('/plan',{lanes:1,earliestStart:1380})).status,200);
+  assert.equal((await post('/plan',{lanes:3})).status,400);
+  const state=await (await fetch(`${base}/api/state`,{headers})).json();
+  assert.deepEqual(state.plan.intents['2'],{seconds:1500,cadence:{perWeek:2},enabled:false,firstDue:'2026-10-02'});
+  assert.deepEqual(state.plan.settings,{earliestStart:1380,finishBeforeSunrise:15,hardDeadline:540,lanes:1});
+  assert.equal(driver.runs.length,0);
+  assert.equal((await fetch(`${base}/planner.js`)).headers.get('content-type'),'text/javascript; charset=utf-8');
+});
+
+test('the weather station supplies the plan’s location', async t => {
+  const {engine}=await fixture(t);
+  engine.weatherSource={describe:()=>({configured:true,station:{id:'1',latitude:38.4,longitude:-122.7}})};
+  engine.recordWeatherRead({sample:{observedAt:new Date().toISOString()}});
+  assert.deepEqual(engine.state().location,{latitude:38.4,longitude:-122.7});
+});

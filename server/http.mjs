@@ -14,6 +14,9 @@ const authorized = (header, key) => {
   return value.length === expected.length && timingSafeEqual(value, expected);
 };
 STATIC['/auth.js'] = ['auth.js', 'text/javascript'];
+STATIC['/plan.js'] = ['plan.js', 'text/javascript'];
+// The planner is shared with the server, so it lives outside web/.
+STATIC['/planner.js'] = ['../lib/planner.mjs', 'text/javascript'];
 
 // Only the private Unix listener may set trustedOrigin. TCP never trusts headers.
 export function createServer(engine, apiKey, { trustedOrigin } = {}) {
@@ -57,6 +60,11 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       if (path === '/api/prepare') return json(202, engine.prepare());
       if (path === '/api/refresh') { await engine.refresh(); return json(200, engine.state()); }
       const { deadline, ...payload } = body;
+      // Plan edits are local, idempotent replacements that never contact Tucor, so
+      // they skip the command queue and answer immediately.
+      const intent = path.match(/^\/api\/zones\/(\d+)\/intent$/);
+      if (intent) return json(200, engine.intent(intent[1], payload));
+      if (path === '/api/plan') return json(200, engine.planSettings(payload));
       const zone = path.match(/^\/api\/zones\/(\d+)\/(start|stop|next|preferences)$/);
       let fn;
       if (zone) {

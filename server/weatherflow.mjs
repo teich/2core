@@ -53,6 +53,7 @@ export class WeatherFlow {
     const now = this.clock(), station = await this.resolveStation(), sample = {}, times = [];
     const observation = await this.call(`observations/station/${encodeURIComponent(station)}`);
     this.station = { id: station, name: observation.station_name ?? null };
+    if (Number.isFinite(observation.latitude) && Number.isFinite(observation.longitude)) Object.assign(this.station, { latitude: observation.latitude, longitude: observation.longitude });
     // Observation values are always metric; station_units is only the owner's display preference.
     const unit = observation.station_units?.units_precip;
     if (unit) sample.unit = unit === 'in' ? 'in' : 'mm';

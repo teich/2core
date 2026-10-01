@@ -42,7 +42,7 @@ if (weatherflowToken) {
   weather = new WeatherFlow({ token: weatherflowToken, stationId: process.env.WEATHERFLOW_STATION_ID || undefined });
 } else if (mode === 'demo') {
   // Simulated station so the Weather tab can be seen without a WeatherFlow account.
-  weather = { describe: () => ({ configured: true, source: 'Simulator', station: { id: 'demo', name: 'Garden simulator' } }),
+  weather = { describe: () => ({ configured: true, source: 'Simulator', station: { id: 'demo', name: 'Garden simulator', latitude: 37.77, longitude: -122.42 } }),
     sample: async () => ({ intensityMmH: 0.1, accumulationMm: 1.4, forecastMm: 2.2, forecastProbability: 40, unit: 'in', observedAt: new Date().toISOString() }) };
 }
 engine.weatherSource = weather;

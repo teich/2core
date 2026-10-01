@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { trace } from './telemetry.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
+import { DEFAULT_SETTINGS, MAX_SECONDS, SETTING_LIMITS, validDateKey } from '../lib/planner.mjs';
 
 export class AppError extends Error {
   constructor(message, status = 409) { super(message); this.status = status; }
@@ -101,6 +102,7 @@ export class Engine {
       status: state?.status ?? {}, alarms: state?.alarms ?? [], zones,
       rain: this.store.get('rain'), policy: this.store.get('policy', DEFAULT_POLICY),
       weatherDecision: this.store.get('weatherDecision'), events: this.store.events(),
+      plan: this.plan(), location: this.store.get('location'),
     };
   }
   submit(key, kind, body, fn, deadline) {
@@ -281,6 +283,38 @@ export class Engine {
     const at = new Date(this.clock()).toISOString();
     const previous = this.store.get('weatherReading') ?? {};
     this.store.set('weatherReading', error ? { ...previous, error, errorAt: at } : { sample, at, error: null });
+    // The station's position gives the watering plan its sunrise times.
+    const station = this.weatherSource?.describe()?.station;
+    if (!error && Number.isFinite(station?.latitude) && Number.isFinite(station?.longitude)) this.store.set('location', { latitude: station.latitude, longitude: station.longitude });
+  }
+  // Watering intentions are local planning data. They never reach Tucor.
+  plan() {
+    return { settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) }, intents: this.store.prefixed('intent:') };
+  }
+  intent(zone, patch) {
+    if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
+    const next = { seconds: null, cadence: null, enabled: true, firstDue: null, ...this.store.get(`intent:${zone}`, {}) };
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === 'seconds') next.seconds = v === null ? null : number(v, 1, MAX_SECONDS, true);
+      else if (k === 'cadence') {
+        const keys = v && typeof v === 'object' ? Object.keys(v) : [];
+        if (v !== null && !(keys.length === 1 && (keys[0] === 'every' ? number(v.every, 1, 30, true) : keys[0] === 'perWeek' && number(v.perWeek, 1, 6, true)))) throw new AppError('Cadence must be {every: days} or {perWeek: times}', 400);
+        next.cadence = v;
+      } else if (k === 'enabled') { if (typeof v !== 'boolean') throw new AppError('Invalid enabled flag', 400); next.enabled = v; }
+      else if (k === 'firstDue') { if (v !== null && !validDateKey(v)) throw new AppError('First due date must be YYYY-MM-DD', 400); next.firstDue = v; }
+      else throw new AppError('Unknown intent field', 400);
+    }
+    this.store.set(`intent:${zone}`, next);
+    return { ok: true, intent: next };
+  }
+  planSettings(patch) {
+    const next = { ...this.plan().settings };
+    for (const [k, v] of Object.entries(patch)) {
+      if (!Object.hasOwn(SETTING_LIMITS, k)) throw new AppError('Unknown plan setting', 400);
+      next[k] = number(v, ...SETTING_LIMITS[k], true);
+    }
+    this.store.set('planSettings', next);
+    return { ok: true, settings: next };
   }
   preferences(zone, body) {
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);

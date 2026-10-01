@@ -1,4 +1,5 @@
 import { createWaterFX } from './water.js';
+import { createPlan } from './plan.js';
 const $ = id => document.getElementById(id);
 const implicitAuth = await import('./auth.js').then(m => m.detectImplicitAuthentication()).catch(() => false);
 let key = sessionStorage.getItem('2core-key') || '';
@@ -250,7 +251,7 @@ function lastRuns() {
 /* ---------- rendering ---------- */
 function showTab(name) {
   tab = name; railShown = null; document.body.dataset.view = name;
-  const titles = { zones:'Zones', walk:'Walk', rain:'Weather', activity:'Activity' };
+  const titles = { zones:'Zones', walk:'Walk', plan:'Watering plan', rain:'Weather', activity:'Activity' };
   $('view-title').textContent = titles[name];
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === name ? b.setAttribute('aria-current','page') : b.removeAttribute('aria-current'));
   for (const view of Object.keys(titles)) $(`${view}-view`).hidden = view !== name;
@@ -375,6 +376,7 @@ function render() {
     return `<button class="zone${live ? ' running' : ''}${mode === 'starting' || mode === 'stopping' ? ' pending' : ''}" data-zone="${z.id}" aria-label="${escape(z.name)}, zone ${z.id}${live ? ', watering' : ''}"><span class="zone-num">${pad(z.id)}</span><span class="zone-text"><span class="zone-name"><span>${escape(z.name)}</span>${z.favorite ? icon('star', 'fav') : ''}${z.issues?.length ? icon('flag') : ''}</span><span class="zone-meta">${meta}</span></span>${end}</button>`;
   }).join(''));
   renderWeather();
+  if (tab === 'plan') plan.render();
   html('activity', state.events.length ? state.events.map(e => `<div class="event"><strong>${escape(e.kind.replace('/api/','').replaceAll('/',' · '))}</strong> · <span class="${e.data.outcome === 'failed' ? 'failure' : ''}">${escape(e.data.outcome)}</span><small>${new Date(e.at).toLocaleString()}${e.data.message ? ` · ${escape(e.data.message)}` : ''}</small></div>`).join('') : '<p class="muted">Nothing yet.</p>');
   renderWalk(); renderSheet();
   if ($('findings-dialog').open) renderFindings();
@@ -568,6 +570,8 @@ async function waitUntilIdle(limit = 15000) {
   while (controlsBusy() && Date.now() < until) { await new Promise(r => setTimeout(r, 400)); await load(); }
   return !controlsBusy();
 }
+
+const plan = createPlan({ $, api, escape, message, html, getState: () => state });
 
 /* ---------- events ---------- */
 $('login-form').addEventListener('submit', async e => { e.preventDefault(); key = $('access-key').value.trim(); sessionStorage.setItem('2core-key',key); prepare(true); await load(); });

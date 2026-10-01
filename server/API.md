@@ -21,6 +21,17 @@ Every mutation below requires `Content-Type: application/json`, a unique `Idempo
 | `/api/policy` | any subset of policy fields below | Persist settings |
 | `/api/weather` | `observedAt`, optional `intensityMmH`, `accumulationMm`, `forecastMm`, `forecastProbability` | Submit normalized weather observation |
 
+### Watering plan
+
+Intentions are local planning data. They never reach Tucor and do not change controller schedules. These two writes are idempotent replacements answered immediately, outside the command queue; they need JSON and the usual authentication but no `Idempotency-Key` (a `deadline` is ignored).
+
+| POST path | Properties | Meaning |
+| --- | --- | --- |
+| `/api/zones/:id/intent` | any of `seconds` (integer 1–14400 or null), `cadence` (`{every: 1–30}` days, `{perWeek: 1–6}`, or null), `enabled` (boolean), `firstDue` (`YYYY-MM-DD` or null) | Merge into the zone's intention; returns `{ok, intent}` |
+| `/api/plan` | any of `earliestStart` (minutes after the evening's midnight, 1080–1560), `finishBeforeSunrise` (0–120), `hardDeadline` (minutes after the morning's midnight, 240–720), `lanes` (1–2) | Night settings; returns `{ok, settings}` |
+
+`GET /api/state` includes `plan: {settings, intents}` (intents keyed by zone id) and `location` (`{latitude, longitude}` of the Tempest, recorded from WeatherFlow, or null). The app projects nights from these with `lib/planner.mjs`, served to the browser as `/planner.js`.
+
 Policy fields: `mode` (`off`, `observe`, `automatic`), `intensityMmH` (0.01–100), `accumulationMm` and `forecastMm` (0.1–500), `forecastProbability` (1–100), `holdHours` (integer 1–72).
 
 By default mutations wait for confirmation and return their existing result. With `Prefer: respond-async`, the server commits the command to SQLite and immediately returns **202** with `{operation}` and a `Location: /api/commands/:id` header. Acceptance means the bridge will attempt the operation within its deadline; it does not mean the controller has acted. Execution continues independently of the HTTP connection or phone. Payload/safety failures appear in the operation's final result. `GET /api/commands/:id` (authenticated) returns `{operation}`: `id`, `kind`, `body`, `acceptedAt`, `deadline`, `phase`, `state` (`pending`, `succeeded`, `failed`), and `result`. The phase distinguishes queued, connecting, sending, and confirming. Terminal duplicate async requests return 200 with the recorded operation.
