@@ -727,7 +727,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
       if (document.activeElement !== select) select.value = value;
       select.disabled = editBusy;
     }
-    document.querySelectorAll('[data-lanes]').forEach(b => {
+    document.querySelectorAll('[data-lanes]').forEach((/** @type {HTMLButtonElement} */ b) => {
       b.setAttribute('aria-checked', String(Number(b.dataset.lanes) === cfg.lanes));
       b.disabled = editBusy;
     });

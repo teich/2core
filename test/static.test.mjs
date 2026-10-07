@@ -8,7 +8,7 @@ const engine = { mode: 'demo', state: () => ({}), refresh: async () => {} };
 
 test('web and lib files resolve by path without a registry', () => {
   assert.match(resolveAsset('/').file, /web[/\\]index\.html$/);
-  assert.match(resolveAsset('/app.js').type, /^text\/javascript/);
+  assert.match(resolveAsset('/main.js').type, /^text\/javascript/);
   assert.match(resolveAsset('/lib/planner.mjs').file, /lib[/\\]planner\.mjs$/);
   for (const path of [
     '/../package.json',
@@ -28,7 +28,7 @@ test('web and lib files resolve by path without a registry', () => {
 test('the service worker shell lists every asset and versions by content', async () => {
   const shell = await shellFiles();
   assert.equal(shell[0], '/');
-  for (const path of ['/app.js', '/style.css', '/manifest.webmanifest', '/lib/planner.mjs'])
+  for (const path of ['/main.js', '/core/app.js', '/style.css', '/manifest.webmanifest', '/lib/planner.mjs'])
     assert.ok(shell.includes(path), path);
   assert.ok(!shell.includes('/service-worker.js'));
   for (const path of shell) assert.ok(existsSync(resolveAsset(path).file), path);
@@ -44,5 +44,5 @@ test('unknown and traversal paths are 404 over HTTP', async t => {
   assert.equal((await fetch(`${base}/lib/planner.mjs`)).status, 200);
   assert.equal((await fetch(`${base}/missing.js`)).status, 404);
   assert.equal((await fetch(`${base}/..%2fpackage.json`)).status, 404);
-  assert.equal((await fetch(`${base}/app.js`, { method: 'HEAD' })).status, 404);
+  assert.equal((await fetch(`${base}/main.js`, { method: 'HEAD' })).status, 404);
 });

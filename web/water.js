@@ -1053,10 +1053,9 @@ export function createWaterFX() {
       }
       if (tilt.on || !this.available) return tilt.on;
       try {
-        if (
-          typeof DeviceMotionEvent.requestPermission === 'function' &&
-          (await DeviceMotionEvent.requestPermission()) !== 'granted'
-        )
+        // iOS Safari asks for motion permission; other browsers have no such method.
+        const motion = /** @type {any} */ (DeviceMotionEvent);
+        if (typeof motion.requestPermission === 'function' && (await motion.requestPermission()) !== 'granted')
           return false;
       } catch {
         return false;
