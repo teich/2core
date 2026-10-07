@@ -501,3 +501,15 @@ body:has(dialog[open]){overflow:hidden}
   .plan-grid{min-width:1232px}
   .prow{grid-template-columns:220px 80px 88px 136px 64px minmax(560px,1fr) 76px}
 }
+
+#program-dialog{max-width:1080px;width:calc(100% - 32px);max-height:90dvh;overflow:auto}
+#program-dialog section{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+#program-dialog p,#program-dialog details{margin-block:12px}
+#program-overrides{margin-block:16px;padding:12px}
+#program-overrides label{display:inline-flex;align-items:center;gap:8px;margin-right:16px}
+#program-overrides input{width:16px;height:16px}
+.program-table{overflow-x:auto;margin-block:16px}
+.program-table table{border-collapse:collapse;width:100%;min-width:700px;font-size:13px}
+.program-table th,.program-table td{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid var(--line)}
+.program-table th:nth-child(4){width:40%}
+#program-dialog .sheet-head{grid-template-columns:minmax(0,1fr) auto}

@@ -2,7 +2,7 @@
 
 2core should store what each zone needs and show the watering schedule that follows from those intentions. Build the intent interface and a simple preview first. Use the actual intentions to decide how much scheduling machinery is needed.
 
-Nightly compilation into Tucor programs is the preferred execution approach to validate. It fits the priority of minimizing Tucor cloud contact and the owner's experience that controller programs run very reliably: no remembered skips except during power outages. Direct zone execution remains an alternative if program writes or controller limits make compilation impractical. Neither approach is a prerequisite for the intent interface.
+Update: the dry-run compiler described at the end now favors repeating programs for the actual saved cadences. The earlier nightly-compilation proposal below is retained as design history. It fits the priority of minimizing Tucor cloud contact and the owner's experience that controller programs run very reliably: no remembered skips except during power outages. Direct zone execution remains an alternative if program writes or controller limits make compilation impractical. Neither approach is a prerequisite for the intent interface.
 
 This proposal incorporates repository inspection, read-only production queries on September 30, 2026, the owner's operating experience, and review feedback. No watering, program configuration, or deployment changes were made as part of this plan.
 
@@ -137,3 +137,76 @@ requires confirmation against the unchanged saved plan and night, and writes
 all proposed dates atomically. Disabled zones are excluded and retain settings.
 This remains advisory; live installation and durable exception reconciliation
 are still prerequisites for changing actual watering.
+
+
+## October 6: repeating-program dry-run compiler
+
+`lib/program-compiler.mjs` now produces a dry-weather intermediate representation:
+fixed whole-minute starts, sequential station steps, a 14-day evening mask, and
+an actual start-date mask rotated for starts after midnight. It uses adjusted
+seconds once and a 100% program budget. Unsupported documented LTD duration
+precision is reported, not silently rounded. Canonical zone-id ordering keeps
+walking-order edits from changing programs.
+
+The Plan tab's Night settings now exposes the compiler and a comparison with
+selected paused zones enabled. `POST /api/plan/program-preview` also exposes it.
+For offline analysis of a cached `/api/state` JSON snapshot:
+
+```sh
+TZ=America/Los_Angeles node tools/compile-programs.mjs snapshot.json 2026-10-06
+TZ=America/Los_Angeles node tools/compile-programs.mjs snapshot.json 2026-10-06 15 16
+```
+
+The October 6 production snapshot has 26 enabled zones and both vineyard zones
+paused. Vineyard-off compiles to nine programs, 3,077.5 zone-minutes weekly,
+a peak of 468 minutes per night, and zero overlap. Enabling only zones 15 and 16
+in the dry run produces ten programs, 3,917.5 zone-minutes weekly, and a peak
+of 703 minutes. Vineyard Top shares its calendar with the fruit trees, so those
+two zones share one program. Vineyard Bottom adds the tenth calendar group.
+
+For October 6–19, the shared sunrise finish is 7:11am, rounded down from the
+earliest morning in the horizon. The vineyard-on candidate requires 862 minutes
+of two-zone overlap across fourteen nights, exactly the workload lower bound
+for that shared 10pm–7:11am window. Both scenarios preserve all watering dates
+and seconds, and fit before this finish. These figures describe this snapshot
+and horizon, not future rain recovery. Additional dry runs for the first fourteen
+nights of every month in 2027 fit both scenarios before their common sunrise
+targets. Vineyard-on reached the overlap lower bound in all twelve samples.
+Vineyard-off stayed serial in eleven samples; June produced four minutes of
+overlap and was correctly labeled not proven optimal. These are samples, not
+an all-dates guarantee or a substitute for DST validation. The test fixture uses
+numeric zone labels and covers both scenarios across two complete calendar cycles.
+
+Search first considers serial arrangements, then at most two concurrent zones,
+then the hard deadline. It is bounded and deterministic; successful candidates
+are feasible, with minimum-overlap claims only when they reach the lower bound.
+The first version groups identical dates/rain behavior and does not split groups
+or exploit multiple starts to compress differing calendars. It reports a blocker
+if those limitations, the ten-program limit, transient dates, or cadence/precision
+constraints prevent a complete candidate. No partial schedule is returned.
+
+Rain remains a separate future policy problem. A binary delay cannot express
+25% of a watering versus 300%, effective rainfall, soil storage, or zone-specific
+exposure. This compiler does not invent a rain-to-runtime conversion or change
+the existing preview's rain rule. A future policy layer must resolve those
+conditions into explicit due dates and durations, and distinguish transition
+work from a stable repeating installation. Covered-zone grouping records the
+requirement without claiming it bypasses the controller's global rain shutdown.
+
+Controller installation is deliberately absent. In the captured vendor frontend,
+`Stations.vue` sends a separate server message after creating a station:
+`{category: "server", command: "synchronize", data: {type: "initiate"}}`.
+The header distinguishes Synced and Not Synced. This is evidence for a distinct
+server/controller synchronization stage; it does not establish program-write
+endpoints, sync direction, completion guarantees, or the cause of multi-minute
+latency. Next research should trace save, sync initiation/progress, completion,
+and readback separately. A saved web configuration must not be treated as an
+installed controller schedule until that contract is understood and verified.
+
+The controller adapter will need to verify actual calendar alignment, allowable
+step count/order, runtime precision, clock/DST behavior, and controller budget/ET
+modifiers. Treat compiled slots as proposed replacements, not permission to add
+them alongside active legacy programs. A future installation should persist its
+intended revision and reconciliation state through the potentially long sync,
+coalesce edits, and verify before declaring it installed. No automated writer,
+program activation, sync, or irrigation command was added here.

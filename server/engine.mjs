@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { compilePrograms } from '../lib/program-compiler.mjs';
+import { sunrise } from '../lib/planner.mjs';
 import { trace } from './telemetry.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
 import { DEFAULT_INTENT, DEFAULT_SETTINGS, MAX_SECONDS, SETTING_LIMITS, currentNight, nextDueDate, proposeRebalance, staggerIntents, validDateKey } from '../lib/planner.mjs';
@@ -340,6 +342,21 @@ export class Engine {
       this.store.db.exec('COMMIT');
     } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
     return { ok: true, plan: this.plan() };
+  }
+  programPreview(payload = {}) {
+    if (Object.keys(payload).some(k => k !== 'enabledOverrides') ||
+      payload.enabledOverrides != null && (typeof payload.enabledOverrides !== 'object' || Array.isArray(payload.enabledOverrides))) {
+      throw new AppError('Expected enabledOverrides only', 400);
+    }
+    const plan = this.plan(), state = this.state();
+    const zones = state.zones.filter(z => z.configured || plan.intents[z.id]);
+    const enabledOverrides = payload.enabledOverrides ?? {};
+    for (const [id, enabled] of Object.entries(enabledOverrides)) {
+      if (!zones.some(z => z.id === id) || typeof enabled !== 'boolean') throw new AppError('Expected known zone ids with boolean overrides', 400);
+    }
+    const location = this.store.get('location');
+    return compilePrograms({ zones, ...plan, enabledOverrides, start: currentNight(new Date(this.clock())),
+      sunriseAt: d => location ? sunrise(d, location.latitude, location.longitude) : null });
   }
   rebalancePreview() {
     const plan = this.plan(), start = currentNight(new Date(this.clock()));

@@ -285,6 +285,44 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     } catch (e) { message(`Couldn’t prepare the rebalance: ${e.message}`, true); }
     finally { reviewing = false; }
   }
+  function programReport(p, title) {
+    const stats = p.summary;
+    const summary = `${stats.zones} zones · ${stats.programs}/10 programs · ${formatDuration(stats.weeklySeconds)} per week`;
+    if (p.status !== 'candidate') return `<section><h3>${escape(title)}</h3><p>${summary}</p><p>No complete candidate.</p><ul>${p.issues.map(i => `<li>${escape(i.message)}</li>`).join('')}</ul></section>`;
+    return `<section><h3>${escape(title)}</h3><p>${summary}</p>
+      <p>${stats.maxConcurrent <= 1 ? 'One zone at a time.' : `Up to ${stats.maxConcurrent} zones at once; ${formatDuration(stats.parallelSeconds)} of overlap across 14 nights.`} ${stats.minimumOverlapProven ? 'Minimum overlap for this window.' : 'Feasible candidate; overlap may be reducible.'}</p>
+      <p>${p.horizon.sunriseKnown ? '' : 'Sunrise location is unknown; using the fallback. '}${stats.preferredWindowMet ? 'Fits before' : 'Uses time after'} the shared finish target of ${clockAt(p.horizon.preferredFinish)}. Dates: ${p.dates[0]} to ${p.dates.at(-1)}.</p>
+      <details><summary>Programs, steps &amp; watering dates</summary><div class="program-table"><table><thead><tr><th>Program</th><th>Starts</th><th>Runtime</th><th>Zones in order</th><th>Evening dates</th></tr></thead><tbody>${p.programs.map(g => `<tr><td>${g.slot}${g.waterDuringRain ? ' · covered' : ''}</td><td>${clockAt(g.startMinute)}${g.startDayOffset ? ' (+1 day)' : ''}</td><td>${formatDuration(g.seconds)}</td><td>${g.steps.map(s => `${escape(s.name)} (${formatDuration(s.seconds)})`).join(' → ')}</td><td>${g.eveningMask.map((on, d) => on ? p.dates[d].slice(5) : null).filter(Boolean).join(', ')}</td></tr>`).join('')}</tbody></table></div></details>
+      <details><summary>Night-by-night totals</summary><ul>${p.nights.map(n => `<li>${n.date}: ${formatDuration(n.seconds)}${n.start == null ? '' : `, ${clockAt(n.start)}–${clockAt(n.finish)}`}; ${n.parallelSeconds ? `${formatDuration(n.parallelSeconds)} overlap` : 'no overlap'}</li>`).join('')}</ul></details>
+      <details><summary>Controller assumptions still to verify</summary><ul>${p.assumptions.map(a => `<li>${escape(a)}</li>`).join('')}</ul></details></section>`;
+  }
+  async function previewPrograms(compare = false) {
+    $('program-error').textContent = 'Compiling saved intentions…';
+    $('compare-programs').disabled = true;
+    $('program-results').innerHTML = '';
+    try {
+      // Wait for edits already in flight before taking the saved snapshot.
+      await Promise.all([...saves.values()]);
+      const base = await api('/plan/program-preview', {});
+      let reports = programReport(base, 'Saved plan');
+      if (compare) {
+        const enabledOverrides = Object.fromEntries([...$('program-overrides').querySelectorAll('input:checked')].map(i => [i.value, true]));
+        if (Object.keys(enabledOverrides).length) reports += programReport(await api('/plan/program-preview', { enabledOverrides }), 'Selected paused zones enabled');
+      }
+      $('program-results').innerHTML = reports;
+      $('program-error').textContent = 'Snapshot only. Reopen this preview after changing intentions or night settings.';
+    } catch (e) { $('program-error').textContent = `Couldn’t compile: ${e.message}`; }
+    finally { $('compare-programs').disabled = false; }
+  }
+  $('plan-programs').addEventListener('click', () => {
+    const paused = zones().filter(z => intents()[z.id]?.enabled === false);
+    $('program-overrides').innerHTML = `<legend>Seasonal comparison — enable paused zones for this preview</legend>${paused.length ? paused.map(z => `<label><input type="checkbox" value="${escape(z.id)}" checked> ${escape(z.name)}</label>`).join('') : '<p>No paused zones.</p>'}`;
+    $('compare-programs').hidden = !paused.length;
+    $('program-dialog').showModal(); previewPrograms(Boolean(paused.length));
+  });
+  $('compare-programs').addEventListener('click', () => previewPrograms(true));
+  $('close-programs').addEventListener('click', () => $('program-dialog').close());
+
   $('plan-rebalance').addEventListener('click', reviewRebalance);
   $('review-rebalance').addEventListener('click', reviewRebalance);
   $('dismiss-rebalance').addEventListener('click', () => { $('rebalance-prompt').hidden = true; });

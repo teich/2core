@@ -299,3 +299,25 @@ test('seasonal disable preserves settings; rebalance needs current reviewed toke
   assert.deepEqual(restarted.plan(), saved);
   assert.equal(driver.runs.length, 0);
 });
+
+test('program preview validates overrides and never writes preferences or contacts Tucor', async t => {
+  const { engine, driver, store } = await fixture(t, { mode: 'live' });
+  for (const zone of engine.state().zones.filter(z => z.configured)) engine.intent(zone.id, { seconds: 600, cadence: { every: 2 } });
+  engine.intent('2', { enabled: false });
+  const before = structuredClone(engine.plan());
+  driver.refresh = () => { throw new Error('Compiler must not contact controller'); };
+  const server = createServer(engine, 'test-access-key');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => server.close());
+  const url = `http://127.0.0.1:${server.address().port}/api/plan/program-preview`;
+  const headers = { Authorization: 'Bearer test-access-key', 'Content-Type': 'application/json' };
+  const post = body => fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  assert.equal((await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+  const base = await (await post({})).json();
+  const comparison = await (await post({ enabledOverrides: { 2: true } })).json();
+  assert.equal(base.status, 'candidate');
+  assert.equal(comparison.summary.zones, base.summary.zones + 1);
+  for (const body of [{ enabledOverrides: [] }, { enabledOverrides: { 2: 1 } }, { enabledOverrides: { 999: true } }, { rain: 0.25 }]) assert.equal((await post(body)).status, 400);
+  assert.deepEqual(engine.plan(), before);
+  assert.equal(driver.runs.length, 0);
+  assert.equal(store.get('intent:2').enabled, false);
+});

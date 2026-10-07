@@ -65,6 +65,7 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       // they skip the command queue and answer immediately.
       const intent = path.match(/^\/api\/zones\/(\d+)\/intent$/);
       if (intent) return json(200, engine.intent(intent[1], payload));
+      if (path === '/api/plan/program-preview') return json(200, engine.programPreview(payload));
       if (path === '/api/plan/seasonal') return json(200, engine.seasonalAdjustment(payload));
       if (path === '/api/plan/rebalance-preview') return json(200, engine.rebalancePreview());
       if (path === '/api/plan/rebalance') return json(200, engine.rebalance(payload));
