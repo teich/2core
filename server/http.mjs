@@ -1,24 +1,12 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { readAsset } from './static.mjs';
 import { AppError } from './engine.mjs';
 
-const STATIC = {
-  '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/water.js': ['water.js', 'text/javascript'], '/service-worker.js': ['service-worker.js', 'text/javascript'],
-  '/style.css': ['style.css', 'text/css'], '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'], '/icon.svg': ['icon.svg', 'image/svg+xml'],
-  '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'], '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'],
-};
 const authorized = (header, key) => {
   const value = Buffer.from(header ?? ''); const expected = Buffer.from(`Bearer ${key}`);
   return value.length === expected.length && timingSafeEqual(value, expected);
 };
-STATIC['/auth.js'] = ['auth.js', 'text/javascript'];
-STATIC['/zone-sweep.js'] = ['zone-sweep.js', 'text/javascript'];
-STATIC['/plan.js'] = ['plan.js', 'text/javascript'];
-// The planner is shared with the server, so it lives outside web/.
-STATIC['/planner.js'] = ['../lib/planner.mjs', 'text/javascript'];
-
 // Only the private Unix listener may set trustedOrigin. TCP never trusts headers.
 export function createServer(engine, apiKey, { trustedOrigin } = {}) {
   if (trustedOrigin && new URL(trustedOrigin).origin !== trustedOrigin) throw new Error('Trusted origin must be an exact origin without a trailing slash');
@@ -37,11 +25,9 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       if (path === '/healthz' && req.method === 'GET') return json(200, { ok: true, mode: engine.mode });
       if (path === '/api/auth' && req.method === 'GET') return json(200, { authenticated: implicit || bearer, mode: implicit ? 'tailscale' : 'key' });
       if (!path.startsWith('/api/')) {
-        const asset = STATIC[path];
-        if (!asset || req.method !== 'GET') return json(404, { error: 'Not found' });
-        const data = await readFile(fileURLToPath(new URL(`../web/${asset[0]}`, import.meta.url)));
-        const charset = asset[1].startsWith('text/') || asset[1].includes('json') || asset[1].includes('svg') ? '; charset=utf-8' : '';
-        res.writeHead(200, { 'Content-Type': `${asset[1]}${charset}` }); return res.end(data);
+        const asset = req.method === 'GET' ? await readAsset(path) : null;
+        if (!asset) return json(404, { error: 'Not found' });
+        res.writeHead(200, { 'Content-Type': asset.type }); return res.end(asset.data);
       }
       if (!implicit && !bearer) return json(401, { error: 'Enter the 2core access key' });
       if (req.method === 'GET' && path === '/api/state') return json(200, engine.state());

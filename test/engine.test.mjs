@@ -176,7 +176,7 @@ test('watering intentions and night settings are validated, stored locally, and 
   assert.deepEqual(state.plan.intents['2'],{seconds:1500,cadence:{perWeek:2},enabled:false,firstDue:'2026-10-02',waterDuringRain:true,seasonalPercent:100});
   assert.deepEqual(state.plan.settings,{earliestStart:1380,finishBeforeSunrise:15,hardDeadline:540,lanes:1});
   assert.equal(driver.runs.length,0);
-  assert.equal((await fetch(`${base}/planner.js`)).headers.get('content-type'),'text/javascript; charset=utf-8');
+  assert.equal((await fetch(`${base}/lib/planner.mjs`)).headers.get('content-type'),'text/javascript; charset=utf-8');
 });
 
 test('the weather station supplies the plan’s location', async t => {

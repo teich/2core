@@ -3,7 +3,7 @@
 // Laid out for a phone first: a status line, a strip of nights, and a zone list.
 // Each zone, the night window, and seasonal changes are edited in bottom sheets;
 // anything that doesn't fit cleanly opens a review sheet before it saves.
-import { CADENCES, DEFAULT_INTENT, NIGHTS, FALLBACK_SUNRISE, MAX_SECONDS, adjustedSeconds, addDays, cadenceKey, cadenceFromKey, cadenceLabel, currentNight, dateKey, durationText, formatDuration, parseDuration, resolvePlan, sunrise } from './planner.js';
+import { CADENCES, DEFAULT_INTENT, NIGHTS, FALLBACK_SUNRISE, MAX_SECONDS, adjustedSeconds, addDays, cadenceKey, cadenceFromKey, cadenceLabel, currentNight, dateKey, durationText, formatDuration, parseDuration, resolvePlan, sunrise } from '../lib/planner.mjs';
 
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

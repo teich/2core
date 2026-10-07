@@ -1,5 +1,8 @@
-const CACHE = '2core-shell-v6';
-const SHELL = ['/', '/style.css', '/app.js', '/auth.js', '/water.js', '/plan.js', '/zone-sweep.js', '/planner.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
+// The server fills in BUILD when it serves this file: `shell` lists every web/ and
+// lib/ asset, and `version` changes whenever any of them does. Do not edit by hand.
+const BUILD = { version: 'dev', shell: ['/'] };
+const CACHE = `2core-shell-${BUILD.version}`;
+const SHELL = BUILD.shell;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
