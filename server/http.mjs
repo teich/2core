@@ -1,13 +1,69 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { readAsset } from './static.mjs';
-import { AppError } from './engine.mjs';
+import { AppError } from './validation.mjs';
 
 const authorized = (header, key) => {
   const value = Buffer.from(header ?? '');
   const expected = Buffer.from(`Bearer ${key}`);
   return value.length === expected.length && timingSafeEqual(value, expected);
 };
+// POST routes besides /api/prepare and /api/refresh. `:zone` matches a zone number.
+// See server/API.md for request and response bodies.
+
+/** Plan edits are local, idempotent replacements that never contact Tucor, so they skip the command queue. */
+const LOCAL = routes({
+  '/api/zones/:zone/intent': (engine, payload, { zone }) => engine.intent(zone, payload),
+  '/api/plan/edit-preview': (engine, payload) => engine.planEditPreview(payload),
+  '/api/plan/edit-apply': (engine, payload) => engine.planEditApply(payload),
+  '/api/plan/program-preview': (engine, payload) => engine.programPreview(payload),
+  '/api/plan/seasonal': (engine, payload) => engine.seasonalAdjustment(payload),
+  '/api/plan/rebalance-preview': engine => engine.rebalancePreview(),
+  '/api/plan/rebalance': (engine, payload) => engine.rebalance(payload),
+  '/api/plan': (engine, payload) => engine.planSettings(payload),
+});
+
+/**
+ * Commands run one at a time through the engine's queue, need an Idempotency-Key
+ * and a deadline, and are recorded as operations. Each returns the work to queue.
+ */
+const COMMANDS = routes({
+  '/api/zones/:zone/start':
+    (engine, payload, { zone }) =>
+    () =>
+      engine.start(zone, payload.minutes),
+  '/api/zones/:zone/stop':
+    (engine, _payload, { zone }) =>
+    () =>
+      engine.stop(zone),
+  '/api/zones/:zone/next':
+    (engine, payload, { zone }) =>
+    () =>
+      engine.next(zone, payload.minutes),
+  '/api/zones/:zone/preferences':
+    (engine, payload, { zone }) =>
+    () =>
+      engine.preferences(zone, payload),
+  '/api/stop': engine => () => engine.stop(),
+  '/api/rain': (engine, payload) => () => engine.rain(payload.hours),
+  '/api/policy': (engine, payload) => () => engine.configurePolicy(payload),
+  '/api/weather': (engine, payload) => () => engine.weather(payload),
+});
+
+function routes(table) {
+  return Object.entries(table).map(([pattern, handler]) => ({
+    pattern: new RegExp(`^${pattern.replace(':zone', '(?<zone>\\d+)')}$`),
+    handler,
+  }));
+}
+function match(table, path) {
+  for (const { pattern, handler } of table) {
+    const found = path.match(pattern);
+    if (found) return { handler, params: found.groups ?? {} };
+  }
+  return null;
+}
+
 // Only the private Unix listener may set trustedOrigin. TCP never trusts headers.
 export function createServer(engine, apiKey, { trustedOrigin = /** @type {string | undefined} */ (undefined) } = {}) {
   if (trustedOrigin && new URL(trustedOrigin).origin !== trustedOrigin)
@@ -69,34 +125,11 @@ export function createServer(engine, apiKey, { trustedOrigin = /** @type {string
         return json(200, engine.state());
       }
       const { deadline, ...payload } = body;
-      // Plan edits are local, idempotent replacements that never contact Tucor, so
-      // they skip the command queue and answer immediately.
-      const intent = path.match(/^\/api\/zones\/(\d+)\/intent$/);
-      if (intent) return json(200, engine.intent(intent[1], payload));
-      if (path === '/api/plan/edit-preview') return json(200, engine.planEditPreview(payload));
-      if (path === '/api/plan/edit-apply') return json(200, engine.planEditApply(payload));
-      if (path === '/api/plan/program-preview') return json(200, engine.programPreview(payload));
-      if (path === '/api/plan/seasonal') return json(200, engine.seasonalAdjustment(payload));
-      if (path === '/api/plan/rebalance-preview') return json(200, engine.rebalancePreview());
-      if (path === '/api/plan/rebalance') return json(200, engine.rebalance(payload));
-      if (path === '/api/plan') return json(200, engine.planSettings(payload));
-      const zone = path.match(/^\/api\/zones\/(\d+)\/(start|stop|next|preferences)$/);
-      let fn;
-      if (zone) {
-        const [, id, action] = zone;
-        fn = () =>
-          action === 'start'
-            ? engine.start(id, payload.minutes)
-            : action === 'stop'
-              ? engine.stop(id)
-              : action === 'next'
-                ? engine.next(id, payload.minutes)
-                : engine.preferences(id, payload);
-      } else if (path === '/api/stop') fn = () => engine.stop();
-      else if (path === '/api/rain') fn = () => engine.rain(payload.hours);
-      else if (path === '/api/policy') fn = () => engine.configurePolicy(payload);
-      else if (path === '/api/weather') fn = () => engine.weather(payload);
-      else return json(404, { error: 'Unknown API route' });
+      const local = match(LOCAL, path);
+      if (local) return json(200, local.handler(engine, payload, local.params));
+      const command = match(COMMANDS, path);
+      if (!command) return json(404, { error: 'Unknown API route' });
+      const fn = command.handler(engine, payload, command.params);
       if (
         String(req.headers.prefer ?? '')
           .split(',')

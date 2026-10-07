@@ -41,18 +41,25 @@ export class Store {
   begin(id, fingerprint) {
     this.db.prepare('INSERT INTO commands VALUES (?,?,?,NULL)').run(id, fingerprint, 'pending');
   }
-  acceptCommand(id, fingerprint, kind, body, deadline, acceptedAt) {
+  /** Runs `fn` in one write transaction: everything it writes lands, or nothing does. */
+  transaction(fn) {
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      this.begin(id, fingerprint);
-      this.db
-        .prepare('INSERT INTO operations VALUES (?,?,?,?,?,?)')
-        .run(id, kind, JSON.stringify(body), acceptedAt, deadline, 'queued');
+      const result = fn();
       this.db.exec('COMMIT');
+      return result;
     } catch (error) {
       this.db.exec('ROLLBACK');
       throw error;
     }
+  }
+  acceptCommand(id, fingerprint, kind, body, deadline, acceptedAt) {
+    this.transaction(() => {
+      this.begin(id, fingerprint);
+      this.db
+        .prepare('INSERT INTO operations VALUES (?,?,?,?,?,?)')
+        .run(id, kind, JSON.stringify(body), acceptedAt, deadline, 'queued');
+    });
   }
   phase(id, phase) {
     this.db.prepare('UPDATE operations SET phase=? WHERE id=?').run(phase, id);

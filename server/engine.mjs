@@ -1,41 +1,21 @@
+// The bridge's controller core. One Engine owns the only Tucor client: it
+// serializes every command and read through one queue, keeps the latest
+// observation, records which runs 2core started, and answers GET /api/state.
+//
+// Plan editing (plan-service.mjs), the weather policy (weather-policy.mjs) and
+// zone preferences (preferences.mjs) live in their own modules; Engine keeps
+// one-line delegates for them so HTTP routes and tests have a single object.
 import { createHash } from 'node:crypto';
-import { assessPlan, verifiedAlternatives } from '../lib/plan-feasibility.mjs';
-import { compilePrograms } from '../lib/program-compiler.mjs';
-import { sunrise } from '../lib/planner.mjs';
 import { trace } from './telemetry.mjs';
-import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
-import {
-  DEFAULT_INTENT,
-  DEFAULT_SETTINGS,
-  MAX_SECONDS,
-  SETTING_LIMITS,
-  currentNight,
-  nextDueDate,
-  proposeRebalance,
-  staggerIntents,
-  validDateKey,
-} from '../lib/planner.mjs';
+import { PlanService } from './plan-service.mjs';
+import { WeatherPolicy } from './weather-policy.mjs';
+import { mergePreferences } from './preferences.mjs';
+import { AppError, LIMITS, number } from './validation.mjs';
 
-export class AppError extends Error {
-  constructor(message, status = 409) {
-    super(message);
-    this.status = status;
-  }
-}
-export function number(value, min, max, integer = false) {
-  if (
-    typeof value !== 'number' ||
-    !Number.isFinite(value) ||
-    value < min ||
-    value > max ||
-    (integer && !Number.isInteger(value))
-  )
-    throw new AppError(`Expected ${integer ? 'integer' : 'number'} between ${min} and ${max}`, 400);
-  return value;
-}
+export { AppError, LIMITS, number };
+
+/** Stations the controller reports as watering. */
 const active = state => state.stations.filter(s => s.isRunning || s.runningEntries?.length);
-export const LIMITS = Object.freeze({ minMinutes: 1, maxMinutes: 240, concurrentZones: 1, issues: 20 });
-const ISSUE_TEXT = 40;
 
 export class Engine {
   constructor({ driver, store, mode = 'demo', allowControl = false, clock = Date.now, logger = () => {} }) {
@@ -52,7 +32,9 @@ export class Engine {
     this.inflight = new Map();
     this.store.interruptPending();
     this.current = this.store.get('lastObservation');
-    this.seedPlan();
+    this.plans = new PlanService(this);
+    this.weatherPolicy = new WeatherPolicy(this);
+    this.plans.seed();
     this.error = null;
     // An open session streams controller updates; take them instead of asking again.
     this.driver.onSnapshot = snapshot => this.accept(snapshot);
@@ -180,10 +162,10 @@ export class Engine {
       alarms: state?.alarms ?? [],
       zones,
       rain: this.store.get('rain'),
-      policy: this.store.get('policy', DEFAULT_POLICY),
+      policy: this.weatherPolicy.policy(),
       weatherDecision: this.store.get('weatherDecision'),
       events: this.store.events(),
-      plan: this.plan(),
+      plan: this.plans.plan(),
       location: this.store.get('location'),
     };
   }
@@ -365,388 +347,56 @@ export class Engine {
       { user: source !== 'weather' },
     );
   }
-  // Answers from 2core's own record whether a weather hold is already in place, without asking Tucor.
-  // A delay set at the controller is only discovered, and preserved, when rain() connects.
+  // Weather policy: see weather-policy.mjs.
   knownHold(hours) {
-    const rain = this.store.get('rain');
-    const remaining = rain ? Date.parse(rain.until) - this.clock() : 0;
-    if (!(remaining > 0)) return null;
-    if (rain.source !== 'weather') return 'Existing manual rain delay preserved';
-    if (remaining >= hours * 3600000 - 3600000) return 'Weather delay already covers this period';
-    return null;
+    return this.weatherPolicy.knownHold(hours);
   }
   configurePolicy(patch) {
-    const policy = { ...this.store.get('policy', DEFAULT_POLICY), ...patch };
-    if (!['off', 'observe', 'automatic'].includes(policy.mode)) throw new AppError('Invalid weather policy mode', 400);
-    for (const k of Object.keys(patch))
-      if (!Object.hasOwn(DEFAULT_POLICY, k)) throw new AppError('Unknown weather setting', 400);
-    number(policy.intensityMmH, 0.01, 100);
-    number(policy.accumulationMm, 0.1, 500);
-    number(policy.forecastMm, 0.1, 500);
-    number(policy.forecastProbability, 1, 100);
-    number(policy.holdHours, 1, 72, true);
-    this.store.set('policy', policy);
-    return { ok: true, policy };
+    return this.weatherPolicy.configure(patch);
   }
-  async weather(sample) {
-    for (const key of ['intensityMmH', 'accumulationMm', 'forecastMm', 'forecastProbability']) {
-      if (sample[key] !== undefined && sample[key] !== null)
-        number(sample[key], 0, key === 'forecastProbability' ? 100 : 10000);
-    }
-    const policy = this.store.get('policy', DEFAULT_POLICY);
-    const decision = /** @type {Record<string, any>} */ ({
-      ...evaluateWeather(sample, policy, this.clock()),
-      at: new Date(this.clock()).toISOString(),
-      mode: policy.mode,
-      applied: false,
-    });
-    this.store.set('weatherDecision', decision);
-    if (policy.mode === 'automatic' && decision.wet && this.allowControl) {
-      const known = this.knownHold(policy.holdHours);
-      if (known) decision.preserved = known;
-      else {
-        const result = await this.rain(policy.holdHours, 'weather', decision.reason, decision.trigger);
-        decision.applied = !result.preserved;
-        decision.preserved = result.reason;
-      }
-    }
-    if (decision.wet && !this.allowControl) decision.blocked = 'Live control is disabled';
-    this.store.set('weatherDecision', decision);
-    return { ok: true, decision };
+  weather(sample) {
+    return this.weatherPolicy.decide(sample);
   }
-  // In-process weather source: serialized with commands, recorded like one.
   observeWeather(sample) {
-    return this.serial(async () => {
-      try {
-        const { decision } = await this.weather(sample);
-        if (decision.applied) this.store.event('/api/weather', { outcome: 'confirmed', message: decision.reason });
-        return decision;
-      } catch (e) {
-        this.store.set('weatherDecision', {
-          wet: true,
-          reason: `Rain delay not set: ${e.message}`,
-          at: new Date(this.clock()).toISOString(),
-          mode: this.store.get('policy', DEFAULT_POLICY).mode,
-          applied: false,
-        });
-        this.store.event('/api/weather', { outcome: 'failed', message: e.message });
-        throw e;
-      }
-    });
+    return this.weatherPolicy.observe(sample);
   }
-  // The weather source's health, kept apart from decisions: the last good sample survives a failed read.
-  recordWeatherRead({ sample = null, error = null }) {
-    const at = new Date(this.clock()).toISOString();
-    const previous = this.store.get('weatherReading') ?? {};
-    this.store.set('weatherReading', error ? { ...previous, error, errorAt: at } : { sample, at, error: null });
-    // The station's position gives the watering plan its sunrise times.
-    const station = this.weatherSource?.describe()?.station;
-    if (!error && Number.isFinite(station?.latitude) && Number.isFinite(station?.longitude))
-      this.store.set('location', { latitude: station.latitude, longitude: station.longitude });
+  recordWeatherRead(read) {
+    return this.weatherPolicy.recordRead(read);
   }
-  // Watering intentions are local planning data. They never reach Tucor.
-  seedPlan() {
-    const saved = this.store.prefixed('intent:');
-    const seeded = staggerIntents(saved, currentNight(new Date(this.clock())));
-    this.store.db.exec('BEGIN IMMEDIATE');
-    try {
-      for (const [id, intent] of Object.entries(seeded)) {
-        if (intent.firstDue !== saved[id].firstDue) this.store.set(`intent:${id}`, intent);
-      }
-      this.store.db.exec('COMMIT');
-    } catch (error) {
-      this.store.db.exec('ROLLBACK');
-      throw error;
-    }
-  }
+
+  // Watering plan: see plan-service.mjs. Local planning data; never reaches Tucor.
   plan() {
-    const intents = Object.fromEntries(
-      Object.entries(this.store.prefixed('intent:')).map(([id, intent]) => [id, { ...DEFAULT_INTENT, ...intent }]),
-    );
-    return {
-      settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) },
-      intents,
-      seasonalZoneIds: this.store.get(
-        'planSeasonalZones',
-        (this.current?.stations ?? [])
-          .filter(s => /vineyard/i.test(s.name ?? '') || intents[String(s.StId)]?.enabled === false)
-          .map(s => String(s.StId)),
-      ),
-    };
-  }
-  intentCandidate(zone, patch, plan = this.plan()) {
-    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new AppError('Expected intent patch', 400);
-    if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
-    const next = { ...DEFAULT_INTENT, ...plan.intents[zone] };
-    const previous = { ...next };
-    for (const [k, v] of Object.entries(patch)) {
-      if (k === 'seconds') next.seconds = v === null ? null : number(v, 1, MAX_SECONDS, true);
-      else if (k === 'seasonalPercent') next.seasonalPercent = number(v, 50, 200, true);
-      else if (k === 'cadence') {
-        const keys = v && typeof v === 'object' ? Object.keys(v) : [];
-        if (
-          v !== null &&
-          !(
-            keys.length === 1 &&
-            (keys[0] === 'every'
-              ? number(v.every, 1, 30, true)
-              : keys[0] === 'perWeek' && number(v.perWeek, 1, 6, true))
-          )
-        )
-          throw new AppError('Cadence must be {every: days} or {perWeek: times}', 400);
-        next.cadence = v;
-      } else if (k === 'enabled' || k === 'waterDuringRain') {
-        if (typeof v !== 'boolean') throw new AppError(`Invalid ${k} flag`, 400);
-        next[k] = v;
-      } else if (k === 'firstDue') {
-        if (v !== null && !validDateKey(v)) throw new AppError('First due date must be YYYY-MM-DD', 400);
-        next.firstDue = v;
-      } else throw new AppError('Unknown intent field', 400);
-    }
-    if (
-      patch.cadence &&
-      previous.cadence &&
-      previous.firstDue &&
-      !Object.hasOwn(patch, 'firstDue') &&
-      JSON.stringify(patch.cadence) !== JSON.stringify(previous.cadence)
-    ) {
-      next.firstDue = nextDueDate(previous, currentNight(new Date(this.clock())));
-    }
-    // Allocate only this new intention around saved ones. Existing phases remain.
-    const seeded = staggerIntents({ ...plan.intents, [zone]: next }, currentNight(new Date(this.clock())));
-    return seeded[zone];
+    return this.plans.plan();
   }
   intent(zone, patch) {
-    const seasonalZoneIds = this.plan().seasonalZoneIds;
-    const intent = this.intentCandidate(zone, patch);
-    this.store.set('planSeasonalZones', seasonalZoneIds);
-    this.store.set(`intent:${zone}`, intent);
-    return { ok: true, intent };
+    return this.plans.intent(zone, patch);
   }
   seasonalAdjustment(patch) {
-    if (Object.keys(patch).length !== 1 || !Object.hasOwn(patch, 'seasonalPercent'))
-      throw new AppError('Expected seasonalPercent only', 400);
-    const seasonalPercent = number(patch.seasonalPercent, 50, 200, true);
-    const saved = this.plan().intents;
-    const ids = new Set([...Object.keys(saved), ...(this.current?.stations ?? []).map(s => String(s.StId))]);
-    if (!ids.size) throw new AppError('Load the zones before setting seasonal adjustment');
-    this.store.db.exec('BEGIN IMMEDIATE');
-    try {
-      for (const id of ids) this.store.set(`intent:${id}`, { ...DEFAULT_INTENT, ...saved[id], seasonalPercent });
-      this.store.db.exec('COMMIT');
-    } catch (error) {
-      this.store.db.exec('ROLLBACK');
-      throw error;
-    }
-    return { ok: true, plan: this.plan() };
+    return this.plans.seasonalAdjustment(patch);
   }
-  preparePlanEdit(change, base = this.plan()) {
-    if (
-      !change ||
-      typeof change !== 'object' ||
-      Array.isArray(change) ||
-      Object.keys(change).some(
-        k => !['intents', 'settings', 'seasonalPercent', 'seasonalZoneIds', 'rebalanceToken'].includes(k),
-      )
-    )
-      throw new AppError('Invalid plan change', 400);
-    const next = structuredClone(base);
-    if (Object.hasOwn(change, 'rebalanceToken')) {
-      const proposal = this.rebalancePreview();
-      if (!change.rebalanceToken || change.rebalanceToken !== proposal.token)
-        throw new AppError('The plan changed. Review the rebalance again.', 409);
-      for (const c of proposal.changes) next.intents[c.zone] = { ...next.intents[c.zone], firstDue: c.firstDue };
-    }
-    if (Object.hasOwn(change, 'seasonalZoneIds')) {
-      const ids = change.seasonalZoneIds;
-      if (
-        !Array.isArray(ids) ||
-        new Set(ids).size !== ids.length ||
-        ids.some(id => typeof id !== 'string' || !this.current?.stations.some(s => String(s.StId) === id))
-      )
-        throw new AppError('Choose known seasonal zones', 400);
-      next.seasonalZoneIds = [...ids].sort((a, b) => Number(a) - Number(b));
-    }
-    if (Object.hasOwn(change, 'seasonalPercent')) {
-      const seasonalPercent = number(change.seasonalPercent, 50, 200, true);
-      for (const id of new Set([
-        ...Object.keys(next.intents),
-        ...(this.current?.stations ?? []).map(s => String(s.StId)),
-      ]))
-        next.intents[id] = { ...DEFAULT_INTENT, ...next.intents[id], seasonalPercent };
-    }
-    if (Object.hasOwn(change, 'intents')) {
-      if (!change.intents || typeof change.intents !== 'object' || Array.isArray(change.intents))
-        throw new AppError('Expected zone patches', 400);
-      for (const [id, patch] of Object.entries(change.intents))
-        next.intents[id] = this.intentCandidate(id, patch, next);
-    }
-    if (Object.hasOwn(change, 'settings')) {
-      if (!change.settings || typeof change.settings !== 'object' || Array.isArray(change.settings))
-        throw new AppError('Expected night settings', 400);
-      for (const [key, value] of Object.entries(change.settings)) {
-        if (!Object.hasOwn(SETTING_LIMITS, key)) throw new AppError('Unknown plan setting', 400);
-        next.settings[key] = number(value, ...SETTING_LIMITS[key], true);
-      }
-    }
-    return next;
-  }
-  planEditPreview(payload = {}) {
-    if (Object.keys(payload).some(k => k !== 'change')) throw new AppError('Expected change only', 400);
-    const change = payload.change ?? {},
-      before = this.plan(),
-      after = this.preparePlanEdit(change, before);
-    const zones = this.state()
-      .zones.filter(z => z.configured || (after.intents[z.id]?.seconds && after.intents[z.id]?.cadence))
-      .map(({ id, name }) => ({ id, name }));
-    const location = this.store.get('location'),
-      start = currentNight(new Date(this.clock()));
-    const token = createHash('sha256')
-      .update(JSON.stringify({ before, change, zones, location, night: start.toISOString() }))
-      .digest('hex');
-    const input = {
-      zones,
-      before,
-      after,
-      seasonalZoneIds: after.seasonalZoneIds,
-      start,
-      sunriseAt: d => (location ? sunrise(d, location.latitude, location.longitude) : null),
-    };
-    const assessment = assessPlan(input);
-    return {
-      token,
-      plan: after,
-      assessment,
-      seasonalZones: zones.filter(z => after.seasonalZoneIds.includes(z.id)),
-      alternatives: verifiedAlternatives({
-        ...input,
-        editedZoneIds: Object.keys(change.intents ?? {}),
-        report: assessment,
-      }),
-    };
+  planEditPreview(payload) {
+    return this.plans.editPreview(payload);
   }
   planEditApply(payload) {
-    if (
-      Object.keys(payload).some(k => !['change', 'token', 'alternativeId', 'saveUnresolved'].includes(k)) ||
-      (payload.saveUnresolved != null && typeof payload.saveUnresolved !== 'boolean')
-    )
-      throw new AppError('Invalid plan review', 400);
-    const reviewed = this.planEditPreview({ change: payload.change });
-    if (!payload.token || payload.token !== reviewed.token)
-      throw new AppError('The saved plan or night changed. Check this draft again before saving.', 409);
-    let plan = reviewed.plan,
-      assessment = reviewed.assessment;
-    if (payload.alternativeId != null) {
-      const alternative = reviewed.alternatives.find(a => a.id === payload.alternativeId);
-      if (!alternative) throw new AppError('Review an available adjustment before saving', 400);
-      plan = this.preparePlanEdit(alternative.adjustments, plan);
-      assessment = alternative.assessment;
-    }
-    if (assessment.status === 'needs-adjustment' && payload.saveUnresolved !== true)
-      throw new AppError('This draft needs an adjustment. Choose one or explicitly save it as unfinished.', 409);
-    this.store.db.exec('BEGIN IMMEDIATE');
-    try {
-      for (const [id, intent] of Object.entries(plan.intents)) this.store.set(`intent:${id}`, intent);
-      this.store.set('planSettings', plan.settings);
-      this.store.set('planSeasonalZones', plan.seasonalZoneIds);
-      this.store.db.exec('COMMIT');
-    } catch (e) {
-      this.store.db.exec('ROLLBACK');
-      throw e;
-    }
-    return { ok: true, plan: this.plan(), assessment };
+    return this.plans.editApply(payload);
   }
-  programPreview(payload = {}) {
-    if (
-      Object.keys(payload).some(k => k !== 'enabledOverrides') ||
-      (payload.enabledOverrides != null &&
-        (typeof payload.enabledOverrides !== 'object' || Array.isArray(payload.enabledOverrides)))
-    ) {
-      throw new AppError('Expected enabledOverrides only', 400);
-    }
-    const plan = this.plan(),
-      state = this.state();
-    const zones = state.zones.filter(z => z.configured || (plan.intents[z.id]?.seconds && plan.intents[z.id]?.cadence));
-    const enabledOverrides = payload.enabledOverrides ?? {};
-    for (const [id, enabled] of Object.entries(enabledOverrides)) {
-      if (!zones.some(z => z.id === id) || typeof enabled !== 'boolean')
-        throw new AppError('Expected known zone ids with boolean overrides', 400);
-    }
-    const location = this.store.get('location');
-    return compilePrograms({
-      zones,
-      ...plan,
-      enabledOverrides,
-      start: currentNight(new Date(this.clock())),
-      sunriseAt: d => (location ? sunrise(d, location.latitude, location.longitude) : null),
-    });
+  programPreview(payload) {
+    return this.plans.programPreview(payload);
   }
   rebalancePreview() {
-    const plan = this.plan(),
-      start = currentNight(new Date(this.clock()));
-    const token = createHash('sha256')
-      .update(JSON.stringify({ plan, night: start.toISOString() }))
-      .digest('hex');
-    return { token, ...proposeRebalance(plan.intents, start) };
+    return this.plans.rebalancePreview();
   }
-  rebalance({ token }) {
-    const proposal = this.rebalancePreview();
-    if (!token || token !== proposal.token)
-      throw new AppError('The plan changed. Review the updated rebalance before confirming.', 409);
-    this.store.db.exec('BEGIN IMMEDIATE');
-    try {
-      for (const change of proposal.changes) {
-        const intent = this.store.get(`intent:${change.zone}`);
-        this.store.set(`intent:${change.zone}`, { ...intent, firstDue: change.firstDue });
-      }
-      this.store.db.exec('COMMIT');
-    } catch (error) {
-      this.store.db.exec('ROLLBACK');
-      throw error;
-    }
-    return { ok: true, plan: this.plan(), changes: proposal.changes };
+  rebalance(payload) {
+    return this.plans.rebalance(payload);
   }
   planSettings(patch) {
-    const next = { ...this.plan().settings };
-    for (const [k, v] of Object.entries(patch)) {
-      if (!Object.hasOwn(SETTING_LIMITS, k)) throw new AppError('Unknown plan setting', 400);
-      next[k] = number(v, ...SETTING_LIMITS[k], true);
-    }
-    this.store.set('planSettings', next);
-    return { ok: true, settings: next };
+    return this.plans.settings(patch);
   }
+
+  /** POST /api/zones/:id/preferences */
   preferences(zone, body) {
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
-    const current = this.store.get(`zone:${zone}`, {});
-    const next = { ...current };
-    for (const k of ['name', 'notes'])
-      if (body[k] !== undefined) {
-        if (typeof body[k] !== 'string' || body[k].length > (k === 'name' ? 80 : 1000))
-          throw new AppError('Invalid zone text', 400);
-        next[k] = body[k];
-      }
-    if (body.favorite !== undefined) {
-      if (typeof body.favorite !== 'boolean') throw new AppError('Invalid favorite', 400);
-      next.favorite = body.favorite;
-    }
-    if (body.order !== undefined) next.order = number(body.order, 0, 1000, true);
-    if (body.issues !== undefined) {
-      // Problems spotted on a walk: short labels with the time they were flagged.
-      if (!Array.isArray(body.issues) || body.issues.length > LIMITS.issues)
-        throw new AppError(`Expected up to ${LIMITS.issues} issues`, 400);
-      next.issues = body.issues.map(item => {
-        if (
-          !item ||
-          typeof item.issue !== 'string' ||
-          !item.issue.trim() ||
-          item.issue.length > ISSUE_TEXT ||
-          !Number.isFinite(Date.parse(item.at))
-        )
-          throw new AppError('Invalid issue', 400);
-        return { issue: item.issue.trim(), at: new Date(item.at).toISOString() };
-      });
-    }
-    this.store.set(`zone:${zone}`, next);
+    this.store.set(`zone:${zone}`, mergePreferences(this.store.get(`zone:${zone}`, {}), body));
     return { ok: true };
   }
 }
