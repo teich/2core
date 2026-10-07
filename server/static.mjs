@@ -24,7 +24,10 @@ const SW_PLACEHOLDER = "{ version: 'dev', shell: ['/'] }";
 
 const contentType = file => {
   const type = TYPES[extname(file)];
-  return type && (type.startsWith('text/') || type.includes('json') || type.includes('svg') ? `${type}; charset=utf-8` : type);
+  return (
+    type &&
+    (type.startsWith('text/') || type.includes('json') || type.includes('svg') ? `${type}; charset=utf-8` : type)
+  );
 };
 
 /** Maps a URL path to a file on disk, or null when it is not a servable asset. */
@@ -51,7 +54,9 @@ export async function shellFiles() {
   const web = (await walk(WEB))
     .map(file => `/${relative(WEB, file).split(sep).join('/')}`)
     .filter(path => path !== '/index.html' && path !== '/service-worker.js');
-  const lib = (await walk(LIB)).filter(file => !relative(LIB, file).includes(sep)).map(file => `/lib/${relative(LIB, file)}`);
+  const lib = (await walk(LIB))
+    .filter(file => !relative(LIB, file).includes(sep))
+    .map(file => `/lib/${relative(LIB, file)}`);
   return ['/', ...web, ...lib];
 }
 

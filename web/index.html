@@ -1,268 +1,747 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#eef2ef" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#070b0a" media="(prefers-color-scheme: dark)">
-  <meta name="application-name" content="2core"><meta name="apple-mobile-web-app-title" content="2core">
-  <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>2core</title>
-  <link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon-192.png" type="image/png"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
-  <script src="/app.js" type="module"></script>
-</head>
-<body>
-  <svg class="sprite" aria-hidden="true">
-    <symbol id="i-drop" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.5c-.3 0-.6.2-.8.4C9.4 5.2 5 10.7 5 14.6 5 18.7 8.1 21.5 12 21.5s7-2.8 7-6.9c0-3.9-4.4-9.4-6.2-11.7-.2-.2-.5-.4-.8-.4Z"/></symbol>
-    <symbol id="i-feet" viewBox="0 0 24 24"><g fill="currentColor"><path d="M7.6 3c2 0 3.1 2.3 3 5-.1 2.2-.8 3.8-1 5.3-.1.8-.7 1.3-1.5 1.3H6.6c-.8 0-1.4-.6-1.5-1.3C4.8 11.6 4.3 9.8 4.4 8c.2-2.8 1.3-5 3.2-5Z"/><rect x="5.2" y="15.8" width="4.6" height="3.8" rx="1.9"/><path d="M16.4 6c1.9 0 3 2.2 3.2 5 .1 1.8-.4 3.6-.7 5.3-.1.7-.7 1.3-1.5 1.3h-1.5c-.8 0-1.4-.5-1.5-1.3-.2-1.5-.9-3.1-1-5.3-.1-2.7 1-5 3-5Z"/><rect x="14.2" y="18.8" width="4.6" height="3.4" rx="1.7"/></g></symbol>
-    <symbol id="i-rain" viewBox="0 0 24 24"><path fill="currentColor" d="M7.5 15.5A4.5 4.5 0 0 1 7 6.53 6 6 0 0 1 18.4 8.1a3.75 3.75 0 0 1-.9 7.4Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m8.5 18-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5"/></symbol>
-    <symbol id="i-list" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="17.5" r="1.5" fill="currentColor"/></symbol>
-    <symbol id="i-next" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7"/></symbol>
-    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></symbol>
-    <symbol id="i-flag" viewBox="0 0 24 24"><path fill="currentColor" d="M5 2.8c.6 0 1 .4 1 1v.5c1.4-.7 3-.9 4.8-.3 1.6.5 3 1 5.2.2.7-.2 1.4.3 1.4 1v8.2c0 .4-.3.8-.7 1-2.7 1-4.6.4-6.3-.1-1.5-.5-2.9-.6-4.4.2v6.7c0 .6-.4 1-1 1s-1-.4-1-1V3.8c0-.6.4-1 1-1Z"/></symbol>
-    <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3.2c.4 0 .7.2.9.6l2.1 4.4 4.8.7c.8.1 1.1 1.1.6 1.7l-3.5 3.4.8 4.8c.1.8-.7 1.4-1.5 1L12 17.5l-4.3 2.3c-.7.4-1.6-.2-1.5-1l.8-4.8-3.5-3.4c-.6-.6-.2-1.6.6-1.7l4.8-.7 2.2-4.4c.2-.4.5-.6.9-.6Z"/></symbol>
-    <symbol id="i-refresh" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4.5H15"/></symbol>
-    <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="m6 6 12 12M18 6 6 18"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m15.5 15.5 4.5 4.5"/></symbol>
-    <symbol id="i-pencil" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/></symbol>
-    <symbol id="i-tilt" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-18 12 12)"/><path fill="currentColor" d="M5.6 15.6 17 11.9l-2.3 7.3a1.6 1.6 0 0 1-1.9 1l-5.5-1.8a1.6 1.6 0 0 1-1.1-1.8Z" opacity=".45"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="m5.5 12.5 4 4 9-9"/></symbol>
-    <symbol id="i-alert" viewBox="0 0 24 24"><path fill="currentColor" d="M10.3 3.9a2 2 0 0 1 3.4 0l7.9 13.6a2 2 0 0 1-1.7 3H4.1a2 2 0 0 1-1.7-3Z"/><path stroke="var(--ground)" stroke-width="2.2" stroke-linecap="round" d="M12 9v4.5M12 17h.01"/></symbol>
-    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 7.5V12l3 2"/></symbol>
-    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="8.5" cy="14.5" r="1.4" fill="currentColor"/><circle cx="12" cy="14.5" r="1.4" fill="currentColor"/><circle cx="15.5" cy="14.5" r="1.4" fill="currentColor"/></symbol>
-    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="14" r="4" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 4v2.5M4.5 14H3M21 14h-1.5M6.7 8.7l-1-1M17.3 8.7l1-1M3 19.5h18"/></symbol>
-    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M16 5.5A2.5 2.5 0 0 0 13.5 3h-7A3.5 3.5 0 0 0 3 6.5v7A2.5 2.5 0 0 0 5.5 16"/></symbol>
-    <symbol id="i-tune" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
-    <symbol id="i-minus" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 12h12"/></symbol>
-    <symbol id="i-plus" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 12h12M12 6v12"/></symbol>
-  </svg>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#eef2ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#070b0a" media="(prefers-color-scheme: dark)" />
+    <meta name="application-name" content="2core" />
+    <meta name="apple-mobile-web-app-title" content="2core" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>2core</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <svg class="sprite" aria-hidden="true">
+      <symbol id="i-drop" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M12 2.5c-.3 0-.6.2-.8.4C9.4 5.2 5 10.7 5 14.6 5 18.7 8.1 21.5 12 21.5s7-2.8 7-6.9c0-3.9-4.4-9.4-6.2-11.7-.2-.2-.5-.4-.8-.4Z"
+        />
+      </symbol>
+      <symbol id="i-feet" viewBox="0 0 24 24">
+        <g fill="currentColor">
+          <path
+            d="M7.6 3c2 0 3.1 2.3 3 5-.1 2.2-.8 3.8-1 5.3-.1.8-.7 1.3-1.5 1.3H6.6c-.8 0-1.4-.6-1.5-1.3C4.8 11.6 4.3 9.8 4.4 8c.2-2.8 1.3-5 3.2-5Z"
+          />
+          <rect x="5.2" y="15.8" width="4.6" height="3.8" rx="1.9" />
+          <path
+            d="M16.4 6c1.9 0 3 2.2 3.2 5 .1 1.8-.4 3.6-.7 5.3-.1.7-.7 1.3-1.5 1.3h-1.5c-.8 0-1.4-.5-1.5-1.3-.2-1.5-.9-3.1-1-5.3-.1-2.7 1-5 3-5Z"
+          />
+          <rect x="14.2" y="18.8" width="4.6" height="3.4" rx="1.7" />
+        </g>
+      </symbol>
+      <symbol id="i-rain" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M7.5 15.5A4.5 4.5 0 0 1 7 6.53 6 6 0 0 1 18.4 8.1a3.75 3.75 0 0 1-.9 7.4Z" />
+        <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m8.5 18-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5" />
+      </symbol>
+      <symbol id="i-list" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M9 6.5h11M9 12h11M9 17.5h11" />
+        <circle cx="4.5" cy="6.5" r="1.5" fill="currentColor" />
+        <circle cx="4.5" cy="12" r="1.5" fill="currentColor" />
+        <circle cx="4.5" cy="17.5" r="1.5" fill="currentColor" />
+      </symbol>
+      <symbol id="i-next" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" />
+      </symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" /></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M5 2.8c.6 0 1 .4 1 1v.5c1.4-.7 3-.9 4.8-.3 1.6.5 3 1 5.2.2.7-.2 1.4.3 1.4 1v8.2c0 .4-.3.8-.7 1-2.7 1-4.6.4-6.3-.1-1.5-.5-2.9-.6-4.4.2v6.7c0 .6-.4 1-1 1s-1-.4-1-1V3.8c0-.6.4-1 1-1Z"
+        />
+      </symbol>
+      <symbol id="i-star" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M12 3.2c.4 0 .7.2.9.6l2.1 4.4 4.8.7c.8.1 1.1 1.1.6 1.7l-3.5 3.4.8 4.8c.1.8-.7 1.4-1.5 1L12 17.5l-4.3 2.3c-.7.4-1.6-.2-1.5-1l.8-4.8-3.5-3.4c-.6-.6-.2-1.6.6-1.7l4.8-.7 2.2-4.4c.2-.4.5-.6.9-.6Z"
+        />
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4.5H15"
+        />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="m6 6 12 12M18 6 6 18" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+        <path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="m15.5 15.5 4.5 4.5" />
+      </symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z" />
+      </symbol>
+      <symbol id="i-tilt" viewBox="0 0 24 24">
+        <rect
+          x="7"
+          y="2.5"
+          width="10"
+          height="19"
+          rx="3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          transform="rotate(-18 12 12)"
+        />
+        <path fill="currentColor" d="M5.6 15.6 17 11.9l-2.3 7.3a1.6 1.6 0 0 1-1.9 1l-5.5-1.8a1.6 1.6 0 0 1-1.1-1.8Z" opacity=".45" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" d="m5.5 12.5 4 4 9-9" />
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M10.3 3.9a2 2 0 0 1 3.4 0l7.9 13.6a2 2 0 0 1-1.7 3H4.1a2 2 0 0 1-1.7-3Z" />
+        <path stroke="var(--ground)" stroke-width="2.2" stroke-linecap="round" d="M12 9v4.5M12 17h.01" />
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2" />
+        <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 7.5V12l3 2" />
+      </symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24">
+        <rect x="3.5" y="5" width="17" height="15.5" rx="3.5" fill="none" stroke="currentColor" stroke-width="2" />
+        <path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 3v4M16 3v4M3.5 10h17" />
+        <circle cx="8.5" cy="14.5" r="1.4" fill="currentColor" />
+        <circle cx="12" cy="14.5" r="1.4" fill="currentColor" />
+        <circle cx="15.5" cy="14.5" r="1.4" fill="currentColor" />
+      </symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="14" r="4" fill="currentColor" />
+        <path
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          d="M12 4v2.5M4.5 14H3M21 14h-1.5M6.7 8.7l-1-1M17.3 8.7l1-1M3 19.5h18"
+        />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2" />
+        <path
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          d="M16 5.5A2.5 2.5 0 0 0 13.5 3h-7A3.5 3.5 0 0 0 3 6.5v7A2.5 2.5 0 0 0 5.5 16"
+        />
+      </symbol>
+      <symbol id="i-tune" viewBox="0 0 24 24">
+        <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+        <circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2" />
+        <circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2" />
+      </symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24">
+        <path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 12h12" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 12h12M12 6v12" />
+      </symbol>
+    </svg>
 
-  <canvas id="pond" aria-hidden="true"></canvas>
-  <main>
-    <section id="login" class="login">
-      <img src="/icon.svg" alt="" class="login-icon">
-      <h1>2core</h1>
-      <p>Enter the access key for your garden server.</p>
-      <form id="login-form"><label for="access-key">Access key</label><input id="access-key" type="password" autocomplete="current-password" required><button class="primary wide" type="submit">Open</button></form>
-      <p id="demo-hint" class="hint" hidden>Demo key: <code>2core-demo</code>. The demo never reaches real irrigation.</p>
-      <p id="login-error" role="alert"></p>
-    </section>
-
-    <div id="application" hidden>
-      <header class="top">
-        <div class="top-row">
-          <button id="connection" class="status" aria-label="Controller status. Tap to check now"><i class="dot"></i><span id="connection-text">Connecting</span></button>
-          <div class="top-actions"><button id="refresh" class="icon-button" aria-label="Check the controller now"><svg><use href="#i-refresh"/></svg></button><button id="signout" class="text-button" hidden>Lock</button></div>
-        </div>
-        <h1 id="view-title">Zones</h1>
-        <p id="mode-note" class="mode-note" hidden></p>
-      </header>
-      <div id="message" role="status" aria-live="polite" hidden></div>
-
-      <section id="zones-view" aria-labelledby="view-title">
-        <div class="search-bar">
-          <label class="field"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Zone name or number" aria-label="Find a zone" autocomplete="off"></label>
-          <div class="filters"><button id="favorites" class="chip" aria-pressed="false"><svg><use href="#i-star"/></svg>Favorites</button><button id="flagged" class="chip" aria-pressed="false"><svg><use href="#i-flag"/></svg>Flagged</button><button id="show-unused" class="chip" aria-pressed="false">Unused slots</button><span id="zone-count"></span></div>
-        </div>
-        <div id="zones" class="zones group"></div>
-        <p id="empty" class="empty" hidden>No zones match. Try a number like 14, or part of a name.</p>
-      </section>
-
-      <section id="walk-view" hidden aria-labelledby="view-title">
-        <div class="walk-head"><span id="walk-position"></span><button id="findings-open" class="chip">Findings <b id="findings-count">0</b></button></div>
-        <div id="walk-rail" class="rail" aria-label="Choose a zone"></div>
-        <div class="stage">
-          <h2 id="walk-name">Choose a zone</h2>
-          <div id="water-orb" class="water-orb">
-            <div class="water-level" aria-hidden="true"><div class="wave"></div><div class="wave second"></div></div>
-            <canvas id="vessel" aria-hidden="true"></canvas>
-            <div class="orb-label" aria-hidden="true"><span id="walk-number">ZONE</span><strong id="walk-time" class="num"></strong><em id="walk-word"></em></div>
-            <button id="tilt" class="tilt" hidden aria-pressed="false" aria-label="Let the water follow the phone's tilt"><svg><use href="#i-tilt"/></svg></button>
-          </div>
-          <p id="walk-state" class="walk-state" aria-live="polite"></p>
-          <p id="walk-detail" class="muted"></p>
-        </div>
-        <div class="seg" role="radiogroup" aria-label="Minutes per zone"><span>Each zone</span><button role="radio" data-walk-minutes="1" aria-checked="true">1 min</button><button role="radio" data-walk-minutes="2" aria-checked="false">2</button><button role="radio" data-walk-minutes="3" aria-checked="false">3</button><button role="radio" data-walk-minutes="5" aria-checked="false">5</button></div>
-        <button id="walk-start" class="primary wide"></button>
-        <div id="walk-transport" class="transport" hidden><button id="walk-stop" class="round stop" aria-label="Stop watering"><svg><use href="#i-stop"/></svg></button><button id="next-zone" class="primary wide"></button></div>
-        <div class="duo"><button id="walk-flag" class="soft flag"><svg><use href="#i-flag"/></svg>Flag issue</button><button id="walk-details" class="soft">Zone details</button></div>
-      </section>
-
-      <section id="plan-view" hidden aria-labelledby="view-title">
-        <p class="plan-preview">Preview only · controller schedules unchanged</p>
-        <button id="plan-status" class="plan-status" aria-haspopup="dialog"><span id="plan-status-icon" class="badge-icon small"><svg><use href="#i-check"/></svg></span><span class="plan-status-text"><b id="plan-status-title">Checking the plan…</b><small id="plan-status-detail"></small></span><svg class="chev" aria-hidden="true"><use href="#i-next"/></svg></button>
-        <div id="rebalance-prompt" class="group rebalance-prompt" hidden><p>Zone availability changed. You can spread the remaining watering more evenly.</p><button id="review-rebalance" class="outline">Review rebalance</button><button id="dismiss-rebalance" class="quiet">Not now</button></div>
-        <div class="plan-chips"><button id="plan-open-night" class="chip" aria-haspopup="dialog"><svg><use href="#i-clock"/></svg><span id="plan-window">Night</span></button><button id="plan-open-seasonal" class="chip" aria-haspopup="dialog"><svg><use href="#i-sun"/></svg>Seasonal <b id="seasonal-status">100%</b></button><button id="plan-open-settings" class="chip" aria-haspopup="dialog"><svg><use href="#i-tune"/></svg>More</button></div>
-        <div class="plan-layout">
-          <section class="group night-panel" aria-label="Nights">
-            <div id="plan-nights" class="night-strip" aria-label="Choose a night"></div>
-            <div id="night-card" class="night-card" aria-live="polite"></div>
-          </section>
-          <section class="group plan-zones" aria-labelledby="plan-zones-title">
-            <div class="plan-zones-head"><h2 id="plan-zones-title">Zones</h2><div class="filters"><button id="plan-all" class="chip" aria-pressed="true">All</button><button id="plan-needs" class="chip" aria-pressed="false">Needs a plan <b id="plan-needs-count">0</b></button></div></div>
-            <p class="hint plan-zones-hint">Tap a zone to set its run length and how often it waters.</p>
-            <div id="plan-rows"></div>
-            <p id="plan-empty" class="empty" hidden></p>
-          </section>
-        </div>
-      </section>
-
-      <section id="rain-view" hidden aria-labelledby="view-title">
-        <div class="group pad delay-card" id="delay-card">
-          <div class="card-head"><span class="badge-icon" id="delay-icon"><svg><use href="#i-rain"/></svg></span><div class="card-title"><p class="eyebrow">Rain delay</p><h2 id="delay-title" class="num">Off</h2></div></div>
-          <p id="delay-detail" class="muted"></p>
-          <div class="meter delay-meter" id="delay-meter" hidden><i id="delay-fill"></i></div>
-          <div class="presets"><button data-rain="12">12 h</button><button data-rain="24">24 h</button><button data-rain="48">48 h</button><button data-rain="0" class="outline" id="rain-clear">Clear</button></div>
-          <p class="hint">Zones can’t be started during a rain delay.</p>
-        </div>
-        <div class="group pad" id="station-card">
-          <div class="card-head"><div class="card-title"><p class="eyebrow">Weather station</p><h2 id="station-title">Tempest</h2></div><span class="pill" id="station-pill"><i class="dot"></i><span id="station-status">—</span></span></div>
-          <div class="readings" id="readings"></div>
-          <p id="station-note" class="hint"></p>
-        </div>
-        <div class="group pad" id="auto-card">
-          <div class="card-title"><p class="eyebrow">Automatic rain delay</p></div>
-          <div class="modes" id="policy-modes" role="radiogroup" aria-label="Automatic rain delay"><button role="radio" data-mode="off" aria-checked="false">Off</button><button role="radio" data-mode="observe" aria-checked="false">Log only</button><button role="radio" data-mode="automatic" aria-checked="false">Automatic</button></div>
-          <p id="mode-explain" class="muted"></p>
-          <div class="decision" id="decision"><span class="badge-icon small" id="decision-icon"><svg><use href="#i-check"/></svg></span><div><b id="decision-title"></b><small id="decision-detail"></small></div></div>
-          <p id="policy-rule" class="hint"></p>
-        </div>
-      </section>
-
-      <section id="activity-view" hidden aria-labelledby="view-title"><div class="group pad metrics"><h2>Controller</h2><dl><dt>Voltage</dt><dd id="voltage">—</dd><dt>Current</dt><dd id="current">—</dd><dt>Last heard</dt><dd id="observed">—</dd></dl><p class="hint">Commands go through Tucor’s cloud. Schedules stay on the controller.</p></div><div id="tucor-group" class="group pad metrics" hidden><h2>Tucor connection</h2><dl><dt>Sessions this hour</dt><dd id="tucor-sessions">—</dd><dt>Password logins today</dt><dd id="tucor-logins">—</dd></dl><p id="tucor-note" class="hint">2core only connects while you use the app or when a rain delay needs setting.</p><div id="tucor-history"></div></div><h2 class="small-heading">Recent activity</h2><div id="activity" class="group pad"></div></section>
-    </div>
-  </main>
-
-  <canvas id="glass" aria-hidden="true"></canvas>
-  <div class="dock" id="dock" hidden>
-    <section id="run-dock" class="run-dock capsule" hidden aria-label="Current watering"><button id="dock-open"><span id="dock-name"></span><small id="dock-time" class="num"></small></button><button id="stop" class="stop"><svg><use href="#i-stop"/></svg>Stop</button></section>
-    <nav class="tabs capsule" id="tabs" aria-label="Sections"><button data-tab="zones" aria-current="page"><svg><use href="#i-drop"/></svg>Zones</button><button data-tab="walk"><svg><use href="#i-feet"/></svg>Walk</button><button data-tab="plan"><svg><use href="#i-calendar"/></svg>Plan</button><button data-tab="rain"><svg><use href="#i-rain"/></svg>Weather</button><button data-tab="activity"><svg><use href="#i-list"/></svg>Activity</button></nav>
-  </div>
-
-  <dialog id="plan-zone-dialog" class="sheet plan-sheet" aria-labelledby="pz-name">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span id="pz-number" class="zone-num lg num"></span><div><h2 id="pz-name"></h2><p id="pz-summary" class="muted"></p></div><button id="pz-close" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div class="sheet-body">
-      <label class="switch-row"><span><b>Water this zone</b><small>Turn off for the season. Its settings are kept.</small></span><input id="pz-enabled" type="checkbox" role="switch"></label>
-      <div id="pz-fields">
-        <div class="pz-field"><span class="pz-label" id="pz-minutes-label">Run length</span>
-          <div class="stepper"><button type="button" data-step="minutes:-1" aria-label="Shorter"><svg><use href="#i-minus"/></svg></button><label class="stepper-value"><input id="pz-minutes" class="num" inputmode="decimal" autocomplete="off" placeholder="—" aria-labelledby="pz-minutes-label"><span>min</span></label><button type="button" data-step="minutes:1" aria-label="Longer"><svg><use href="#i-plus"/></svg></button></div>
-          <div id="pz-presets" class="presets pz-presets" aria-label="Common run lengths"></div>
-        </div>
-        <div class="pz-field"><span class="pz-label" id="pz-cadence-label">How often</span>
-          <div id="pz-cadence" class="choice-grid" role="radiogroup" aria-labelledby="pz-cadence-label"></div>
-          <small id="pz-cadence-hint" class="hint warn-text"></small>
-        </div>
-        <div class="pz-field"><span class="pz-label" id="pz-seasonal-label">Seasonal adjustment</span>
-          <div class="stepper"><button type="button" data-step="seasonal:-1" aria-label="Less water"><svg><use href="#i-minus"/></svg></button><label class="stepper-value"><input id="pz-seasonal" class="num" type="number" min="50" max="200" step="1" inputmode="numeric" aria-labelledby="pz-seasonal-label"><span>%</span></label><button type="button" data-step="seasonal:1" aria-label="More water"><svg><use href="#i-plus"/></svg></button></div>
-          <small id="pz-seasonal-hint" class="hint"></small>
-        </div>
-        <label class="switch-row"><span><b>Water during rain delays</b><small>For covered beds and pots that rain doesn’t reach. Preview only; the controller’s rain delay still applies.</small></span><input id="pz-rain" type="checkbox" role="switch"></label>
-      </div>
-      <p id="pz-error" class="failure" role="alert"></p>
-    </div>
-    <div class="sheet-foot"><button id="pz-cancel" class="outline">Cancel</button><button id="pz-save" class="primary">Save</button></div>
-  </dialog>
-
-  <dialog id="plan-review-dialog" class="sheet plan-sheet" aria-labelledby="plan-fit-title">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span id="plan-fit-icon" class="badge-icon small"><svg><use href="#i-check"/></svg></span><div><h2 id="plan-fit-title">Watering plan check</h2><p id="plan-fit-state" class="muted"></p></div><button id="fit-close" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div class="sheet-body plan-fit" aria-live="polite">
-      <ul id="plan-fit-edit" class="fit-edits"></ul>
-      <div id="plan-fit-scenarios"></div>
-      <div id="plan-fit-alternatives"></div>
-      <p id="plan-fit-error" class="failure" role="status"></p>
-      <p class="hint">Checked against dry weather for the next fourteen nights. Nothing is sent to the controller.</p>
-    </div>
-    <div class="sheet-foot fit-actions"><button id="fit-discard" class="outline">Discard</button><button id="fit-check" class="outline">Check again</button><button id="fit-unfinished" class="outline">Save anyway</button><button id="fit-save" class="primary">Save</button></div>
-  </dialog>
-
-  <dialog id="plan-settings-dialog" class="sheet plan-sheet" aria-labelledby="plan-settings-title">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span class="badge-icon small"><svg><use href="#i-tune"/></svg></span><div><h2 id="plan-settings-title">Plan settings</h2><p class="muted">Changes are checked before they save.</p></div><button id="close-plan-settings" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div class="sheet-body">
-      <section id="settings-night" class="settings-section">
-        <h3>Night window</h3>
-        <label class="setting-row">Start after<select id="plan-earliest"><option value="1260">9:00pm</option><option value="1320">10:00pm</option><option value="1380">11:00pm</option><option value="1440">Midnight</option><option value="1500">1:00am</option></select></label>
-        <label class="setting-row">Try to finish<select id="plan-finish"><option value="30">30 min before sunrise</option><option value="15">15 min before sunrise</option><option value="0">By sunrise</option></select></label>
-        <label class="setting-row">Never past<select id="plan-hard"><option value="420">7:00am</option><option value="480">8:00am</option><option value="540">9:00am</option><option value="600">10:00am</option></select></label>
-        <div class="setting-row"><span id="plan-lanes-label">Zones at once</span><div class="modes lanes-modes" role="radiogroup" aria-labelledby="plan-lanes-label"><button role="radio" data-lanes="1" aria-checked="false">1</button><button role="radio" data-lanes="2" aria-checked="false">Up to 2</button></div></div>
-        <p class="hint">One zone at a time; a second only when the night is too short.</p>
-      </section>
-      <section id="settings-seasonal" class="settings-section">
-        <h3>Seasonal adjustment</h3>
-        <form id="seasonal-form" class="seasonal-panel">
-          <div class="stepper"><button type="button" data-step="all:-1" aria-label="Less water"><svg><use href="#i-minus"/></svg></button><label class="stepper-value"><input id="seasonal-all" class="num" type="number" min="50" max="200" step="1" required value="100" inputmode="numeric" aria-label="Seasonal percentage for all zones"><span>%</span></label><button type="button" data-step="all:1" aria-label="More water"><svg><use href="#i-plus"/></svg></button></div>
-          <button id="seasonal-apply" class="primary" type="submit">Apply to all zones</button>
+    <canvas id="pond" aria-hidden="true"></canvas>
+    <main>
+      <section id="login" class="login">
+        <img src="/icon.svg" alt="" class="login-icon" />
+        <h1>2core</h1>
+        <p>Enter the access key for your garden server.</p>
+        <form id="login-form">
+          <label for="access-key">Access key</label
+          ><input id="access-key" type="password" autocomplete="current-password" required /><button class="primary wide" type="submit">
+            Open
+          </button>
         </form>
-        <p class="hint">Scales every run length from 50–200%. Baseline minutes and frequency stay the same; you can fine-tune single zones afterwards.</p>
+        <p id="demo-hint" class="hint" hidden>Demo key: <code>2core-demo</code>. The demo never reaches real irrigation.</p>
+        <p id="login-error" role="alert"></p>
       </section>
-      <section class="settings-section">
-        <h3>Seasonal comparison</h3>
-        <p class="hint">Check the plan with these zones both off and on, so turning them back on next season still fits. This does not turn watering on or off.</p>
-        <div id="fit-seasonal-zones" class="check-list"></div>
+
+      <div id="application" hidden>
+        <header class="top">
+          <div class="top-row">
+            <button id="connection" class="status" aria-label="Controller status. Tap to check now">
+              <i class="dot"></i><span id="connection-text">Connecting</span>
+            </button>
+            <div class="top-actions">
+              <button id="refresh" class="icon-button" aria-label="Check the controller now">
+                <svg><use href="#i-refresh" /></svg></button
+              ><button id="signout" class="text-button" hidden>Lock</button>
+            </div>
+          </div>
+          <h1 id="view-title">Zones</h1>
+          <p id="mode-note" class="mode-note" hidden></p>
+        </header>
+        <div id="message" role="status" aria-live="polite" hidden></div>
+
+        <section id="zones-view" aria-labelledby="view-title">
+          <div class="search-bar">
+            <label class="field"
+              ><svg><use href="#i-search" /></svg
+              ><input id="search" type="search" placeholder="Zone name or number" aria-label="Find a zone" autocomplete="off"
+            /></label>
+            <div class="filters">
+              <button id="favorites" class="chip" aria-pressed="false">
+                <svg><use href="#i-star" /></svg>Favorites</button
+              ><button id="flagged" class="chip" aria-pressed="false">
+                <svg><use href="#i-flag" /></svg>Flagged</button
+              ><button id="show-unused" class="chip" aria-pressed="false">Unused slots</button><span id="zone-count"></span>
+            </div>
+          </div>
+          <div id="zones" class="zones group"></div>
+          <p id="empty" class="empty" hidden>No zones match. Try a number like 14, or part of a name.</p>
+        </section>
+
+        <section id="walk-view" hidden aria-labelledby="view-title">
+          <div class="walk-head">
+            <span id="walk-position"></span><button id="findings-open" class="chip">Findings <b id="findings-count">0</b></button>
+          </div>
+          <div id="walk-rail" class="rail" aria-label="Choose a zone"></div>
+          <div class="stage">
+            <h2 id="walk-name">Choose a zone</h2>
+            <div id="water-orb" class="water-orb">
+              <div class="water-level" aria-hidden="true">
+                <div class="wave"></div>
+                <div class="wave second"></div>
+              </div>
+              <canvas id="vessel" aria-hidden="true"></canvas>
+              <div class="orb-label" aria-hidden="true">
+                <span id="walk-number">ZONE</span><strong id="walk-time" class="num"></strong><em id="walk-word"></em>
+              </div>
+              <button id="tilt" class="tilt" hidden aria-pressed="false" aria-label="Let the water follow the phone's tilt">
+                <svg><use href="#i-tilt" /></svg>
+              </button>
+            </div>
+            <p id="walk-state" class="walk-state" aria-live="polite"></p>
+            <p id="walk-detail" class="muted"></p>
+          </div>
+          <div class="seg" role="radiogroup" aria-label="Minutes per zone">
+            <span>Each zone</span><button role="radio" data-walk-minutes="1" aria-checked="true">1 min</button
+            ><button role="radio" data-walk-minutes="2" aria-checked="false">2</button
+            ><button role="radio" data-walk-minutes="3" aria-checked="false">3</button
+            ><button role="radio" data-walk-minutes="5" aria-checked="false">5</button>
+          </div>
+          <button id="walk-start" class="primary wide"></button>
+          <div id="walk-transport" class="transport" hidden>
+            <button id="walk-stop" class="round stop" aria-label="Stop watering">
+              <svg><use href="#i-stop" /></svg></button
+            ><button id="next-zone" class="primary wide"></button>
+          </div>
+          <div class="duo">
+            <button id="walk-flag" class="soft flag">
+              <svg><use href="#i-flag" /></svg>Flag issue</button
+            ><button id="walk-details" class="soft">Zone details</button>
+          </div>
+        </section>
+
+        <section id="plan-view" hidden aria-labelledby="view-title">
+          <p class="plan-preview">Preview only · controller schedules unchanged</p>
+          <button id="plan-status" class="plan-status" aria-haspopup="dialog">
+            <span id="plan-status-icon" class="badge-icon small"
+              ><svg><use href="#i-check" /></svg></span
+            ><span class="plan-status-text"><b id="plan-status-title">Checking the plan…</b><small id="plan-status-detail"></small></span
+            ><svg class="chev" aria-hidden="true"><use href="#i-next" /></svg>
+          </button>
+          <div id="rebalance-prompt" class="group rebalance-prompt" hidden>
+            <p>Zone availability changed. You can spread the remaining watering more evenly.</p>
+            <button id="review-rebalance" class="outline">Review rebalance</button
+            ><button id="dismiss-rebalance" class="quiet">Not now</button>
+          </div>
+          <div class="plan-chips">
+            <button id="plan-open-night" class="chip" aria-haspopup="dialog">
+              <svg><use href="#i-clock" /></svg><span id="plan-window">Night</span></button
+            ><button id="plan-open-seasonal" class="chip" aria-haspopup="dialog">
+              <svg><use href="#i-sun" /></svg>Seasonal <b id="seasonal-status">100%</b></button
+            ><button id="plan-open-settings" class="chip" aria-haspopup="dialog">
+              <svg><use href="#i-tune" /></svg>More
+            </button>
+          </div>
+          <div class="plan-layout">
+            <section class="group night-panel" aria-label="Nights">
+              <div id="plan-nights" class="night-strip" aria-label="Choose a night"></div>
+              <div id="night-card" class="night-card" aria-live="polite"></div>
+            </section>
+            <section class="group plan-zones" aria-labelledby="plan-zones-title">
+              <div class="plan-zones-head">
+                <h2 id="plan-zones-title">Zones</h2>
+                <div class="filters">
+                  <button id="plan-all" class="chip" aria-pressed="true">All</button
+                  ><button id="plan-needs" class="chip" aria-pressed="false">Needs a plan <b id="plan-needs-count">0</b></button>
+                </div>
+              </div>
+              <p class="hint plan-zones-hint">Tap a zone to set its run length and how often it waters.</p>
+              <div id="plan-rows"></div>
+              <p id="plan-empty" class="empty" hidden></p>
+            </section>
+          </div>
+        </section>
+
+        <section id="rain-view" hidden aria-labelledby="view-title">
+          <div class="group pad delay-card" id="delay-card">
+            <div class="card-head">
+              <span class="badge-icon" id="delay-icon"
+                ><svg><use href="#i-rain" /></svg
+              ></span>
+              <div class="card-title">
+                <p class="eyebrow">Rain delay</p>
+                <h2 id="delay-title" class="num">Off</h2>
+              </div>
+            </div>
+            <p id="delay-detail" class="muted"></p>
+            <div class="meter delay-meter" id="delay-meter" hidden><i id="delay-fill"></i></div>
+            <div class="presets">
+              <button data-rain="12">12 h</button><button data-rain="24">24 h</button><button data-rain="48">48 h</button
+              ><button data-rain="0" class="outline" id="rain-clear">Clear</button>
+            </div>
+            <p class="hint">Zones can’t be started during a rain delay.</p>
+          </div>
+          <div class="group pad" id="station-card">
+            <div class="card-head">
+              <div class="card-title">
+                <p class="eyebrow">Weather station</p>
+                <h2 id="station-title">Tempest</h2>
+              </div>
+              <span class="pill" id="station-pill"><i class="dot"></i><span id="station-status">—</span></span>
+            </div>
+            <div class="readings" id="readings"></div>
+            <p id="station-note" class="hint"></p>
+          </div>
+          <div class="group pad" id="auto-card">
+            <div class="card-title"><p class="eyebrow">Automatic rain delay</p></div>
+            <div class="modes" id="policy-modes" role="radiogroup" aria-label="Automatic rain delay">
+              <button role="radio" data-mode="off" aria-checked="false">Off</button
+              ><button role="radio" data-mode="observe" aria-checked="false">Log only</button
+              ><button role="radio" data-mode="automatic" aria-checked="false">Automatic</button>
+            </div>
+            <p id="mode-explain" class="muted"></p>
+            <div class="decision" id="decision">
+              <span class="badge-icon small" id="decision-icon"
+                ><svg><use href="#i-check" /></svg
+              ></span>
+              <div><b id="decision-title"></b><small id="decision-detail"></small></div>
+            </div>
+            <p id="policy-rule" class="hint"></p>
+          </div>
+        </section>
+
+        <section id="activity-view" hidden aria-labelledby="view-title">
+          <div class="group pad metrics">
+            <h2>Controller</h2>
+            <dl>
+              <dt>Voltage</dt>
+              <dd id="voltage">—</dd>
+              <dt>Current</dt>
+              <dd id="current">—</dd>
+              <dt>Last heard</dt>
+              <dd id="observed">—</dd>
+            </dl>
+            <p class="hint">Commands go through Tucor’s cloud. Schedules stay on the controller.</p>
+          </div>
+          <div id="tucor-group" class="group pad metrics" hidden>
+            <h2>Tucor connection</h2>
+            <dl>
+              <dt>Sessions this hour</dt>
+              <dd id="tucor-sessions">—</dd>
+              <dt>Password logins today</dt>
+              <dd id="tucor-logins">—</dd>
+            </dl>
+            <p id="tucor-note" class="hint">2core only connects while you use the app or when a rain delay needs setting.</p>
+            <div id="tucor-history"></div>
+          </div>
+          <h2 class="small-heading">Recent activity</h2>
+          <div id="activity" class="group pad"></div>
+        </section>
+      </div>
+    </main>
+
+    <canvas id="glass" aria-hidden="true"></canvas>
+    <div class="dock" id="dock" hidden>
+      <section id="run-dock" class="run-dock capsule" hidden aria-label="Current watering">
+        <button id="dock-open"><span id="dock-name"></span><small id="dock-time" class="num"></small></button
+        ><button id="stop" class="stop">
+          <svg><use href="#i-stop" /></svg>Stop
+        </button>
       </section>
-      <section class="settings-section">
-        <h3>Tools</h3>
-        <button id="plan-rebalance" class="soft wide-row">Even out watering dates<small>Review date changes before they save</small></button>
-        <button id="plan-programs" class="soft wide-row">Preview controller programs<small>Dry run · no controller changes</small></button>
-      </section>
-      <details class="plan-help"><summary>How the plan works</summary><p class="hint">2core spreads zones across nights automatically; no starting dates are needed. Editing a zone keeps its next watering date; other zones keep their rhythm. Turn seasonal zones off to omit them while keeping their settings. Rebalancing requires reviewing and confirming the date changes. A rain hold postpones exposed zones until the next clear night and shifts their rhythm from that watering. Zones marked “Water during rain delays” keep their normal rhythm. Twice a week alternates 3- and 4-day gaps. This is a preview: saved preferences do not change controller schedules or bypass its rain delay.</p></details>
+      <nav class="tabs capsule" id="tabs" aria-label="Sections">
+        <button data-tab="zones" aria-current="page">
+          <svg><use href="#i-drop" /></svg>Zones</button
+        ><button data-tab="walk">
+          <svg><use href="#i-feet" /></svg>Walk</button
+        ><button data-tab="plan">
+          <svg><use href="#i-calendar" /></svg>Plan</button
+        ><button data-tab="rain">
+          <svg><use href="#i-rain" /></svg>Weather</button
+        ><button data-tab="activity">
+          <svg><use href="#i-list" /></svg>Activity
+        </button>
+      </nav>
     </div>
-  </dialog>
 
-  <dialog id="program-dialog" class="sheet plan-sheet" aria-labelledby="program-title">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span class="badge-icon small"><svg><use href="#i-calendar"/></svg></span><div><h2 id="program-title">Controller programs</h2><p class="muted">Dry run · no controller changes</p></div><button id="close-programs" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div class="sheet-body">
-      <p class="hint">How the saved plan would become fixed, repeating controller programs. Dry weather only.</p>
-      <fieldset id="program-overrides" class="check-list"></fieldset>
-      <button id="compare-programs" class="outline">Compare with these zones on</button>
-      <p id="program-error" role="status"></p>
-      <div id="program-results"></div>
-    </div>
-  </dialog>
+    <dialog id="plan-zone-dialog" class="sheet plan-sheet" aria-labelledby="pz-name">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span id="pz-number" class="zone-num lg num"></span>
+        <div>
+          <h2 id="pz-name"></h2>
+          <p id="pz-summary" class="muted"></p>
+        </div>
+        <button id="pz-close" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <label class="switch-row"
+          ><span><b>Water this zone</b><small>Turn off for the season. Its settings are kept.</small></span
+          ><input id="pz-enabled" type="checkbox" role="switch"
+        /></label>
+        <div id="pz-fields">
+          <div class="pz-field">
+            <span class="pz-label" id="pz-minutes-label">Run length</span>
+            <div class="stepper">
+              <button type="button" data-step="minutes:-1" aria-label="Shorter">
+                <svg><use href="#i-minus" /></svg></button
+              ><label class="stepper-value"
+                ><input
+                  id="pz-minutes"
+                  class="num"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  placeholder="—"
+                  aria-labelledby="pz-minutes-label"
+                /><span>min</span></label
+              ><button type="button" data-step="minutes:1" aria-label="Longer">
+                <svg><use href="#i-plus" /></svg>
+              </button>
+            </div>
+            <div id="pz-presets" class="presets pz-presets" aria-label="Common run lengths"></div>
+          </div>
+          <div class="pz-field">
+            <span class="pz-label" id="pz-cadence-label">How often</span>
+            <div id="pz-cadence" class="choice-grid" role="radiogroup" aria-labelledby="pz-cadence-label"></div>
+            <small id="pz-cadence-hint" class="hint warn-text"></small>
+          </div>
+          <div class="pz-field">
+            <span class="pz-label" id="pz-seasonal-label">Seasonal adjustment</span>
+            <div class="stepper">
+              <button type="button" data-step="seasonal:-1" aria-label="Less water">
+                <svg><use href="#i-minus" /></svg></button
+              ><label class="stepper-value"
+                ><input
+                  id="pz-seasonal"
+                  class="num"
+                  type="number"
+                  min="50"
+                  max="200"
+                  step="1"
+                  inputmode="numeric"
+                  aria-labelledby="pz-seasonal-label"
+                /><span>%</span></label
+              ><button type="button" data-step="seasonal:1" aria-label="More water">
+                <svg><use href="#i-plus" /></svg>
+              </button>
+            </div>
+            <small id="pz-seasonal-hint" class="hint"></small>
+          </div>
+          <label class="switch-row"
+            ><span
+              ><b>Water during rain delays</b
+              ><small
+                >For covered beds and pots that rain doesn’t reach. Preview only; the controller’s rain delay still applies.</small
+              ></span
+            ><input id="pz-rain" type="checkbox" role="switch"
+          /></label>
+        </div>
+        <p id="pz-error" class="failure" role="alert"></p>
+      </div>
+      <div class="sheet-foot"><button id="pz-cancel" class="outline">Cancel</button><button id="pz-save" class="primary">Save</button></div>
+    </dialog>
 
-  <dialog id="rebalance-dialog" class="sheet plan-sheet" aria-labelledby="rebalance-title">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span class="badge-icon small"><svg><use href="#i-calendar"/></svg></span><div><h2 id="rebalance-title">Even out watering dates</h2><p class="muted">Review before anything changes</p></div><button id="close-rebalance" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div class="sheet-body">
-      <p id="rebalance-summary"></p>
-      <ul id="rebalance-changes" class="rebalance-changes"></ul>
-      <p class="hint">These are regular watering dates; rain can postpone exposed zones. Run lengths stay the same. This changes the saved preview only, not controller schedules.</p>
-      <p id="rebalance-error" role="alert"></p>
-    </div>
-    <div class="sheet-foot"><button id="cancel-rebalance" class="outline">Keep current dates</button><button id="confirm-rebalance" class="primary">Confirm</button></div>
-  </dialog>
+    <dialog id="plan-review-dialog" class="sheet plan-sheet" aria-labelledby="plan-fit-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span id="plan-fit-icon" class="badge-icon small"
+          ><svg><use href="#i-check" /></svg
+        ></span>
+        <div>
+          <h2 id="plan-fit-title">Watering plan check</h2>
+          <p id="plan-fit-state" class="muted"></p>
+        </div>
+        <button id="fit-close" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="sheet-body plan-fit" aria-live="polite">
+        <ul id="plan-fit-edit" class="fit-edits"></ul>
+        <div id="plan-fit-scenarios"></div>
+        <div id="plan-fit-alternatives"></div>
+        <p id="plan-fit-error" class="failure" role="status"></p>
+        <p class="hint">Checked against dry weather for the next fourteen nights. Nothing is sent to the controller.</p>
+      </div>
+      <div class="sheet-foot fit-actions">
+        <button id="fit-discard" class="outline">Discard</button><button id="fit-check" class="outline">Check again</button
+        ><button id="fit-unfinished" class="outline">Save anyway</button><button id="fit-save" class="primary">Save</button>
+      </div>
+    </dialog>
 
-  <dialog id="zone-dialog" class="sheet" aria-labelledby="sheet-name">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span id="sheet-number" class="zone-num lg num"></span><div><h2 id="sheet-name"></h2><p id="sheet-status" class="muted"></p></div><button id="close-zone" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div class="tank" id="tank-box"><canvas id="tank" aria-hidden="true"></canvas><div class="dur" id="dur-block"><strong id="duration-value" class="num">30</strong><span id="duration-unit">min</span></div><strong id="sheet-timer" class="num" hidden></strong><p id="tank-caption"></p></div>
-    <div id="sheet-duration">
-      <div class="ruler"><div class="ticks" id="ticks" tabindex="0" role="slider" aria-label="Minutes" aria-valuemin="1"></div></div>
-      <div id="duration-presets" class="presets" aria-label="Run duration"></div>
-    </div>
-    <p id="sheet-blocked" class="hint"></p>
-    <button id="sheet-start" class="primary wide"></button>
-    <button id="sheet-stop" class="stop wide" hidden><svg><use href="#i-stop"/></svg>Stop watering</button>
-    <button id="sheet-plan" class="plan-link" hidden><svg aria-hidden="true"><use href="#i-calendar"/></svg><span><b>Watering plan</b><small id="sheet-plan-text"></small></span><svg class="chev" aria-hidden="true"><use href="#i-next"/></svg></button>
-    <div class="sheet-secondary"><button id="sheet-favorite" class="soft" aria-pressed="false"><svg><use href="#i-star"/></svg><span>Favorite</span></button><button id="sheet-flag" class="soft flag"><svg><use href="#i-flag"/></svg>Flag</button><button id="edit-zone" class="soft"><svg><use href="#i-pencil"/></svg>Edit</button></div>
-    <div id="sheet-issues" class="issue-list"></div>
-    <p id="sheet-notes" class="note-text"></p>
-    <p id="sheet-feedback" role="status" aria-live="polite"></p>
-  </dialog>
+    <dialog id="plan-settings-dialog" class="sheet plan-sheet" aria-labelledby="plan-settings-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span class="badge-icon small"
+          ><svg><use href="#i-tune" /></svg
+        ></span>
+        <div>
+          <h2 id="plan-settings-title">Plan settings</h2>
+          <p class="muted">Changes are checked before they save.</p>
+        </div>
+        <button id="close-plan-settings" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <section id="settings-night" class="settings-section">
+          <h3>Night window</h3>
+          <label class="setting-row"
+            >Start after<select id="plan-earliest">
+              <option value="1260">9:00pm</option>
+              <option value="1320">10:00pm</option>
+              <option value="1380">11:00pm</option>
+              <option value="1440">Midnight</option>
+              <option value="1500">1:00am</option>
+            </select></label
+          >
+          <label class="setting-row"
+            >Try to finish<select id="plan-finish">
+              <option value="30">30 min before sunrise</option>
+              <option value="15">15 min before sunrise</option>
+              <option value="0">By sunrise</option>
+            </select></label
+          >
+          <label class="setting-row"
+            >Never past<select id="plan-hard">
+              <option value="420">7:00am</option>
+              <option value="480">8:00am</option>
+              <option value="540">9:00am</option>
+              <option value="600">10:00am</option>
+            </select></label
+          >
+          <div class="setting-row">
+            <span id="plan-lanes-label">Zones at once</span>
+            <div class="modes lanes-modes" role="radiogroup" aria-labelledby="plan-lanes-label">
+              <button role="radio" data-lanes="1" aria-checked="false">1</button
+              ><button role="radio" data-lanes="2" aria-checked="false">Up to 2</button>
+            </div>
+          </div>
+          <p class="hint">One zone at a time; a second only when the night is too short.</p>
+        </section>
+        <section id="settings-seasonal" class="settings-section">
+          <h3>Seasonal adjustment</h3>
+          <form id="seasonal-form" class="seasonal-panel">
+            <div class="stepper">
+              <button type="button" data-step="all:-1" aria-label="Less water">
+                <svg><use href="#i-minus" /></svg></button
+              ><label class="stepper-value"
+                ><input
+                  id="seasonal-all"
+                  class="num"
+                  type="number"
+                  min="50"
+                  max="200"
+                  step="1"
+                  required
+                  value="100"
+                  inputmode="numeric"
+                  aria-label="Seasonal percentage for all zones"
+                /><span>%</span></label
+              ><button type="button" data-step="all:1" aria-label="More water">
+                <svg><use href="#i-plus" /></svg>
+              </button>
+            </div>
+            <button id="seasonal-apply" class="primary" type="submit">Apply to all zones</button>
+          </form>
+          <p class="hint">
+            Scales every run length from 50–200%. Baseline minutes and frequency stay the same; you can fine-tune single zones afterwards.
+          </p>
+        </section>
+        <section class="settings-section">
+          <h3>Seasonal comparison</h3>
+          <p class="hint">
+            Check the plan with these zones both off and on, so turning them back on next season still fits. This does not turn watering on
+            or off.
+          </p>
+          <div id="fit-seasonal-zones" class="check-list"></div>
+        </section>
+        <section class="settings-section">
+          <h3>Tools</h3>
+          <button id="plan-rebalance" class="soft wide-row">
+            Even out watering dates<small>Review date changes before they save</small>
+          </button>
+          <button id="plan-programs" class="soft wide-row">
+            Preview controller programs<small>Dry run · no controller changes</small>
+          </button>
+        </section>
+        <details class="plan-help">
+          <summary>How the plan works</summary>
+          <p class="hint">
+            2core spreads zones across nights automatically; no starting dates are needed. Editing a zone keeps its next watering date;
+            other zones keep their rhythm. Turn seasonal zones off to omit them while keeping their settings. Rebalancing requires reviewing
+            and confirming the date changes. A rain hold postpones exposed zones until the next clear night and shifts their rhythm from
+            that watering. Zones marked “Water during rain delays” keep their normal rhythm. Twice a week alternates 3- and 4-day gaps. This
+            is a preview: saved preferences do not change controller schedules or bypass its rain delay.
+          </p>
+        </details>
+      </div>
+    </dialog>
 
-  <dialog id="flag-dialog" class="sheet" aria-labelledby="flag-title">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span id="flag-number" class="zone-num lg num flagged"></span><div><h2 id="flag-title">Flag a problem</h2><p id="flag-zone" class="muted"></p></div><button id="close-flag" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div id="flag-options" class="issues"></div>
-  </dialog>
+    <dialog id="program-dialog" class="sheet plan-sheet" aria-labelledby="program-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span class="badge-icon small"
+          ><svg><use href="#i-calendar" /></svg
+        ></span>
+        <div>
+          <h2 id="program-title">Controller programs</h2>
+          <p class="muted">Dry run · no controller changes</p>
+        </div>
+        <button id="close-programs" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <p class="hint">How the saved plan would become fixed, repeating controller programs. Dry weather only.</p>
+        <fieldset id="program-overrides" class="check-list"></fieldset>
+        <button id="compare-programs" class="outline">Compare with these zones on</button>
+        <p id="program-error" role="status"></p>
+        <div id="program-results"></div>
+      </div>
+    </dialog>
 
-  <dialog id="findings-dialog" class="sheet" aria-labelledby="findings-title">
-    <div class="grab" aria-hidden="true"></div>
-    <div class="sheet-head"><span class="zone-num lg flagged"><svg><use href="#i-flag"/></svg></span><div><h2 id="findings-title">Findings</h2><p id="findings-summary" class="muted"></p></div><button id="close-findings" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-    <div id="findings-list" class="issue-list"></div>
-    <div class="stack" id="findings-actions"><button id="findings-copy" class="primary wide"><svg><use href="#i-copy"/></svg>Copy list</button><button id="findings-clear" class="soft wide">Clear all</button></div>
-  </dialog>
+    <dialog id="rebalance-dialog" class="sheet plan-sheet" aria-labelledby="rebalance-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span class="badge-icon small"
+          ><svg><use href="#i-calendar" /></svg
+        ></span>
+        <div>
+          <h2 id="rebalance-title">Even out watering dates</h2>
+          <p class="muted">Review before anything changes</p>
+        </div>
+        <button id="close-rebalance" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <p id="rebalance-summary"></p>
+        <ul id="rebalance-changes" class="rebalance-changes"></ul>
+        <p class="hint">
+          These are regular watering dates; rain can postpone exposed zones. Run lengths stay the same. This changes the saved preview only,
+          not controller schedules.
+        </p>
+        <p id="rebalance-error" role="alert"></p>
+      </div>
+      <div class="sheet-foot">
+        <button id="cancel-rebalance" class="outline">Keep current dates</button
+        ><button id="confirm-rebalance" class="primary">Confirm</button>
+      </div>
+    </dialog>
 
-  <dialog id="notes-dialog" class="sheet" aria-labelledby="notes-title"><div class="grab" aria-hidden="true"></div><form id="notes-form"><h2 id="notes-title">Zone details</h2><label for="zone-name">Name</label><input id="zone-name" maxlength="80"><label for="zone-order">Walking order</label><input id="zone-order" type="number" min="0" max="1000"><label for="zone-notes">Notes</label><textarea id="zone-notes" rows="4" maxlength="1000" placeholder="Emitter by the oak needs replacing"></textarea><div class="dialog-actions"><button id="cancel-notes" type="button" class="outline">Cancel</button><button type="submit" class="primary">Save</button></div></form></dialog>
-</body></html>
+    <dialog id="zone-dialog" class="sheet" aria-labelledby="sheet-name">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span id="sheet-number" class="zone-num lg num"></span>
+        <div>
+          <h2 id="sheet-name"></h2>
+          <p id="sheet-status" class="muted"></p>
+        </div>
+        <button id="close-zone" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="tank" id="tank-box">
+        <canvas id="tank" aria-hidden="true"></canvas>
+        <div class="dur" id="dur-block"><strong id="duration-value" class="num">30</strong><span id="duration-unit">min</span></div>
+        <strong id="sheet-timer" class="num" hidden></strong>
+        <p id="tank-caption"></p>
+      </div>
+      <div id="sheet-duration">
+        <div class="ruler"><div class="ticks" id="ticks" tabindex="0" role="slider" aria-label="Minutes" aria-valuemin="1"></div></div>
+        <div id="duration-presets" class="presets" aria-label="Run duration"></div>
+      </div>
+      <p id="sheet-blocked" class="hint"></p>
+      <button id="sheet-start" class="primary wide"></button>
+      <button id="sheet-stop" class="stop wide" hidden>
+        <svg><use href="#i-stop" /></svg>Stop watering
+      </button>
+      <button id="sheet-plan" class="plan-link" hidden>
+        <svg aria-hidden="true"><use href="#i-calendar" /></svg><span><b>Watering plan</b><small id="sheet-plan-text"></small></span
+        ><svg class="chev" aria-hidden="true"><use href="#i-next" /></svg>
+      </button>
+      <div class="sheet-secondary">
+        <button id="sheet-favorite" class="soft" aria-pressed="false">
+          <svg><use href="#i-star" /></svg><span>Favorite</span></button
+        ><button id="sheet-flag" class="soft flag">
+          <svg><use href="#i-flag" /></svg>Flag</button
+        ><button id="edit-zone" class="soft">
+          <svg><use href="#i-pencil" /></svg>Edit
+        </button>
+      </div>
+      <div id="sheet-issues" class="issue-list"></div>
+      <p id="sheet-notes" class="note-text"></p>
+      <p id="sheet-feedback" role="status" aria-live="polite"></p>
+    </dialog>
+
+    <dialog id="flag-dialog" class="sheet" aria-labelledby="flag-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span id="flag-number" class="zone-num lg num flagged"></span>
+        <div>
+          <h2 id="flag-title">Flag a problem</h2>
+          <p id="flag-zone" class="muted"></p>
+        </div>
+        <button id="close-flag" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div id="flag-options" class="issues"></div>
+    </dialog>
+
+    <dialog id="findings-dialog" class="sheet" aria-labelledby="findings-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span class="zone-num lg flagged"
+          ><svg><use href="#i-flag" /></svg
+        ></span>
+        <div>
+          <h2 id="findings-title">Findings</h2>
+          <p id="findings-summary" class="muted"></p>
+        </div>
+        <button id="close-findings" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div id="findings-list" class="issue-list"></div>
+      <div class="stack" id="findings-actions">
+        <button id="findings-copy" class="primary wide">
+          <svg><use href="#i-copy" /></svg>Copy list</button
+        ><button id="findings-clear" class="soft wide">Clear all</button>
+      </div>
+    </dialog>
+
+    <dialog id="notes-dialog" class="sheet" aria-labelledby="notes-title">
+      <div class="grab" aria-hidden="true"></div>
+      <form id="notes-form">
+        <h2 id="notes-title">Zone details</h2>
+        <label for="zone-name">Name</label><input id="zone-name" maxlength="80" /><label for="zone-order">Walking order</label
+        ><input id="zone-order" type="number" min="0" max="1000" /><label for="zone-notes">Notes</label
+        ><textarea id="zone-notes" rows="4" maxlength="1000" placeholder="Emitter by the oak needs replacing"></textarea>
+        <div class="dialog-actions">
+          <button id="cancel-notes" type="button" class="outline">Cancel</button><button type="submit" class="primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

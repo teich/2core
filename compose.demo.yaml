@@ -3,7 +3,7 @@ services:
     build: .
     init: true
     ports:
-      - "127.0.0.1:8787:8787"
+      - '127.0.0.1:8787:8787'
     environment:
       MODE: demo
     volumes:

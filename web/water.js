@@ -11,7 +11,7 @@ import { createZoneSweep, ZONE_SWEEP_WGSL } from './zone-sweep.js';
 
 const SIM_N = 128;
 
-const SIM_WGSL = /* wgsl */`
+const SIM_WGSL = /* wgsl */ `
 struct Sim { slope: f32, dt: f32, damp: f32, stir: f32, tremble: f32, time: f32, kick: f32, bound: f32, };
 @group(0) @binding(0) var<uniform> sim: Sim;
 @group(0) @binding(1) var<storage, read_write> hv: array<vec2f, ${SIM_N}>;
@@ -48,7 +48,7 @@ var<workgroup> red: array<f32, ${SIM_N}>;
   hv[i] = vec2f(clamp(h, -sim.bound, sim.bound), v);
 }`;
 
-const VESSEL_WGSL = /* wgsl */`
+const VESSEL_WGSL = /* wgsl */ `
 struct U {
   res: vec2f, time: f32, level: f32,
   shape: f32, dark: f32, pend: f32, pendT: f32,
@@ -149,7 +149,7 @@ fn surf(x: f32) -> f32 {
 
 // The water surface behind the app. Shared by the pond and by the glass dock,
 // which refracts this same surface.
-const POND_FN = binding => /* wgsl */`
+const POND_FN = binding => /* wgsl */ `
 struct P {
   res: vec2f, time: f32, rain: f32,
   scale: f32, dark: f32, count: f32, pad: f32,
@@ -232,7 +232,7 @@ fn surfaceLight(p: vec2f) -> vec4f {
   return vec4f(min(hiCol * hiA + tcol * glowA, vec3f(al)), al);
 }`;
 
-const FULLSCREEN_VS = /* wgsl */`
+const FULLSCREEN_VS = /* wgsl */ `
 struct VO { @builtin(position) pos: vec4f, };
 @vertex fn vs(@builtin(vertex_index) i: u32) -> VO {
   var q = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(-1.0, 1.0), vec2f(3.0, 1.0));
@@ -241,12 +241,18 @@ struct VO { @builtin(position) pos: vec4f, };
   return o;
 }`;
 
-const POND_WGSL = POND_FN(0) + FULLSCREEN_VS + /* wgsl */`
+const POND_WGSL =
+  POND_FN(0) +
+  FULLSCREEN_VS +
+  /* wgsl */ `
 @fragment fn fs(v: VO) -> @location(0) vec4f { return surfaceLight(v.pos.xy / pu.scale); }`;
 
 // Liquid glass for the dock: real refraction of the water surface, which CSS
 // backdrop blur can't bend. The HTML controls sit on top, transparent.
-const GLASS_WGSL = POND_FN(1) + FULLSCREEN_VS + /* wgsl */`
+const GLASS_WGSL =
+  POND_FN(1) +
+  FULLSCREEN_VS +
+  /* wgsl */ `
 struct G {
   res: vec2f, time: f32, dark: f32,
   scale: f32, n: f32, sel: f32, run: f32,
@@ -344,94 +350,227 @@ export function createWaterFX() {
   const ripples = [];
   const clock = () => performance.now() / 1000;
   const mix = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
-  const hex = s => { s = s.trim(); if (s[0] === '#') { const d = s.slice(1), n = parseInt(d.length === 3 ? [...d].map(c => c + c).join('') : d, 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1]; } const m = s.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 1]; return [m[0] / 255, m[1] / 255, m[2] / 255, m[3] ?? 1]; };
-  let gpu = null, pal, ring, tank, pond, glass, frameId = 0, last = 0, state = { enabled: false };
-  const zoneSweep = createZoneSweep({ getGPU: () => gpu, getSurface: () => pal.surface, canAnimate: () => !RM.matches && !document.hidden && state.enabled && state.tab === 'plan', wake });
+  const hex = s => {
+    s = s.trim();
+    if (s[0] === '#') {
+      const d = s.slice(1),
+        n = parseInt(d.length === 3 ? [...d].map(c => c + c).join('') : d, 16);
+      return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1];
+    }
+    const m = s.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 1];
+    return [m[0] / 255, m[1] / 255, m[2] / 255, m[3] ?? 1];
+  };
+  let gpu = null,
+    pal,
+    ring,
+    tank,
+    pond,
+    glass,
+    frameId = 0,
+    last = 0,
+    state = { enabled: false };
+  const zoneSweep = createZoneSweep({
+    getGPU: () => gpu,
+    getSurface: () => pal.surface,
+    canAnimate: () => !RM.matches && !document.hidden && state.enabled && state.tab === 'plan',
+    wake,
+  });
   // Tilt: gravity direction in screen space (x right, y up); slope of the water's rest plane.
   const tilt = { on: false, slope: 0, target: 0, grav: [0, -1] };
 
   function readPal() {
-    const cs = getComputedStyle(document.documentElement), v = n => hex(cs.getPropertyValue(n));
+    const cs = getComputedStyle(document.documentElement),
+      v = n => hex(cs.getPropertyValue(n));
     const water = v('--water');
-    pal = { dark: DM.matches, water, leaf: v('--leaf'), amber: v('--amber'), idle: mix(v('--ink-3'), water, 0.3),
-      glass: v('--glass-strong'), ground: v('--ground'), blobA: v('--blob-a'), blobB: v('--blob-b'), surface: v('--surface'),
-      ink: cs.getPropertyValue('--ink').trim(), ink2: cs.getPropertyValue('--ink-2').trim(), inkWater: cs.getPropertyValue('--water').trim(), inkAmber: cs.getPropertyValue('--amber').trim() };
+    pal = {
+      dark: DM.matches,
+      water,
+      leaf: v('--leaf'),
+      amber: v('--amber'),
+      idle: mix(v('--ink-3'), water, 0.3),
+      glass: v('--glass-strong'),
+      ground: v('--ground'),
+      blobA: v('--blob-a'),
+      blobB: v('--blob-b'),
+      surface: v('--surface'),
+      ink: cs.getPropertyValue('--ink').trim(),
+      ink2: cs.getPropertyValue('--ink-2').trim(),
+      inkWater: cs.getPropertyValue('--water').trim(),
+      inkAmber: cs.getPropertyValue('--amber').trim(),
+    };
   }
   function tones(tone) {
-    const b = pal[tone] || pal.water, W = [1, 1, 1], K = [0, 0, 0];
-    return pal.dark ? { tint: mix(b, K, 0.25), deep: mix(b, K, 0.62), hi: mix(b, W, 0.72), alpha: 0.82 }
+    const b = pal[tone] || pal.water,
+      W = [1, 1, 1],
+      K = [0, 0, 0];
+    return pal.dark
+      ? { tint: mix(b, K, 0.25), deep: mix(b, K, 0.62), hi: mix(b, W, 0.72), alpha: 0.82 }
       : { tint: mix(b, W, 0.55), deep: mix(b, W, 0.08), hi: W, alpha: 0.72 };
   }
 
   /* ---------- a vessel of water with a simulated surface ---------- */
   class Vessel {
     constructor(canvas, shape, withText) {
-      this.c = canvas; this.shape = shape;
+      this.c = canvas;
+      this.shape = shape;
       this.ctx = canvas.getContext('webgpu');
       this.ctx.configure({ device: gpu.dev, format: gpu.fmt, alphaMode: 'premultiplied' });
       this.ubuf = gpu.dev.createBuffer({ size: 128, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       this.sbuf = gpu.dev.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       this.hv = gpu.dev.createBuffer({ size: SIM_N * 8, usage: GPUBufferUsage.STORAGE });
-      this.simBind = gpu.dev.createBindGroup({ layout: gpu.sim.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: this.sbuf } }, { binding: 1, resource: { buffer: this.hv } }] });
-      this.u = new Float32Array(32); this.su = new Float32Array(8);
-      this.s = { level: 0, lv: 0, target: 0, mode: 'idle', tone: 'idle', frost: 0, frostT: 0, pend: 0, pendSince: 0, kick: 0, kickAt: -9, tint: null };
+      this.simBind = gpu.dev.createBindGroup({
+        layout: gpu.sim.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this.sbuf } },
+          { binding: 1, resource: { buffer: this.hv } },
+        ],
+      });
+      this.u = new Float32Array(32);
+      this.su = new Float32Array(8);
+      this.s = {
+        level: 0,
+        lv: 0,
+        target: 0,
+        mode: 'idle',
+        tone: 'idle',
+        frost: 0,
+        frostT: 0,
+        pend: 0,
+        pendSince: 0,
+        kick: 0,
+        kickAt: -9,
+        tint: null,
+      };
       this.text = withText ? document.createElement('canvas') : null;
-      this.textKey = ''; this.dirty = true;
-      this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(canvas);
+      this.textKey = '';
+      this.dirty = true;
+      this.ro = new ResizeObserver(() => this.resize());
+      this.ro.observe(canvas);
       this.resize();
     }
     resize() {
-      const dpr = Math.min(devicePixelRatio || 1, 3), w = Math.max(1, Math.round(this.c.clientWidth * dpr)), h = Math.max(1, Math.round(this.c.clientHeight * dpr));
+      const dpr = Math.min(devicePixelRatio || 1, 3),
+        w = Math.max(1, Math.round(this.c.clientWidth * dpr)),
+        h = Math.max(1, Math.round(this.c.clientHeight * dpr));
       if (w === this.c.width && h === this.c.height && this.tex) return;
-      this.c.width = w; this.c.height = h;
-      if (this.text) { this.text.width = w; this.text.height = h; }
+      this.c.width = w;
+      this.c.height = h;
+      if (this.text) {
+        this.text.width = w;
+        this.text.height = h;
+      }
       this.tex?.destroy();
-      this.tex = gpu.dev.createTexture({ size: [this.text ? w : 1, this.text ? h : 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
-      this.bind = gpu.dev.createBindGroup({ layout: gpu.vessel.getBindGroupLayout(0), entries: [
-        { binding: 0, resource: { buffer: this.ubuf } }, { binding: 1, resource: gpu.samp }, { binding: 2, resource: this.tex.createView() }, { binding: 3, resource: { buffer: this.hv } }] });
-      this.dirty = true; wake();
+      this.tex = gpu.dev.createTexture({
+        size: [this.text ? w : 1, this.text ? h : 1],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      this.bind = gpu.dev.createBindGroup({
+        layout: gpu.vessel.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this.ubuf } },
+          { binding: 1, resource: gpu.samp },
+          { binding: 2, resource: this.tex.createView() },
+          { binding: 3, resource: { buffer: this.hv } },
+        ],
+      });
+      this.dirty = true;
+      wake();
     }
-    setText(o) { const key = JSON.stringify(o) + pal.dark; if (key !== this.textKey) { this.textKey = key; this.o = o; this.dirty = true; wake(); } }
+    setText(o) {
+      const key = JSON.stringify(o) + pal.dark;
+      if (key !== this.textKey) {
+        this.textKey = key;
+        this.o = o;
+        this.dirty = true;
+        wake();
+      }
+    }
     paintText() {
       if (!this.text || !this.o) return;
-      const g = this.text.getContext('2d'), W = this.text.width, o = this.o;
+      const g = this.text.getContext('2d'),
+        W = this.text.width,
+        o = this.o;
       const font = (wt, px) => `${wt} ${px}px ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif`;
-      g.clearRect(0, 0, W, W); g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillStyle = pal.ink2; g.font = font(700, Math.round(W * 0.046));
-      try { g.letterSpacing = `${Math.round(W * 0.007)}px`; } catch { /* older canvas */ }
+      g.clearRect(0, 0, W, W);
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = pal.ink2;
+      g.font = font(700, Math.round(W * 0.046));
+      try {
+        g.letterSpacing = `${Math.round(W * 0.007)}px`;
+      } catch {
+        /* older canvas */
+      }
       g.fillText(o.label, W / 2, W * 0.31);
-      try { g.letterSpacing = '0px'; } catch { /* older canvas */ }
+      try {
+        g.letterSpacing = '0px';
+      } catch {
+        /* older canvas */
+      }
       g.fillStyle = o.tone === 'amber' ? pal.inkAmber : pal.ink;
       let px = Math.round(W * 0.25);
       g.font = font(700, px);
-      while (g.measureText(o.big).width > W * 0.64 && px > 12) { px = Math.round(px * 0.9); g.font = font(700, px); }
+      while (g.measureText(o.big).width > W * 0.64 && px > 12) {
+        px = Math.round(px * 0.9);
+        g.font = font(700, px);
+      }
       g.fillText(o.big, W / 2, W * 0.5);
       g.fillStyle = o.tone === 'water' ? pal.inkWater : pal.ink2;
       g.font = font(600, Math.round(W * 0.07));
       g.fillText(o.word, W / 2, W * 0.68);
-      gpu.dev.queue.copyExternalImageToTexture({ source: this.text }, { texture: this.tex, premultipliedAlpha: true }, [W, this.text.height]);
+      gpu.dev.queue.copyExternalImageToTexture({ source: this.text }, { texture: this.tex, premultipliedAlpha: true }, [
+        W,
+        this.text.height,
+      ]);
     }
     set(v) {
       const s = this.s;
       if (v.mode !== s.mode) {
         if (v.mode === 'starting' || v.mode === 'stopping') s.pendSince = clock();
-        if (v.mode === 'running' && s.mode === 'starting' && !RM.matches) { s.level = 0; s.lv = 0; }   // confirmed: pour it in
+        if (v.mode === 'running' && s.mode === 'starting' && !RM.matches) {
+          s.level = 0;
+          s.lv = 0;
+        } // confirmed: pour it in
         s.mode = v.mode;
       }
-      s.target = v.level; s.tone = v.tone; s.frostT = v.frost ? 1 : 0;
+      s.target = v.level;
+      s.tone = v.tone;
+      s.frostT = v.frost ? 1 : 0;
       wake();
     }
-    kick(amount) { if (RM.matches) return; this.s.kick += amount; this.s.kickAt = clock(); wake(); }
+    kick(amount) {
+      if (RM.matches) return;
+      this.s.kick += amount;
+      this.s.kickAt = clock();
+      wake();
+    }
     get animating() {
       const s = this.s;
-      return !RM.matches && (tilt.on || ['running', 'starting', 'stopping'].includes(s.mode) || Math.abs(s.target - s.level) > 0.002 || Math.abs(s.lv) > 0.002 || clock() - s.kickAt < 4 || Math.abs(s.frostT - s.frost) > 0.01 || s.pend > 0.01);
+      return (
+        !RM.matches &&
+        (tilt.on ||
+          ['running', 'starting', 'stopping'].includes(s.mode) ||
+          Math.abs(s.target - s.level) > 0.002 ||
+          Math.abs(s.lv) > 0.002 ||
+          clock() - s.kickAt < 4 ||
+          Math.abs(s.frostT - s.frost) > 0.01 ||
+          s.pend > 0.01)
+      );
     }
     draw(t, dt, enc) {
       if (!this.c.clientWidth) return;
-      const s = this.s, reduce = RM.matches, waiting = s.mode === 'starting' || s.mode === 'stopping';
-      if (reduce) { s.level = s.target; s.lv = 0; s.frost = s.frostT; s.pend = waiting ? 1 : 0; }
-      else {
-        s.lv += ((s.target - s.level) * 30 - s.lv * 8) * dt; s.level = Math.max(0, Math.min(1, s.level + s.lv * dt));
+      const s = this.s,
+        reduce = RM.matches,
+        waiting = s.mode === 'starting' || s.mode === 'stopping';
+      if (reduce) {
+        s.level = s.target;
+        s.lv = 0;
+        s.frost = s.frostT;
+        s.pend = waiting ? 1 : 0;
+      } else {
+        s.lv += ((s.target - s.level) * 30 - s.lv * 8) * dt;
+        s.level = Math.max(0, Math.min(1, s.level + s.lv * dt));
         s.frost += (s.frostT - s.frost) * (1 - Math.exp(-dt * 2));
         s.pend += ((waiting ? 1 : 0) - s.pend) * (1 - Math.exp(-dt * (waiting ? 1.2 : 5)));
       }
@@ -439,51 +578,136 @@ export function createWaterFX() {
       if (!s.tint) s.tint = { ...tn };
       for (const k of ['tint', 'deep', 'hi']) s.tint[k] = mix(s.tint[k], tn[k], 1 - Math.exp(-dt * 4));
       s.tint.alpha = tn.alpha;
-      if (this.dirty) { this.paintText(); this.dirty = false; }
+      if (this.dirty) {
+        this.paintText();
+        this.dirty = false;
+      }
       const frozen = s.frost > 0.5;
       const aspect = this.c.width / this.c.height;
       // Simulation step: tilt, gentle stir while running, a tremble while waiting.
       const su = this.su;
-      su.set([reduce ? 0 : tilt.slope * (this.shape ? aspect : 1), Math.min(dt, 1 / 60) / 8, 2.4, frozen || reduce ? 0 : s.mode === 'running' ? 0.35 : 0, frozen || reduce ? 0 : waiting ? 1 : 0, t, s.kick, this.shape ? 1.6 : 0.5]);
+      su.set([
+        reduce ? 0 : tilt.slope * (this.shape ? aspect : 1),
+        Math.min(dt, 1 / 60) / 8,
+        2.4,
+        frozen || reduce ? 0 : s.mode === 'running' ? 0.35 : 0,
+        frozen || reduce ? 0 : waiting ? 1 : 0,
+        t,
+        s.kick,
+        this.shape ? 1.6 : 0.5,
+      ]);
       s.kick = 0;
       gpu.dev.queue.writeBuffer(this.sbuf, 0, su);
-      const u = this.u, glass = this.shape === 0 ? pal.glass : [0, 0, 0, 0];
-      u.set([this.c.width, this.c.height, frozen ? 0 : t, s.level, this.shape, pal.dark ? 1 : 0, s.pend, Math.min(30, clock() - s.pendSince),
-        s.frost, this.text ? 1 : 0, s.tint.alpha, reduce ? 0 : Math.min(1, Math.max(0, s.lv) * 4),
-        tilt.grav[0], tilt.grav[1], this.shape ? aspect : 0.88, 0,
-        ...s.tint.tint, 1, ...s.tint.deep, 1, glass[0], glass[1], glass[2], glass[3], ...s.tint.hi, 1]);
+      const u = this.u,
+        glass = this.shape === 0 ? pal.glass : [0, 0, 0, 0];
+      u.set([
+        this.c.width,
+        this.c.height,
+        frozen ? 0 : t,
+        s.level,
+        this.shape,
+        pal.dark ? 1 : 0,
+        s.pend,
+        Math.min(30, clock() - s.pendSince),
+        s.frost,
+        this.text ? 1 : 0,
+        s.tint.alpha,
+        reduce ? 0 : Math.min(1, Math.max(0, s.lv) * 4),
+        tilt.grav[0],
+        tilt.grav[1],
+        this.shape ? aspect : 0.88,
+        0,
+        ...s.tint.tint,
+        1,
+        ...s.tint.deep,
+        1,
+        glass[0],
+        glass[1],
+        glass[2],
+        glass[3],
+        ...s.tint.hi,
+        1,
+      ]);
       gpu.dev.queue.writeBuffer(this.ubuf, 0, u);
-      const cp = enc.beginComputePass(); cp.setPipeline(gpu.sim); cp.setBindGroup(0, this.simBind); cp.dispatchWorkgroups(1); cp.end();
-      const pass = enc.beginRenderPass({ colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
-      pass.setPipeline(gpu.vessel); pass.setBindGroup(0, this.bind); pass.draw(3); pass.end();
+      const cp = enc.beginComputePass();
+      cp.setPipeline(gpu.sim);
+      cp.setBindGroup(0, this.simBind);
+      cp.dispatchWorkgroups(1);
+      cp.end();
+      const pass = enc.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.ctx.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: [0, 0, 0, 0],
+          },
+        ],
+      });
+      pass.setPipeline(gpu.vessel);
+      pass.setBindGroup(0, this.bind);
+      pass.draw(3);
+      pass.end();
     }
   }
 
   /* ---------- the surface behind everything ---------- */
   class Pond {
     constructor(canvas) {
-      this.c = canvas; this.ctx = canvas.getContext('webgpu');
+      this.c = canvas;
+      this.ctx = canvas.getContext('webgpu');
       this.ctx.configure({ device: gpu.dev, format: gpu.fmt, alphaMode: 'premultiplied' });
       this.buf = gpu.dev.createBuffer({ size: 544, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      this.bind = gpu.dev.createBindGroup({ layout: gpu.pond.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: this.buf } }] });
-      this.u = new Float32Array(136); this.rain = 0; this.clean = false; this.scale = 1; this.resize();
+      this.bind = gpu.dev.createBindGroup({
+        layout: gpu.pond.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: this.buf } }],
+      });
+      this.u = new Float32Array(136);
+      this.rain = 0;
+      this.clean = false;
+      this.scale = 1;
+      this.resize();
     }
-    resize() { this.c.style.height = `${innerHeight}px`; this.c.width = Math.round(innerWidth * this.scale); this.c.height = Math.round(innerHeight * this.scale); this.clean = false; }
-    get active() { return this.rain > 0.01 || ripples.length > 0; }
+    resize() {
+      this.c.style.height = `${innerHeight}px`;
+      this.c.width = Math.round(innerWidth * this.scale);
+      this.c.height = Math.round(innerHeight * this.scale);
+      this.clean = false;
+    }
+    get active() {
+      return this.rain > 0.01 || ripples.length > 0;
+    }
     update(t, rainT) {
       this.rain += (rainT - this.rain) * 0.03;
       if (this.rain < 0.005 && rainT === 0) this.rain = 0;
       while (ripples.length && t - ripples[0].t0 > 5) ripples.shift();
-      const u = this.u; u.fill(0);
+      const u = this.u;
+      u.fill(0);
       u.set([this.c.width, this.c.height, t, this.rain, this.scale, pal.dark ? 1 : 0, ripples.length, 0]);
-      ripples.forEach((r, i) => { u.set([r.x, r.y, r.t0, r.str], 8 + i * 4); u.set([...r.rgb, 0], 72 + i * 4); });
+      ripples.forEach((r, i) => {
+        u.set([r.x, r.y, r.t0, r.str], 8 + i * 4);
+        u.set([...r.rgb, 0], 72 + i * 4);
+      });
       gpu.dev.queue.writeBuffer(this.buf, 0, u);
     }
     draw(enc) {
       const active = this.active;
       if (!active && this.clean) return;
-      const pass = enc.beginRenderPass({ colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
-      if (active) { pass.setPipeline(gpu.pond); pass.setBindGroup(0, this.bind); pass.draw(3); }
+      const pass = enc.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.ctx.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: [0, 0, 0, 0],
+          },
+        ],
+      });
+      if (active) {
+        pass.setPipeline(gpu.pond);
+        pass.setBindGroup(0, this.bind);
+        pass.draw(3);
+      }
       pass.end();
       this.clean = !active;
     }
@@ -492,72 +716,175 @@ export function createWaterFX() {
   /* ---------- liquid glass for the dock ---------- */
   class Glass {
     constructor(canvas) {
-      this.c = canvas; this.ctx = canvas.getContext('webgpu');
+      this.c = canvas;
+      this.ctx = canvas.getContext('webgpu');
       this.ctx.configure({ device: gpu.dev, format: gpu.fmt, alphaMode: 'premultiplied' });
       this.buf = gpu.dev.createBuffer({ size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      this.bind = gpu.dev.createBindGroup({ layout: gpu.glass.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: this.buf } }, { binding: 1, resource: { buffer: pond.buf } }] });
-      this.u = new Float32Array(64); this.sel = null; this.sv = [0, 0]; this.key = ''; this.level = 0;
+      this.bind = gpu.dev.createBindGroup({
+        layout: gpu.glass.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: { buffer: this.buf } },
+          { binding: 1, resource: { buffer: pond.buf } },
+        ],
+      });
+      this.u = new Float32Array(64);
+      this.sel = null;
+      this.sv = [0, 0];
+      this.key = '';
+      this.level = 0;
       this.resize();
     }
-    resize() { this.scale = Math.min(devicePixelRatio || 1, 2); this.c.style.height = `${innerHeight}px`; this.c.width = Math.round(innerWidth * this.scale); this.c.height = Math.round(innerHeight * this.scale); this.key = ''; }
+    resize() {
+      this.scale = Math.min(devicePixelRatio || 1, 2);
+      this.c.style.height = `${innerHeight}px`;
+      this.c.width = Math.round(innerWidth * this.scale);
+      this.c.height = Math.round(innerHeight * this.scale);
+      this.key = '';
+    }
     // Returns true while something in the glass is still moving.
     draw(t, dt, enc) {
       const dock = $('dock');
-      if (dock.hidden) { if (this.key !== 'hidden') { this.clear(enc); this.key = 'hidden'; } return false; }
-      const rect = el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; };
-      const lenses = [], B = [];
-      const tabs = $('tabs'), current = tabs.querySelector('[aria-current=page]'), run = $('run-dock');
-      lenses.push(rect(tabs)); B.push([rect(tabs)[3] / 2, 0, 0, 0]);
-      let selIndex = -1, runIndex = -1, moving = false;
+      if (dock.hidden) {
+        if (this.key !== 'hidden') {
+          this.clear(enc);
+          this.key = 'hidden';
+        }
+        return false;
+      }
+      const rect = el => {
+        const r = el.getBoundingClientRect();
+        return [r.x, r.y, r.width, r.height];
+      };
+      const lenses = [],
+        B = [];
+      const tabs = $('tabs'),
+        current = tabs.querySelector('[aria-current=page]'),
+        run = $('run-dock');
+      lenses.push(rect(tabs));
+      B.push([rect(tabs)[3] / 2, 0, 0, 0]);
+      let selIndex = -1,
+        runIndex = -1,
+        moving = false;
       if (current) {
         const target = rect(current);
-        if (!this.sel || RM.matches) { this.sel = target.slice(); this.sv = [0, 0]; }
+        if (!this.sel || RM.matches) {
+          this.sel = target.slice();
+          this.sv = [0, 0];
+        }
         // A springy lens slides to the selected tab.
-        const ax = (target[0] - this.sel[0]) * 260 - this.sv[0] * 26, aw = (target[2] - this.sel[2]) * 260 - this.sv[1] * 26;
-        this.sv[0] += ax * dt; this.sv[1] += aw * dt;
-        this.sel[0] += this.sv[0] * dt; this.sel[2] += this.sv[1] * dt; this.sel[1] = target[1]; this.sel[3] = target[3];
+        const ax = (target[0] - this.sel[0]) * 260 - this.sv[0] * 26,
+          aw = (target[2] - this.sel[2]) * 260 - this.sv[1] * 26;
+        this.sv[0] += ax * dt;
+        this.sv[1] += aw * dt;
+        this.sel[0] += this.sv[0] * dt;
+        this.sel[2] += this.sv[1] * dt;
+        this.sel[1] = target[1];
+        this.sel[3] = target[3];
         moving = Math.abs(target[0] - this.sel[0]) > 0.3 || Math.abs(this.sv[0]) > 1;
-        selIndex = lenses.length; lenses.push(this.sel.slice()); B.push([this.sel[3] / 2, 1, 0, 0]);
+        selIndex = lenses.length;
+        lenses.push(this.sel.slice());
+        B.push([this.sel[3] / 2, 1, 0, 0]);
       }
       const cap = state.capsule;
       if (!run.hidden && cap) {
         this.level += ((cap.level ?? 0) - this.level) * (RM.matches ? 1 : 1 - Math.exp(-dt * 3));
-        runIndex = lenses.length; lenses.push(rect(run)); B.push([rect(run)[3] / 2, 2, this.level, { running: 1, unknown: 1, starting: 2, stopping: 2, stale: 3 }[cap.mode] ?? 0]);
+        runIndex = lenses.length;
+        lenses.push(rect(run));
+        B.push([
+          rect(run)[3] / 2,
+          2,
+          this.level,
+          { running: 1, unknown: 1, starting: 2, stopping: 2, stale: 3 }[cap.mode] ?? 0,
+        ]);
       }
       const animated = !RM.matches && (pond.active || moving || (runIndex >= 0 && [1, 2].includes(B[runIndex][3])));
       const key = JSON.stringify([lenses.map(l => l.map(Math.round)), B, pal.dark]);
       if (!animated && key === this.key) return false;
       this.key = animated ? '' : key;
       const tone = cap?.mode === 'stale' ? pal.idle : pal.water;
-      const glassTint = pal.dark ? [...mix(pal.surface, [0, 0, 0], 0.1), 0.52] : [...mix(pal.surface, pal.ground, 0.2), 0.5];
-      const u = this.u; u.fill(0);
-      u.set([innerWidth, innerHeight, RM.matches ? 0 : t, pal.dark ? 1 : 0, this.scale, lenses.length, selIndex, runIndex,
-        ...pal.ground.slice(0, 3), 1, ...pal.blobA.slice(0, 3), 1, ...pal.blobB.slice(0, 3), 1, ...glassTint,
-        ...tone.slice(0, 3), pal.dark ? 0.55 : 0.4, ...(pal.dark ? mix(pal.water, [1, 1, 1], 0.7) : [1, 1, 1]), 1]);
-      lenses.forEach((l, i) => { u.set(l, 32 + i * 4); u.set(B[i], 48 + i * 4); });
+      const glassTint = pal.dark
+        ? [...mix(pal.surface, [0, 0, 0], 0.1), 0.52]
+        : [...mix(pal.surface, pal.ground, 0.2), 0.5];
+      const u = this.u;
+      u.fill(0);
+      u.set([
+        innerWidth,
+        innerHeight,
+        RM.matches ? 0 : t,
+        pal.dark ? 1 : 0,
+        this.scale,
+        lenses.length,
+        selIndex,
+        runIndex,
+        ...pal.ground.slice(0, 3),
+        1,
+        ...pal.blobA.slice(0, 3),
+        1,
+        ...pal.blobB.slice(0, 3),
+        1,
+        ...glassTint,
+        ...tone.slice(0, 3),
+        pal.dark ? 0.55 : 0.4,
+        ...(pal.dark ? mix(pal.water, [1, 1, 1], 0.7) : [1, 1, 1]),
+        1,
+      ]);
+      lenses.forEach((l, i) => {
+        u.set(l, 32 + i * 4);
+        u.set(B[i], 48 + i * 4);
+      });
       gpu.dev.queue.writeBuffer(this.buf, 0, u);
-      const pass = enc.beginRenderPass({ colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
-      pass.setPipeline(gpu.glass); pass.setBindGroup(0, this.bind); pass.draw(3); pass.end();
+      const pass = enc.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.ctx.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: [0, 0, 0, 0],
+          },
+        ],
+      });
+      pass.setPipeline(gpu.glass);
+      pass.setBindGroup(0, this.bind);
+      pass.draw(3);
+      pass.end();
       return animated;
     }
-    clear(enc) { const pass = enc.beginRenderPass({ colorAttachments: [{ view: this.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] }); pass.end(); }
+    clear(enc) {
+      const pass = enc.beginRenderPass({
+        colorAttachments: [
+          {
+            view: this.ctx.getCurrentTexture().createView(),
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: [0, 0, 0, 0],
+          },
+        ],
+      });
+      pass.end();
+    }
   }
 
   function fallback(error) {
     zoneSweep.settle();
-    cancelAnimationFrame(frameId); frameId = 0;
-    $('water-orb').classList.remove('gpu'); $('tank-box').classList.remove('gpu');
+    cancelAnimationFrame(frameId);
+    frameId = 0;
+    $('water-orb').classList.remove('gpu');
+    $('tank-box').classList.remove('gpu');
     for (const id of ['vessel', 'tank', 'pond', 'glass']) $(id).hidden = true;
     document.documentElement.dataset.waterRenderer = 'css';
-    ring?.ro.disconnect(); tank?.ro.disconnect();
-    const device = gpu?.dev; gpu = null; device?.destroy();
+    ring?.ro.disconnect();
+    tank?.ro.disconnect();
+    const device = gpu?.dev;
+    gpu = null;
+    device?.destroy();
     if (error) console.warn('WebGPU water unavailable:', error.message || error);
   }
 
   function frame(ts) {
     frameId = 0;
     if (!gpu || document.hidden || !state.enabled) return;
-    const dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    const dt = Math.min(0.05, (ts - last) / 1000 || 0.016);
+    last = ts;
     const t = RM.matches ? 0 : clock() % 3600;
     let again = false;
     try {
@@ -566,42 +893,102 @@ export function createWaterFX() {
       pond.draw(enc);
       again ||= pond.active && !RM.matches;
       const showRing = state.tab === 'walk' && !state.modal;
-      if (showRing) { ring.draw(t, dt, enc); $('water-orb').classList.add('gpu'); again ||= ring.animating; }
-      if (state.sheet) { tank.draw(t, dt, enc); $('tank-box').classList.add('gpu'); again ||= tank.animating; }
+      if (showRing) {
+        ring.draw(t, dt, enc);
+        $('water-orb').classList.add('gpu');
+        again ||= ring.animating;
+      }
+      if (state.sheet) {
+        tank.draw(t, dt, enc);
+        $('tank-box').classList.add('gpu');
+        again ||= tank.animating;
+      }
       again = glass.draw(t, dt, enc) || again;
       again = zoneSweep.draw(enc) || again;
       gpu.dev.queue.submit([enc.finish()]);
-    } catch (error) { fallback(error); return; }
+    } catch (error) {
+      fallback(error);
+      return;
+    }
     if (again) frameId = requestAnimationFrame(frame);
   }
-  function wake() { if (!frameId && gpu && !document.hidden && state.enabled) frameId = requestAnimationFrame(frame); }
+  function wake() {
+    if (!frameId && gpu && !document.hidden && state.enabled) frameId = requestAnimationFrame(frame);
+  }
 
   async function init() {
     try {
-      if (!navigator.gpu) { fallback(); return; }
+      if (!navigator.gpu) {
+        fallback();
+        return;
+      }
       const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) { fallback(); return; }
-      const dev = await adapter.requestDevice(), fmt = navigator.gpu.getPreferredCanvasFormat();
+      if (!adapter) {
+        fallback();
+        return;
+      }
+      const dev = await adapter.requestDevice(),
+        fmt = navigator.gpu.getPreferredCanvasFormat();
       dev.pushErrorScope('validation');
-      const render = code => { const module = dev.createShaderModule({ code }); return dev.createRenderPipelineAsync({ layout: 'auto', vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format: fmt }] }, primitive: { topology: 'triangle-list' } }); };
-      const [vessel, pondPipe, glassPipe, sweepPipe, sim] = await Promise.all([render(VESSEL_WGSL), render(POND_WGSL), render(GLASS_WGSL), render(ZONE_SWEEP_WGSL),
-        dev.createComputePipelineAsync({ layout: 'auto', compute: { module: dev.createShaderModule({ code: SIM_WGSL }), entryPoint: 'main' } })]);
-      gpu = { dev, fmt, vessel, pond: pondPipe, glass: glassPipe, zoneSweep: sweepPipe, sim, samp: dev.createSampler({ magFilter: 'linear', minFilter: 'linear' }) };
-      const error = await dev.popErrorScope(); if (error) throw error;
-      dev.lost.then(info => { if (gpu?.dev === dev) fallback(info); });
+      const render = code => {
+        const module = dev.createShaderModule({ code });
+        return dev.createRenderPipelineAsync({
+          layout: 'auto',
+          vertex: { module, entryPoint: 'vs' },
+          fragment: { module, entryPoint: 'fs', targets: [{ format: fmt }] },
+          primitive: { topology: 'triangle-list' },
+        });
+      };
+      const [vessel, pondPipe, glassPipe, sweepPipe, sim] = await Promise.all([
+        render(VESSEL_WGSL),
+        render(POND_WGSL),
+        render(GLASS_WGSL),
+        render(ZONE_SWEEP_WGSL),
+        dev.createComputePipelineAsync({
+          layout: 'auto',
+          compute: { module: dev.createShaderModule({ code: SIM_WGSL }), entryPoint: 'main' },
+        }),
+      ]);
+      gpu = {
+        dev,
+        fmt,
+        vessel,
+        pond: pondPipe,
+        glass: glassPipe,
+        zoneSweep: sweepPipe,
+        sim,
+        samp: dev.createSampler({ magFilter: 'linear', minFilter: 'linear' }),
+      };
+      const error = await dev.popErrorScope();
+      if (error) throw error;
+      dev.lost.then(info => {
+        if (gpu?.dev === dev) fallback(info);
+      });
       dev.addEventListener('uncapturederror', event => fallback(event.error));
       readPal();
-      pond = new Pond($('pond')); glass = new Glass($('glass'));
-      ring = new Vessel($('vessel'), 0, true); tank = new Vessel($('tank'), 1, false);
+      pond = new Pond($('pond'));
+      glass = new Glass($('glass'));
+      ring = new Vessel($('vessel'), 0, true);
+      tank = new Vessel($('tank'), 1, false);
       document.documentElement.dataset.waterRenderer = 'webgpu';
       apply();
-    } catch (error) { fallback(error); }
+    } catch (error) {
+      fallback(error);
+    }
   }
 
   function apply() {
     if (!gpu) return;
     const v = state.vessel;
-    if (v) { ring.set(v); ring.setText({ label: v.label, big: v.big, word: v.word, tone: v.tone === 'amber' ? 'amber' : v.mode === 'running' || v.mode === 'starting' ? 'water' : 'ink' }); }
+    if (v) {
+      ring.set(v);
+      ring.setText({
+        label: v.label,
+        big: v.big,
+        word: v.word,
+        tone: v.tone === 'amber' ? 'amber' : v.mode === 'running' || v.mode === 'starting' ? 'water' : 'ink',
+      });
+    }
     if (state.tankState) tank.set(state.tankState);
     glass.key = '';
     wake();
@@ -614,18 +1001,34 @@ export function createWaterFX() {
     wake();
   }
   function origin() {
-    const el = state.tab === 'walk' && !state.modal ? $('water-orb') : !$('run-dock').hidden ? $('run-dock') : $('tabs');
-    const r = el.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2];
+    const el =
+      state.tab === 'walk' && !state.modal ? $('water-orb') : !$('run-dock').hidden ? $('run-dock') : $('tabs');
+    const r = el.getBoundingClientRect();
+    return [r.x + r.width / 2, r.y + r.height / 2];
   }
 
   /* dragging across the vessel sloshes it */
   let dragX = null;
-  $('water-orb').addEventListener('pointerdown', e => { dragX = e.clientX; });
-  addEventListener('pointermove', e => { if (dragX === null || !ring) return; ring.kick((dragX - e.clientX) * 0.02); dragX = e.clientX; }, { passive: true });
-  for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, () => { dragX = null; });
+  $('water-orb').addEventListener('pointerdown', e => {
+    dragX = e.clientX;
+  });
+  addEventListener(
+    'pointermove',
+    e => {
+      if (dragX === null || !ring) return;
+      ring.kick((dragX - e.clientX) * 0.02);
+      dragX = e.clientX;
+    },
+    { passive: true },
+  );
+  for (const ev of ['pointerup', 'pointercancel'])
+    addEventListener(ev, () => {
+      dragX = null;
+    });
 
   function onMotion(e) {
-    const a = e.accelerationIncludingGravity; if (!a || a.x == null) return;
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x == null) return;
     // Portrait screen axes: x right, y up. Upright, y reads +g; tilting clockwise makes x negative.
     const mag = Math.hypot(a.x, a.y);
     const angle = mag > 3 ? Math.atan2(-a.x, a.y) : 0;
@@ -635,39 +1038,100 @@ export function createWaterFX() {
     wake();
   }
   const tiltApi = {
-    get available() { return 'DeviceMotionEvent' in window && matchMedia('(pointer: coarse)').matches; },
-    get on() { return tilt.on; },
+    get available() {
+      return 'DeviceMotionEvent' in window && matchMedia('(pointer: coarse)').matches;
+    },
+    get on() {
+      return tilt.on;
+    },
     async set(enabled) {
       if (!enabled) {
         removeEventListener('devicemotion', onMotion);
-        Object.assign(tilt, { on: false, slope: 0, target: 0, grav: [0, -1] }); wake(); return false;
+        Object.assign(tilt, { on: false, slope: 0, target: 0, grav: [0, -1] });
+        wake();
+        return false;
       }
       if (tilt.on || !this.available) return tilt.on;
-      try { if (typeof DeviceMotionEvent.requestPermission === 'function' && await DeviceMotionEvent.requestPermission() !== 'granted') return false; }
-      catch { return false; }
-      addEventListener('devicemotion', onMotion); tilt.on = true; wake(); return true;
+      try {
+        if (
+          typeof DeviceMotionEvent.requestPermission === 'function' &&
+          (await DeviceMotionEvent.requestPermission()) !== 'granted'
+        )
+          return false;
+      } catch {
+        return false;
+      }
+      addEventListener('devicemotion', onMotion);
+      tilt.on = true;
+      wake();
+      return true;
     },
-    async toggle() { return this.set(!tilt.on); },
+    async toggle() {
+      return this.set(!tilt.on);
+    },
   };
 
-  DM.addEventListener('change', () => { readPal(); if (ring) { ring.textKey = ''; ring.dirty = true; } apply(); });
-  RM.addEventListener('change', () => { zoneSweep.settle(); ripples.length = 0; apply(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { zoneSweep.settle(); cancelAnimationFrame(frameId); frameId = 0; } else { last = performance.now(); wake(); } });
-  addEventListener('resize', () => { pond?.resize(); glass?.resize(); wake(); });
-  addEventListener('scroll', () => { if (glass) { glass.key = ''; wake(); } }, { passive: true });
+  DM.addEventListener('change', () => {
+    readPal();
+    if (ring) {
+      ring.textKey = '';
+      ring.dirty = true;
+    }
+    apply();
+  });
+  RM.addEventListener('change', () => {
+    zoneSweep.settle();
+    ripples.length = 0;
+    apply();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      zoneSweep.settle();
+      cancelAnimationFrame(frameId);
+      frameId = 0;
+    } else {
+      last = performance.now();
+      wake();
+    }
+  });
+  addEventListener('resize', () => {
+    pond?.resize();
+    glass?.resize();
+    wake();
+  });
+  addEventListener(
+    'scroll',
+    () => {
+      if (glass) {
+        glass.key = '';
+        wake();
+      }
+    },
+    { passive: true },
+  );
   init();
 
   return {
-    update(next) { state = next; if (!state.enabled || state.tab !== 'plan') zoneSweep.settle(); apply(); },
-    zoneEnabled(row, paused) { zoneSweep.update(row, paused); },
+    update(next) {
+      state = next;
+      if (!state.enabled || state.tab !== 'plan') zoneSweep.settle();
+      apply();
+    },
+    zoneEnabled(row, paused) {
+      zoneSweep.update(row, paused);
+    },
     // Confirmed outcomes only: the app calls this when the controller has answered.
     event(kind) {
       const [x, y] = origin();
-      if (kind === 'started') { ripple(x, y, 1.2, 'water'); ring?.kick(0.8); }
-      else if (kind === 'stopped') ripple(x, y, 0.45, 'idle');
+      if (kind === 'started') {
+        ripple(x, y, 1.2, 'water');
+        ring?.kick(0.8);
+      } else if (kind === 'stopped') ripple(x, y, 0.45, 'idle');
       else if (kind === 'failed') ripple(x, y, 1, 'amber');
     },
-    pour(delta) { tank?.kick(Math.max(-1.5, Math.min(1.5, delta * 0.12))); },
+    pour(delta) {
+      tank?.kick(Math.max(-1.5, Math.min(1.5, delta * 0.12)));
+    },
     tilt: tiltApi,
   };
 }

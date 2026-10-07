@@ -13,10 +13,12 @@ const print = value => console.log(JSON.stringify(redact(value, secrets), null, 
 async function prompt(label, hidden = false) {
   if (!process.stdin.isTTY) throw new Error('Set TUCOR_TOKEN or TUCOR_USER and TUCOR_PASSWORD for noninteractive use');
   let muted = false;
-  const output = new Writable({ write(chunk, encoding, callback) {
-    if (!muted) process.stderr.write(chunk, encoding);
-    callback();
-  } });
+  const output = new Writable({
+    write(chunk, encoding, callback) {
+      if (!muted) process.stderr.write(chunk, encoding);
+      callback();
+    },
+  });
   const rl = createInterface({ input: process.stdin, output, terminal: true });
   try {
     const answer = rl.question(label);
@@ -31,7 +33,9 @@ async function prompt(label, hidden = false) {
 async function request(path, { authenticated = true, method = 'GET', body, timeout = 20000 } = {}) {
   // Fixed origin; do not forward credentials through redirects.
   const response = await fetch(new URL(path, ORIGIN), {
-    method, redirect: 'error', signal: AbortSignal.timeout(timeout),
+    method,
+    redirect: 'error',
+    signal: AbortSignal.timeout(timeout),
     headers: {
       ...(authenticated ? { Authorization: `bearer ${token}` } : {}),
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -45,8 +49,8 @@ async function request(path, { authenticated = true, method = 'GET', body, timeo
 async function authenticate() {
   token = process.env.TUCOR_TOKEN;
   if (!token) {
-    const user = process.env.TUCOR_USER || await prompt('Tucor username: ');
-    const password = process.env.TUCOR_PASSWORD || await prompt('Tucor password: ', true);
+    const user = process.env.TUCOR_USER || (await prompt('Tucor username: '));
+    const password = process.env.TUCOR_PASSWORD || (await prompt('Tucor password: ', true));
     secrets.push(password);
     token = await request('/api/get-token', { authenticated: false, method: 'POST', body: { user, password } });
     if (typeof token !== 'string' || !token || token === 'ACCESS DENIED') throw new Error('Login failed');
@@ -58,7 +62,9 @@ async function authenticate() {
 }
 
 async function getDevices() {
-  return devicesFromResponse(await request('/api/authenticated/function/getdevicelistnew?controllerID=null&typeName=null'));
+  return devicesFromResponse(
+    await request('/api/authenticated/function/getdevicelistnew?controllerID=null&typeName=null'),
+  );
 }
 
 function selectDevice(devices, id) {
@@ -73,8 +79,14 @@ async function createSocket() {
   const socket = io(ORIGIN, { autoConnect: false, reconnection: false, timeout: 15000 });
   await new Promise((resolve, reject) => {
     socket.once('connect', resolve);
-    socket.once('connect_error', () => { socket.close(); reject(new Error('Socket.IO connection failed')); });
-    socket.once('connect_timeout', () => { socket.close(); reject(new Error('Socket.IO connection timed out')); });
+    socket.once('connect_error', () => {
+      socket.close();
+      reject(new Error('Socket.IO connection failed'));
+    });
+    socket.once('connect_timeout', () => {
+      socket.close();
+      reject(new Error('Socket.IO connection timed out'));
+    });
     socket.open();
   });
   return socket;
@@ -90,8 +102,10 @@ async function getStatus(device) {
     const deadline = Date.now() + timeout;
     while (!messages.some(predicate)) {
       if (!socket.connected) throw new Error(`Disconnected while waiting for ${description}`);
-      if (messages.some(m => m?.category === 'server' && m?.command === 'login' && m?.data?.status === 'BAD')) throw new Error('Socket login rejected');
-      if (Date.now() > deadline) throw new Error(`Timed out waiting for ${description}; authenticated socket sequence remains experimental`);
+      if (messages.some(m => m?.category === 'server' && m?.command === 'login' && m?.data?.status === 'BAD'))
+        throw new Error('Socket login rejected');
+      if (Date.now() > deadline)
+        throw new Error(`Timed out waiting for ${description}; authenticated socket sequence remains experimental`);
       await sleep(100);
     }
   }
@@ -104,9 +118,16 @@ async function getStatus(device) {
     }
     send({ category: 'server', command: 'login', data: { token } });
     await waitFor(m => m?.category === 'data' && m?.data?.item === 'User' && m?.data?.record?.length, 'user dataset');
-    send({ category: 'server', command: 'select', data: {
-      type: 'device', item: device.id, typename: device.type.toLowerCase(), controllerType: device.type.toUpperCase(),
-    } });
+    send({
+      category: 'server',
+      command: 'select',
+      data: {
+        type: 'device',
+        item: device.id,
+        typename: device.type.toLowerCase(),
+        controllerType: device.type.toUpperCase(),
+      },
+    });
     selected = true;
     await waitFor(m => m?.category === 'server' && /^I01(?::|$)/.test(m?.data?.code ?? ''), 'controller connection');
     send({ category: 'route', data: '/home' });
@@ -125,8 +146,8 @@ async function getStatus(device) {
       await sleep(150);
     }
     socket.close();
-    if (process.env.TUCOR_CAPTURE) await writeFile(process.env.TUCOR_CAPTURE,
-      JSON.stringify(redact(messages, secrets), null, 2), { mode: 0o600 });
+    if (process.env.TUCOR_CAPTURE)
+      await writeFile(process.env.TUCOR_CAPTURE, JSON.stringify(redact(messages, secrets), null, 2), { mode: 0o600 });
   }
 }
 
@@ -134,8 +155,16 @@ async function main() {
   if (command === 'plan') return print({ dryRun: true, steps: plan(...args) });
   if (command === 'probe') {
     const socket = await createSocket();
-    try { print({ connected: socket.connected, transport: socket.io.engine.transport.name, engineIOProtocol: 3, authenticated: false }); }
-    finally { socket.close(); }
+    try {
+      print({
+        connected: socket.connected,
+        transport: socket.io.engine.transport.name,
+        engineIOProtocol: 3,
+        authenticated: false,
+      });
+    } finally {
+      socket.close();
+    }
     return;
   }
   if (!['devices', 'status', 'history', 'stations'].includes(command)) {
@@ -161,7 +190,11 @@ Status temporarily selects the controller; first leave the web UI on Device List
   if (command === 'devices') return print(devices);
   const device = selectDevice(devices, args[0]);
   if (command === 'status') return print(await getStatus(device));
-  const query = new URLSearchParams({ group: historyGroupFor(device.type), controllerID: String(device.id), typeName: device.type.toLowerCase() });
+  const query = new URLSearchParams({
+    group: historyGroupFor(device.type),
+    controllerID: String(device.id),
+    typeName: device.type.toLowerCase(),
+  });
   if (command === 'stations') return print(await request(`/api/auth/decoders?${query}`));
   const menu = await request(`/api/history?${query}`);
   if (!args[1]) return print(menu);
@@ -171,7 +204,14 @@ Status temporarily selects the controller; first leave the web UI on Device List
   const options = item.options?.length ? item.options : [{ value: item.value }];
   const option = options.find(option => String(option.value) === String(args[2] ?? options[0].value));
   if (!option) throw new Error('Choose an OPTION from the returned history menu');
-  print(await request(`/api/auth/history/${encodeURIComponent(item.value)}/${encodeURIComponent(option.value)}?${query}`, { timeout: 75000 }));
+  print(
+    await request(`/api/auth/history/${encodeURIComponent(item.value)}/${encodeURIComponent(option.value)}?${query}`, {
+      timeout: 75000,
+    }),
+  );
 }
 
-main().catch(error => { console.error(redact(error.message, secrets)); process.exitCode = 1; });
+main().catch(error => {
+  console.error(redact(error.message, secrets));
+  process.exitCode = 1;
+});

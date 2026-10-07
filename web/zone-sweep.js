@@ -1,5 +1,5 @@
 // Shares the water renderer's device, palette, command encoder, and frame loop.
-export const ZONE_SWEEP_WGSL = /* wgsl */`
+export const ZONE_SWEEP_WGSL = /* wgsl */ `
 struct U { size: vec2f, progress: f32, pad: f32, surface: vec4f, };
 @group(0) @binding(0) var<uniform> u: U;
 @vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
@@ -19,12 +19,19 @@ struct U { size: vec2f, progress: f32, pad: f32, surface: vec4f, };
 }`;
 
 export function createZoneSweep({ getGPU, getSurface, canAnimate, wake }) {
-  const known = new WeakMap(), active = new Map();
+  const known = new WeakMap(),
+    active = new Map();
   function finish(row, effect) {
-    effect.ctx.unconfigure(); effect.buffer.destroy(); effect.canvas.remove();
-    row.classList.remove('zone-sweeping', 'zone-sweep-pending'); row.style.removeProperty('--zone-dim'); active.delete(row);
+    effect.ctx.unconfigure();
+    effect.buffer.destroy();
+    effect.canvas.remove();
+    row.classList.remove('zone-sweeping', 'zone-sweep-pending');
+    row.style.removeProperty('--zone-dim');
+    active.delete(row);
   }
-  function settle() { for (const [row, effect] of active) finish(row, effect); }
+  function settle() {
+    for (const [row, effect] of active) finish(row, effect);
+  }
   return {
     settle,
     update(row, paused) {
@@ -37,14 +44,27 @@ export function createZoneSweep({ getGPU, getSurface, canAnimate, wake }) {
       let effect = active.get(row);
       if (!effect) {
         const canvas = document.createElement('canvas');
-        canvas.className = 'zone-sweep'; canvas.setAttribute('aria-hidden', 'true');
+        canvas.className = 'zone-sweep';
+        canvas.setAttribute('aria-hidden', 'true');
         const ctx = canvas.getContext('webgpu');
         if (!ctx) return;
         ctx.configure({ device: gpu.dev, format: gpu.fmt, alphaMode: 'premultiplied' });
         const buffer = gpu.dev.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-        const bind = gpu.dev.createBindGroup({ layout: gpu.zoneSweep.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer } }] });
-        effect = { canvas, ctx, buffer, bind, progress: Number(previous), last: performance.now(), u: new Float32Array(8) };
-        row.append(canvas); active.set(row, effect);
+        const bind = gpu.dev.createBindGroup({
+          layout: gpu.zoneSweep.getBindGroupLayout(0),
+          entries: [{ binding: 0, resource: { buffer } }],
+        });
+        effect = {
+          canvas,
+          ctx,
+          buffer,
+          bind,
+          progress: Number(previous),
+          last: performance.now(),
+          u: new Float32Array(8),
+        };
+        row.append(canvas);
+        active.set(row, effect);
       }
       effect.target = Number(paused);
       // Keep the old resting dim until the shared frame paints the first sweep.
@@ -54,22 +74,51 @@ export function createZoneSweep({ getGPU, getSurface, canAnimate, wake }) {
     },
     draw(enc) {
       const gpu = getGPU();
-      if (!gpu || !canAnimate()) { settle(); return false; }
+      if (!gpu || !canAnimate()) {
+        settle();
+        return false;
+      }
       const now = performance.now();
       for (const [row, effect] of active) {
-        if (!row.isConnected || !row.getClientRects().length) { finish(row, effect); continue; }
-        const dt = Math.min(64, Math.max(0, now - effect.last)); effect.last = now;
-        effect.progress = effect.target ? Math.min(1, effect.progress + dt / 850) : Math.max(0, effect.progress - dt / 850);
-        if (effect.progress === effect.target) { finish(row, effect); continue; }
+        if (!row.isConnected || !row.getClientRects().length) {
+          finish(row, effect);
+          continue;
+        }
+        const dt = Math.min(64, Math.max(0, now - effect.last));
+        effect.last = now;
+        effect.progress = effect.target
+          ? Math.min(1, effect.progress + dt / 850)
+          : Math.max(0, effect.progress - dt / 850);
+        if (effect.progress === effect.target) {
+          finish(row, effect);
+          continue;
+        }
         const scale = Math.min(devicePixelRatio || 1, 2);
-        const width = Math.max(1, Math.round(row.clientWidth * scale)), height = Math.max(1, Math.round(row.clientHeight * scale));
-        if (effect.canvas.width !== width || effect.canvas.height !== height) { effect.canvas.width = width; effect.canvas.height = height; }
+        const width = Math.max(1, Math.round(row.clientWidth * scale)),
+          height = Math.max(1, Math.round(row.clientHeight * scale));
+        if (effect.canvas.width !== width || effect.canvas.height !== height) {
+          effect.canvas.width = width;
+          effect.canvas.height = height;
+        }
         effect.u.set([width, height, effect.progress, 0, ...getSurface()]);
         gpu.dev.queue.writeBuffer(effect.buffer, 0, effect.u);
-        const pass = enc.beginRenderPass({ colorAttachments: [{ view: effect.ctx.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
-        pass.setPipeline(gpu.zoneSweep); pass.setBindGroup(0, effect.bind); pass.draw(3); pass.end();
+        const pass = enc.beginRenderPass({
+          colorAttachments: [
+            {
+              view: effect.ctx.getCurrentTexture().createView(),
+              loadOp: 'clear',
+              storeOp: 'store',
+              clearValue: [0, 0, 0, 0],
+            },
+          ],
+        });
+        pass.setPipeline(gpu.zoneSweep);
+        pass.setBindGroup(0, effect.bind);
+        pass.draw(3);
+        pass.end();
         row.classList.add('zone-sweeping');
-        row.classList.remove('zone-sweep-pending'); row.style.removeProperty('--zone-dim');
+        row.classList.remove('zone-sweep-pending');
+        row.style.removeProperty('--zone-dim');
       }
       return active.size > 0;
     },

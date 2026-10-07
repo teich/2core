@@ -6,11 +6,17 @@ import { addDays, dateKey, resolvePlan } from '../lib/planner.mjs';
 
 const start = new Date(2026, 9, 6);
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/program-intents.json', import.meta.url)));
-const compile = (extra = {}) => compilePrograms({ zones: fixture.zones, ...fixture.plan, start, sunriseAt: () => 431, ...extra });
+const compile = (extra = {}) =>
+  compilePrograms({ zones: fixture.zones, ...fixture.plan, start, sunriseAt: () => 431, ...extra });
 function small(minutes, extra = {}) {
-  return compilePrograms({ zones: minutes.map((_, i) => ({ id: String(i) })),
+  return compilePrograms({
+    zones: minutes.map((_, i) => ({ id: String(i) })),
     intents: Object.fromEntries(minutes.map((m, i) => [i, { seconds: m * 60, cadence: { every: 1 } }])),
-    start, settings: { earliestStart: 1440, finishBeforeSunrise: 0, hardDeadline: 480 }, sunriseAt: () => 360, ...extra });
+    start,
+    settings: { earliestStart: 1440, finishBeforeSunrise: 0, hardDeadline: 480 },
+    sunriseAt: () => 360,
+    ...extra,
+  });
 }
 
 // Expand calendar *start dates*, not the compiler's evening masks, to check that
@@ -19,28 +25,49 @@ function verify(p, input) {
   assert.equal(p.status, 'candidate', JSON.stringify(p.issues));
   const intents = structuredClone(input.intents);
   for (const [id, enabled] of Object.entries(p.enabledOverrides)) intents[id].enabled = enabled;
-  const expected = resolvePlan({ zones: input.zones, intents, settings: input.settings, start, nights: 28, sunriseAt: () => 431 });
+  const expected = resolvePlan({
+    zones: input.zones,
+    intents,
+    settings: input.settings,
+    start,
+    nights: 28,
+    sunriseAt: () => 431,
+  });
   const actual = [];
-  for (let calendarDay = 0; calendarDay <= 28; calendarDay++) for (const program of p.programs) {
-    if (!program.calendarMask[calendarDay % 14]) continue;
-    const eveningDay = calendarDay - program.startDayOffset;
-    if (eveningDay < 0 || eveningDay >= 28) continue;
-    let at = calendarDay * 86400 + program.clockMinute * 60;
-    assert.equal(program.startMinute % 1, 0);
-    for (const step of program.steps) {
-      actual.push({ zone: step.zone, eveningDay, at, end: at + step.seconds, seconds: step.seconds });
-      at += step.seconds;
+  for (let calendarDay = 0; calendarDay <= 28; calendarDay++)
+    for (const program of p.programs) {
+      if (!program.calendarMask[calendarDay % 14]) continue;
+      const eveningDay = calendarDay - program.startDayOffset;
+      if (eveningDay < 0 || eveningDay >= 28) continue;
+      let at = calendarDay * 86400 + program.clockMinute * 60;
+      assert.equal(program.startMinute % 1, 0);
+      for (const step of program.steps) {
+        actual.push({ zone: step.zone, eveningDay, at, end: at + step.seconds, seconds: step.seconds });
+        at += step.seconds;
+      }
     }
-  }
   for (let d = 0; d < 28; d++) {
     const runs = actual.filter(r => r.eveningDay === d);
     const wanted = expected.nights[d].lanes.flat();
-    assert.deepEqual(runs.map(r => `${r.zone}:${r.seconds}`).sort(), wanted.map(r => `${r.zone}:${r.seconds}`).sort(), dateKey(addDays(start, d)));
-    const events = runs.flatMap(r => [[r.at, 1], [r.end, -1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    let count = 0, previous = 0, overlap = 0;
+    assert.deepEqual(
+      runs.map(r => `${r.zone}:${r.seconds}`).sort(),
+      wanted.map(r => `${r.zone}:${r.seconds}`).sort(),
+      dateKey(addDays(start, d)),
+    );
+    const events = runs
+      .flatMap(r => [
+        [r.at, 1],
+        [r.end, -1],
+      ])
+      .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let count = 0,
+      previous = 0,
+      overlap = 0;
     for (const [at, change] of events) {
       if (count === 2) overlap += at - previous;
-      count += change; assert.ok(count <= p.settings.lanes); previous = at;
+      count += change;
+      assert.ok(count <= p.settings.lanes);
+      previous = at;
     }
     assert.equal(overlap, p.nights[d % 14].parallelSeconds);
     for (const r of runs) {
@@ -51,7 +78,8 @@ function verify(p, input) {
 }
 
 test('production vineyard-off snapshot compiles into nine serial repeating programs', () => {
-  const before = structuredClone(fixture), p = compile();
+  const before = structuredClone(fixture),
+    p = compile();
   assert.equal(p.summary.programs, 9);
   assert.equal(p.summary.zones, 26);
   assert.equal(p.summary.weeklySeconds / 60, 3077.5);
@@ -77,9 +105,17 @@ test('vineyard-on override fits ten programs with provably minimum overlap', () 
 });
 
 test('rain-exempt zones keep separate programs even when their watering dates match', () => {
-  const p = small([20, 30], { intents: { 0: { seconds: 1200, cadence: { every: 1 } }, 1: { seconds: 1800, cadence: { every: 1 }, waterDuringRain: true } } });
+  const p = small([20, 30], {
+    intents: {
+      0: { seconds: 1200, cadence: { every: 1 } },
+      1: { seconds: 1800, cadence: { every: 1 }, waterDuringRain: true },
+    },
+  });
   assert.equal(p.programs.length, 2);
-  assert.deepEqual(p.programs.map(p => p.waterDuringRain), [false, true]);
+  assert.deepEqual(
+    p.programs.map(p => p.waterDuringRain),
+    [false, true],
+  );
 });
 
 test('nonrepeating cadences, distant anchors and unrepresentable seconds block the whole candidate', () => {
@@ -90,22 +126,38 @@ test('nonrepeating cadences, distant anchors and unrepresentable seconds block t
     [{ seconds: 60 }, 'incomplete-intent'],
   ]) {
     const p = small([1], { intents: { 0: intent } });
-    assert.equal(p.status, 'blocked'); assert.equal(p.issues[0].code, code); assert.deepEqual(p.programs, []);
+    assert.equal(p.status, 'blocked');
+    assert.equal(p.issues[0].code, code);
+    assert.deepEqual(p.programs, []);
   }
 });
 
 test('short seconds remain exact, and longer supported seconds use whole-minute starts', () => {
-  const p = small([20 / 60, 310 / 60], { intents: { 0: { seconds: 20, cadence: { every: 1 } }, 1: { seconds: 310, cadence: { every: 1 }, waterDuringRain: true } } });
+  const p = small([20 / 60, 310 / 60], {
+    intents: {
+      0: { seconds: 20, cadence: { every: 1 } },
+      1: { seconds: 310, cadence: { every: 1 }, waterDuringRain: true },
+    },
+  });
   assert.equal(p.status, 'candidate');
-  assert.deepEqual(p.programs.map(p => p.seconds), [20, 310]);
+  assert.deepEqual(
+    p.programs.map(p => p.seconds),
+    [20, 310],
+  );
   assert.ok(p.programs.every(p => Number.isInteger(p.startMinute)));
   assert.equal(p.summary.parallelSeconds, 0);
 });
 
 test('more than ten distinct calendar/rain groups is an explicit compiler limitation', () => {
   const zones = Array.from({ length: 11 }, (_, i) => ({ id: String(i) }));
-  const p = small([], { zones, intents: Object.fromEntries(zones.map((z, i) => [z.id, { seconds: 60, cadence: { every: 14 }, firstDue: dateKey(addDays(start, i)) }])) });
-  assert.equal(p.status, 'blocked'); assert.equal(p.issues[0].code, 'program-limit');
+  const p = small([], {
+    zones,
+    intents: Object.fromEntries(
+      zones.map((z, i) => [z.id, { seconds: 60, cadence: { every: 14 }, firstDue: dateKey(addDays(start, i)) }]),
+    ),
+  });
+  assert.equal(p.status, 'blocked');
+  assert.equal(p.issues[0].code, 'program-limit');
 });
 
 test('an oversized group uses spare programs without changing watering', () => {
@@ -114,7 +166,10 @@ test('an oversized group uses spare programs without changing watering', () => {
   assert.equal(p.programs.length, 2);
   assert.equal(p.summary.maxConcurrent, 2);
   assert.equal(p.summary.weeklySeconds, 600 * 60 * 7);
-  assert.deepEqual(p.programs.flatMap(p => p.steps).map(s => s.seconds), [18000, 18000]);
+  assert.deepEqual(
+    p.programs.flatMap(p => p.steps).map(s => s.seconds),
+    [18000, 18000],
+  );
   assert.ok(p.nights.every(n => n.finish <= 1800));
   const blocked = small([600]);
   assert.equal(blocked.status, 'blocked');
@@ -123,13 +178,17 @@ test('an oversized group uses spare programs without changing watering', () => {
 
 test('a strict single-zone limit is preserved when later finishing is needed', () => {
   const p = small([400], { settings: { lanes: 1, earliestStart: 1440, finishBeforeSunrise: 0, hardDeadline: 480 } });
-  assert.equal(p.status, 'candidate'); assert.equal(p.summary.maxConcurrent, 1);
+  assert.equal(p.status, 'candidate');
+  assert.equal(p.summary.maxConcurrent, 1);
   assert.equal(p.summary.preferredWindowMet, false);
   assert.ok(p.nights.every(n => n.finish <= 1920));
 });
 
 test('seasonal scaling is applied once; sunrise uses the earliest morning in the horizon', () => {
-  const p = small([60], { intents: { 0: { seconds: 3600, seasonalPercent: 150, cadence: { every: 1 } } }, sunriseAt: d => d.getDate() === 10 ? 300 : 360 });
+  const p = small([60], {
+    intents: { 0: { seconds: 3600, seasonalPercent: 150, cadence: { every: 1 } } },
+    sunriseAt: d => (d.getDate() === 10 ? 300 : 360),
+  });
   assert.equal(p.programs[0].steps[0].seconds, 5400);
   assert.equal(p.programs[0].budgetPercent, 100);
   assert.equal(p.horizon.preferredFinish, 1740);
@@ -138,8 +197,10 @@ test('seasonal scaling is applied once; sunrise uses the earliest morning in the
 
 test('empty plans and unknown sunrise are represented explicitly', () => {
   const p = small([], { sunriseAt: () => null });
-  assert.equal(p.status, 'candidate'); assert.equal(p.summary.zones, 0);
-  assert.equal(p.horizon.sunriseKnown, false); assert.ok(p.nights.every(n => n.start === null));
+  assert.equal(p.status, 'candidate');
+  assert.equal(p.summary.zones, 0);
+  assert.equal(p.horizon.sunriseKnown, false);
+  assert.ok(p.nights.every(n => n.start === null));
 });
 
 test('walking order does not change compiled program identities or scheduling', () => {
@@ -159,10 +220,20 @@ test('varied parallel candidates remain bounded and retain all requested waterin
   let seed = 471;
   for (let trial = 0; trial < 30; trial++) {
     const zones = Array.from({ length: 8 }, (_, i) => ({ id: String(i) }));
-    const intents = Object.fromEntries(zones.map((z, i) => {
-      seed = seed * 16807 % 2147483647;
-      return [z.id, { seconds: (60 + seed % 181) * 60, cadence: i < 4 ? { every: 2 } : { perWeek: 3 }, firstDue: dateKey(addDays(start, seed % 2)), waterDuringRain: i % 3 === 0 }];
-    }));
+    const intents = Object.fromEntries(
+      zones.map((z, i) => {
+        seed = (seed * 16807) % 2147483647;
+        return [
+          z.id,
+          {
+            seconds: (60 + (seed % 181)) * 60,
+            cadence: i < 4 ? { every: 2 } : { perWeek: 3 },
+            firstDue: dateKey(addDays(start, seed % 2)),
+            waterDuringRain: i % 3 === 0,
+          },
+        ];
+      }),
+    );
     const p = compile({ zones, intents });
     if (p.status === 'candidate') verify(p, { zones, intents, settings: fixture.plan.settings });
     else assert.ok(p.issues.length);

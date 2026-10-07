@@ -6,5 +6,7 @@ export async function detectImplicitAuthentication() {
     if (!response.ok) return false;
     const auth = await response.json();
     return auth.authenticated === true && auth.mode === 'tailscale';
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }

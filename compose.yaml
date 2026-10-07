@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:8787:8787"
+      - '${BIND_ADDRESS:-127.0.0.1}:8787:8787'
     environment:
       MODE: live
       TZ: ${TZ:-America/Los_Angeles}

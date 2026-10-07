@@ -18,11 +18,17 @@ test('invalid or overly long durations fail before generating commands', () => {
   assert.throws(() => plan('zone-start', 101, 1));
 });
 test('station delta omits stopped stations and does not erase station metadata', () => {
-  const original = { component: 'Stations', data: [
-    { StId: '1', name: 'Pots', runningEntries: [{ handleID: '5' }], isRunning: true },
-    { StId: '2', name: 'Lawn', runningEntries: [] },
-  ] };
-  const update = { component: 'Stations', data: [{ StId: '2', name: '', runningEntries: [{ handleID: '6' }], isRunning: true }] };
+  const original = {
+    component: 'Stations',
+    data: [
+      { StId: '1', name: 'Pots', runningEntries: [{ handleID: '5' }], isRunning: true },
+      { StId: '2', name: 'Lawn', runningEntries: [] },
+    ],
+  };
+  const update = {
+    component: 'Stations',
+    data: [{ StId: '2', name: '', runningEntries: [{ handleID: '6' }], isRunning: true }],
+  };
   const result = summarize([original, update, { component: 'Main', data: { voltage: '3490', current: '19' } }]);
   assert.equal(result.stations[0].isRunning, false);
   assert.deepEqual(result.stations[0].runningEntries, []);
@@ -31,8 +37,15 @@ test('station delta omits stopped stations and does not erase station metadata',
   assert.equal(original.data[0].isRunning, true);
 });
 test('credentials are redacted recursively including echoed secrets and token URLs', () => {
-  assert.deepEqual(redact({ password: 'p', nested: { Authorization: 'bearer abc', url: '/?token=abc&x=1', message: 'failed abc' } }, ['abc']),
-    { password: '[REDACTED]', nested: { Authorization: '[REDACTED]', url: '/?token=[REDACTED]&x=1', message: 'failed [REDACTED]' } });
+  assert.deepEqual(
+    redact({ password: 'p', nested: { Authorization: 'bearer abc', url: '/?token=abc&x=1', message: 'failed abc' } }, [
+      'abc',
+    ]),
+    {
+      password: '[REDACTED]',
+      nested: { Authorization: '[REDACTED]', url: '/?token=[REDACTED]&x=1', message: 'failed [REDACTED]' },
+    },
+  );
 });
 test('idle running list does not imply an empty station inventory', () => {
   const main = { component: 'Main', data: { decoderList: [{ decid: '1', name: 'ST1', description: 'Pots' }] } };
@@ -43,20 +56,40 @@ test('idle running list does not imply an empty station inventory', () => {
   assert.equal(summarize([main]).stations[0].isRunning, null);
 });
 test('device metadata handles busy flag and controller group', () => {
-  assert.equal(devicesFromResponse({ getdevicelistnew: [{ devicelist: [{ ctrlid: 1, active: '0' }] }] })[0].busy, false);
+  assert.equal(
+    devicesFromResponse({ getdevicelistnew: [{ devicelist: [{ ctrlid: 1, active: '0' }] }] })[0].busy,
+    false,
+  );
   assert.equal(groupFor('ltd'), 'LTD');
   assert.equal(groupFor('GRO-WHATEVER'), 'TWC');
   assert.equal(historyGroupFor('ltd'), 'rkx');
   assert.equal(historyGroupFor('twc'), 'twc');
   assert.throws(() => devicesFromResponse({}));
 });
-test('full Stations packets cannot replace friendly inventory names with ST labels',()=>{
-  const main={component:'Main',data:{decoderList:[{decid:'1',name:'ST1',description:'Deck pots'},{decid:'29',name:'ST29',description:''}]}};
-  const full={component:'Stations',data:[{StId:'1',name:'ST1',isRunning:false,runningEntries:[]},{StId:'29',name:'ST29',isRunning:false,runningEntries:[]}]};
-  for(const packets of [[main,full],[full,main]]) {
-    const stations=summarize(packets).stations;
-    assert.equal(stations[0].name,'Deck pots');
-    assert.equal(stations[1].name,'');
-    assert.equal(stations[1].label,'ST29');
+test('full Stations packets cannot replace friendly inventory names with ST labels', () => {
+  const main = {
+    component: 'Main',
+    data: {
+      decoderList: [
+        { decid: '1', name: 'ST1', description: 'Deck pots' },
+        { decid: '29', name: 'ST29', description: '' },
+      ],
+    },
+  };
+  const full = {
+    component: 'Stations',
+    data: [
+      { StId: '1', name: 'ST1', isRunning: false, runningEntries: [] },
+      { StId: '29', name: 'ST29', isRunning: false, runningEntries: [] },
+    ],
+  };
+  for (const packets of [
+    [main, full],
+    [full, main],
+  ]) {
+    const stations = summarize(packets).stations;
+    assert.equal(stations[0].name, 'Deck pots');
+    assert.equal(stations[1].name, '');
+    assert.equal(stations[1].label, 'ST29');
   }
 });

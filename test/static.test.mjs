@@ -10,7 +10,17 @@ test('web and lib files resolve by path without a registry', () => {
   assert.match(resolveAsset('/').file, /web[/\\]index\.html$/);
   assert.match(resolveAsset('/app.js').type, /^text\/javascript/);
   assert.match(resolveAsset('/lib/planner.mjs').file, /lib[/\\]planner\.mjs$/);
-  for (const path of ['/../package.json', '/lib/../server/http.mjs', '/.env', '/web/.hidden', '//app.js', '/app.js/', '/lib/x/y.mjs', '/README', '/a%2e%2e/b.js']) {
+  for (const path of [
+    '/../package.json',
+    '/lib/../server/http.mjs',
+    '/.env',
+    '/web/.hidden',
+    '//app.js',
+    '/app.js/',
+    '/lib/x/y.mjs',
+    '/README',
+    '/a%2e%2e/b.js',
+  ]) {
     assert.equal(resolveAsset(path), null, path);
   }
 });
@@ -18,7 +28,8 @@ test('web and lib files resolve by path without a registry', () => {
 test('the service worker shell lists every asset and versions by content', async () => {
   const shell = await shellFiles();
   assert.equal(shell[0], '/');
-  for (const path of ['/app.js', '/style.css', '/manifest.webmanifest', '/lib/planner.mjs']) assert.ok(shell.includes(path), path);
+  for (const path of ['/app.js', '/style.css', '/manifest.webmanifest', '/lib/planner.mjs'])
+    assert.ok(shell.includes(path), path);
   assert.ok(!shell.includes('/service-worker.js'));
   for (const path of shell) assert.ok(existsSync(resolveAsset(path).file), path);
   const source = await serviceWorker();
