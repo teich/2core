@@ -7,7 +7,7 @@ import { Store } from '../server/store.mjs';
 import { Engine } from '../server/engine.mjs';
 import { DemoDriver } from '../server/demo.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from '../server/weather.mjs';
-import { currentNight, nextDueDate } from '../lib/planner.mjs';
+import { currentNight, nextDueDate, resolvePlan } from '../lib/planner.mjs';
 import { createServer } from '../server/http.mjs';
 
 async function fixture(t, options = {}) {
@@ -166,14 +166,14 @@ test('watering intentions and night settings are validated, stored locally, and 
   assert.equal(res.status,200);
   const initial = (await res.json()).intent;
   assert.match(initial.firstDue, /^\d{4}-\d{2}-\d{2}$/);
-  assert.deepEqual(initial,{seconds:1500,cadence:{perWeek:2},enabled:true,firstDue:initial.firstDue,waterDuringRain:false});
+  assert.deepEqual(initial,{seconds:1500,cadence:{perWeek:2},enabled:true,firstDue:initial.firstDue,waterDuringRain:false,seasonalPercent:100});
   assert.equal((await post('/zones/2/intent',{firstDue:'2026-10-02',enabled:false,waterDuringRain:true})).status,200);
   for (const bad of [{seconds:0},{seconds:14401},{cadence:{every:0}},{cadence:{every:2,perWeek:2}},{firstDue:'2026-02-30'},{colour:'red'},{waterDuringRain:'yes'},{waterDuringRain:1}]) assert.equal((await post('/zones/2/intent',bad)).status,400, JSON.stringify(bad));
   assert.equal((await post('/zones/99/intent',{seconds:60})).status,404);
   assert.equal((await post('/plan',{lanes:1,earliestStart:1380})).status,200);
   assert.equal((await post('/plan',{lanes:3})).status,400);
   const state=await (await fetch(`${base}/api/state`,{headers})).json();
-  assert.deepEqual(state.plan.intents['2'],{seconds:1500,cadence:{perWeek:2},enabled:false,firstDue:'2026-10-02',waterDuringRain:true});
+  assert.deepEqual(state.plan.intents['2'],{seconds:1500,cadence:{perWeek:2},enabled:false,firstDue:'2026-10-02',waterDuringRain:true,seasonalPercent:100});
   assert.deepEqual(state.plan.settings,{earliestStart:1380,finishBeforeSunrise:15,hardDeadline:540,lanes:1});
   assert.equal(driver.runs.length,0);
   assert.equal((await fetch(`${base}/planner.js`)).headers.get('content-type'),'text/javascript; charset=utf-8');
@@ -184,6 +184,64 @@ test('the weather station supplies the plan’s location', async t => {
   engine.weatherSource={describe:()=>({configured:true,station:{id:'1',latitude:38.4,longitude:-122.7}})};
   engine.recordWeatherRead({sample:{observedAt:new Date().toISOString()}});
   assert.deepEqual(engine.state().location,{latitude:38.4,longitude:-122.7});
+});
+
+test('seasonal edits preserve baselines, scale the plan, and persist all zones atomically', async t => {
+  const dir = mkdtempSync(join(tmpdir(), '2core-seasonal-')), file = join(dir, 'test.sqlite');
+  const store = new Store(file), driver = new DemoDriver();
+  // Existing production intentions predate seasonal percentages.
+  const baseline = { seconds: 3600, cadence: { every: 2 }, firstDue: '2026-10-06', enabled: true, waterDuringRain: false };
+  store.set('intent:1', baseline);
+  store.set('intent:2', { ...baseline, enabled: false });
+  const engine = new Engine({ store, driver, mode: 'live', clock: () => new Date(2026, 9, 6, 17).getTime() });
+  await engine.refresh();
+  driver.withSession = async () => { throw new Error('Plan edits must not contact Tucor'); };
+  const server = createServer(engine, 'test-key');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); store.close(); rmSync(dir, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${server.address().port}/api`, headers = { Authorization: 'Bearer test-key', 'Content-Type': 'application/json' };
+  const post = (path, body) => fetch(`${base}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+  const state = async () => (await (await fetch(`${base}/state`, { headers })).json()).plan;
+  assert.equal((await state()).intents['1'].seasonalPercent, 100);
+  for (const value of [49, 201, 75.5, '100', null]) {
+    assert.equal((await post('/zones/1/intent', { seasonalPercent: value })).status, 400);
+    assert.equal((await post('/plan/seasonal', { seasonalPercent: value })).status, 400);
+  }
+  assert.equal((await post('/plan/seasonal', { seasonalPercent: 50, seconds: 60 })).status, 400);
+  assert.equal((await post('/plan/seasonal', { seasonalPercent: 50 })).status, 200);
+  let saved = await state();
+  assert.ok(Object.values(saved.intents).every(i => i.seasonalPercent === 50));
+  assert.equal(Object.keys(saved.intents).length, engine.state().zones.length);
+  assert.deepEqual(saved.intents['2'], { ...baseline, enabled: false, seasonalPercent: 50 });
+  const project = intents => resolvePlan({ zones: [{ id: '1' }, { id: '2' }], intents, start: new Date(2026, 9, 6), settings: { lanes: 1, earliestStart: 1440, hardDeadline: 90 } });
+  assert.equal(project(saved.intents).nights[0].seconds, 1800);
+  assert.equal((await post('/zones/1/intent', { seasonalPercent: 200 })).status, 200);
+  saved = await state();
+  assert.deepEqual(saved.intents['1'], { ...baseline, seasonalPercent: 200 });
+  assert.equal(saved.intents['2'].seasonalPercent, 50);
+  assert.deepEqual(project(saved.intents).nights[0].deferred, ['1']);
+  assert.equal(project(saved.intents).zones[0].weeklySeconds, 25200);
+  const proposal = await (await post('/plan/rebalance-preview', {})).json();
+  assert.equal(proposal.beforePeakSeconds, 7200);
+  assert.equal((await post('/plan/seasonal', { seasonalPercent: 150 })).status, 200);
+  assert.equal((await post('/plan/rebalance', { token: proposal.token })).status, 409);
+  saved = await state();
+  assert.equal(project(saved.intents).nights[0].seconds, 5400);
+  assert.deepEqual(saved.intents['1'], { ...baseline, seasonalPercent: 150 });
+  const disk = new Store(file);
+  try {
+    const restarted = new Engine({ store: disk, driver: new DemoDriver() });
+    assert.deepEqual(restarted.plan(), saved);
+  } finally { disk.close(); }
+  // A failed bulk write must not leave half the garden at a new percentage.
+  const set = store.set.bind(store);
+  store.set = (key, value) => { if (key === 'intent:2') throw new Error('Disk write failed'); return set(key, value); };
+  try {
+    assert.equal((await post('/plan/seasonal', { seasonalPercent: 100 })).status, 503);
+    assert.deepEqual(await state(), saved);
+  } finally { store.set = set; }
+  assert.equal((await post('/plan/seasonal', { seasonalPercent: 100 })).status, 200);
+  assert.deepEqual((await state()).intents['1'], { ...baseline, seasonalPercent: 100 });
 });
 
 

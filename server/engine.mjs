@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { trace } from './telemetry.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
-import { DEFAULT_SETTINGS, MAX_SECONDS, SETTING_LIMITS, currentNight, nextDueDate, proposeRebalance, staggerIntents, validDateKey } from '../lib/planner.mjs';
+import { DEFAULT_INTENT, DEFAULT_SETTINGS, MAX_SECONDS, SETTING_LIMITS, currentNight, nextDueDate, proposeRebalance, staggerIntents, validDateKey } from '../lib/planner.mjs';
 
 export class AppError extends Error {
   constructor(message, status = 409) { super(message); this.status = status; }
@@ -301,14 +301,16 @@ export class Engine {
     } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
   }
   plan() {
-    return { settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) }, intents: this.store.prefixed('intent:') };
+    const intents = Object.fromEntries(Object.entries(this.store.prefixed('intent:')).map(([id, intent]) => [id, { ...DEFAULT_INTENT, ...intent }]));
+    return { settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) }, intents };
   }
   intent(zone, patch) {
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
-    const next = { seconds: null, cadence: null, enabled: true, firstDue: null, waterDuringRain: false, ...this.store.get(`intent:${zone}`, {}) };
+    const next = { ...DEFAULT_INTENT, ...this.store.get(`intent:${zone}`, {}) };
     const previous = { ...next };
     for (const [k, v] of Object.entries(patch)) {
       if (k === 'seconds') next.seconds = v === null ? null : number(v, 1, MAX_SECONDS, true);
+      else if (k === 'seasonalPercent') next.seasonalPercent = number(v, 50, 200, true);
       else if (k === 'cadence') {
         const keys = v && typeof v === 'object' ? Object.keys(v) : [];
         if (v !== null && !(keys.length === 1 && (keys[0] === 'every' ? number(v.every, 1, 30, true) : keys[0] === 'perWeek' && number(v.perWeek, 1, 6, true)))) throw new AppError('Cadence must be {every: days} or {perWeek: times}', 400);
@@ -325,6 +327,19 @@ export class Engine {
     const seeded = staggerIntents({ ...this.plan().intents, [zone]: next }, currentNight(new Date(this.clock())));
     this.store.set(`intent:${zone}`, seeded[zone]);
     return { ok: true, intent: seeded[zone] };
+  }
+  seasonalAdjustment(patch) {
+    if (Object.keys(patch).length !== 1 || !Object.hasOwn(patch, 'seasonalPercent')) throw new AppError('Expected seasonalPercent only', 400);
+    const seasonalPercent = number(patch.seasonalPercent, 50, 200, true);
+    const saved = this.plan().intents;
+    const ids = new Set([...Object.keys(saved), ...(this.current?.stations ?? []).map(s => String(s.StId))]);
+    if (!ids.size) throw new AppError('Load the zones before setting seasonal adjustment');
+    this.store.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const id of ids) this.store.set(`intent:${id}`, { ...DEFAULT_INTENT, ...saved[id], seasonalPercent });
+      this.store.db.exec('COMMIT');
+    } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
+    return { ok: true, plan: this.plan() };
   }
   rebalancePreview() {
     const plan = this.plan(), start = currentNight(new Date(this.clock()));

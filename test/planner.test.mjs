@@ -133,3 +133,25 @@ test('rebalance can disclose an earlier run without moving it before tonight', (
   assert.equal(p.changes[0].days, -1);
   assert.equal(p.changes[0].after, dateKey(start));
 });
+
+test('seasonal run lengths determine staggering and rebalance loads without changing baselines', () => {
+  const intents = {
+    1: { seconds: 7200, cadence: { every: 2 }, seasonalPercent: 50 },
+    2: { seconds: 3600, cadence: { every: 2 }, seasonalPercent: 200 },
+  };
+  const anchored = staggerIntents(intents, start);
+  const plan = resolvePlan({ zones, start, sunriseAt, intents: anchored });
+  // Zone 2 is now the heavier run, despite its smaller baseline.
+  assert.equal(cells(plan, '2'), 'W.W.W.W.W.W.W.');
+  assert.equal(cells(plan, '1'), '.W.W.W.W.W.W.W');
+  assert.equal(plan.nights[0].seconds, 7200);
+  assert.equal(plan.nights[1].seconds, 3600);
+  const together = Object.fromEntries(Object.entries(intents).map(([id, intent]) => [id, { ...intent, firstDue: dateKey(start) }]));
+  const proposal = proposeRebalance(together, start);
+  assert.equal(proposal.beforePeakSeconds, 10800);
+  assert.equal(proposal.afterPeakSeconds, 7200);
+  assert.equal(anchored['1'].seconds, 7200);
+  assert.equal(anchored['2'].seconds, 3600);
+  const fractional = resolvePlan({ zones, start, intents: { 1: { seconds: 61, cadence: { every: 1 }, seasonalPercent: 150 } } });
+  assert.equal(fractional.nights[0].seconds, 92);
+});

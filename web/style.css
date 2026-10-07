@@ -270,8 +270,8 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .plan-table-head .hint{margin-top:3px;font-size:13px}
 .plan-table-head .filters{margin:0;padding:0;overflow:visible}
 .plan-scroll{overflow-x:auto;overscroll-behavior-x:contain}
-.plan-grid{min-width:1040px}
-.prow{display:grid;grid-template-columns:minmax(190px,252px) 96px 156px minmax(560px,1fr) 76px;align-items:center;min-height:56px;padding:0 8px 0 0;border-bottom:.5px solid var(--line)}
+.plan-grid{min-width:1160px}
+.prow{display:grid;grid-template-columns:minmax(190px,252px) 96px 112px 156px minmax(560px,1fr) 76px;align-items:center;min-height:56px;padding:0 8px 0 0;border-bottom:.5px solid var(--line)}
 .pcells{display:grid;grid-template-columns:repeat(14,minmax(40px,1fr));align-self:stretch}
 .pzone{position:sticky;left:0;z-index:1;align-self:stretch;display:flex;align-items:center;gap:12px;min-width:0;padding:0 10px 0 20px;background:var(--surface)}
 .pzone .zone-num{width:36px;height:36px;border-radius:11px;font-size:15px;background:var(--water-soft);color:var(--water)}
@@ -281,7 +281,12 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .pz-text small.warn{color:var(--amber)}.pz-text small.bad{color:var(--danger)}
 .prow.todo .zone-num{background:var(--amber-soft);color:var(--amber)}
 .prow.paused .zone-num{background:var(--chip);color:var(--ink-2)}
-.prow.paused .pcells,.prow.paused .pz-text b{opacity:.55}
+.prow[data-row]{position:relative;isolation:isolate}
+.prow[data-row]::after,.zone-sweep{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.prow[data-row]::after{content:"";background:var(--surface);opacity:0}
+.prow[data-row].paused::after{opacity:.28}
+.prow[data-row].zone-sweep-pending::after{opacity:var(--zone-dim)}
+.prow[data-row].zone-sweeping::after{opacity:0}
 .pdur{display:flex;align-items:center;height:38px;margin-right:10px;padding:0 10px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-weight:400}
 .pdur input{border:0;padding:0;background:none;outline:none;font-size:15px;font-weight:650;color:var(--ink)}
 .pdur span{font-size:12px}
@@ -316,7 +321,7 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .ph.sel{color:var(--water)}
 .ph:hover,.pf:hover{background:var(--chip)}
 .pfoot{border-bottom:0;align-items:start;padding-top:8px;padding-bottom:10px;background:var(--chip)}
-.pfoot .pzone{grid-column:span 3;flex-direction:column;align-items:flex-start;gap:0;font-size:13px;font-weight:700;color:var(--ink-2);background:transparent;padding-top:4px}
+.pfoot .pzone{grid-column:span 4;flex-direction:column;align-items:flex-start;gap:0;font-size:13px;font-weight:700;color:var(--ink-2);background:transparent;padding-top:4px}
 .pfoot .pzone small{font-weight:500}
 .pf{min-height:0;padding:4px 4px 6px;border-radius:0 0 12px 12px;background:transparent;flex-direction:column;gap:5px}
 .pf b{font-size:13px}
@@ -435,3 +440,12 @@ body:has(dialog[open]){overflow:hidden}
 .rebalance-changes li span{display:block;font-size:14px;margin-top:3px}
 #rebalance-dialog>p{margin-top:12px}
 #rebalance-error{color:var(--danger)}
+.seasonal-panel{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:20px}
+.seasonal-panel>div{flex:1;min-width:230px}
+.seasonal-panel .hint{margin-top:4px;max-width:540px}
+#seasonal-status{font-size:13px;margin-top:8px}
+.seasonal-panel>label{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.seasonal-value{display:flex;align-items:center;gap:8px}
+.seasonal-value input{width:96px;font-size:20px}
+.pseasonal{padding:10px 0}
+.pseasonal small{display:block;color:var(--ink-2);font-size:12px;margin-top:4px}

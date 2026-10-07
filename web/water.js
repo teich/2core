@@ -1,3 +1,5 @@
+import { createZoneSweep, ZONE_SWEEP_WGSL } from './zone-sweep.js';
+
 // WebGPU water for 2core. Every visual is driven by confirmed controller state:
 //   level        = time left on a confirmed run (unknown end time: a still half-full vessel)
 //   beading drops + trembling surface = a command the controller hasn't confirmed yet
@@ -344,6 +346,7 @@ export function createWaterFX() {
   const mix = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
   const hex = s => { s = s.trim(); if (s[0] === '#') { const d = s.slice(1), n = parseInt(d.length === 3 ? [...d].map(c => c + c).join('') : d, 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1]; } const m = s.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 1]; return [m[0] / 255, m[1] / 255, m[2] / 255, m[3] ?? 1]; };
   let gpu = null, pal, ring, tank, pond, glass, frameId = 0, last = 0, state = { enabled: false };
+  const zoneSweep = createZoneSweep({ getGPU: () => gpu, getSurface: () => pal.surface, canAnimate: () => !RM.matches && !document.hidden && state.enabled && state.tab === 'plan', wake });
   // Tilt: gravity direction in screen space (x right, y up); slope of the water's rest plane.
   const tilt = { on: false, slope: 0, target: 0, grav: [0, -1] };
 
@@ -541,6 +544,7 @@ export function createWaterFX() {
   }
 
   function fallback(error) {
+    zoneSweep.settle();
     cancelAnimationFrame(frameId); frameId = 0;
     $('water-orb').classList.remove('gpu'); $('tank-box').classList.remove('gpu');
     for (const id of ['vessel', 'tank', 'pond', 'glass']) $(id).hidden = true;
@@ -565,6 +569,7 @@ export function createWaterFX() {
       if (showRing) { ring.draw(t, dt, enc); $('water-orb').classList.add('gpu'); again ||= ring.animating; }
       if (state.sheet) { tank.draw(t, dt, enc); $('tank-box').classList.add('gpu'); again ||= tank.animating; }
       again = glass.draw(t, dt, enc) || again;
+      again = zoneSweep.draw(enc) || again;
       gpu.dev.queue.submit([enc.finish()]);
     } catch (error) { fallback(error); return; }
     if (again) frameId = requestAnimationFrame(frame);
@@ -579,9 +584,9 @@ export function createWaterFX() {
       const dev = await adapter.requestDevice(), fmt = navigator.gpu.getPreferredCanvasFormat();
       dev.pushErrorScope('validation');
       const render = code => { const module = dev.createShaderModule({ code }); return dev.createRenderPipelineAsync({ layout: 'auto', vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format: fmt }] }, primitive: { topology: 'triangle-list' } }); };
-      const [vessel, pondPipe, glassPipe, sim] = await Promise.all([render(VESSEL_WGSL), render(POND_WGSL), render(GLASS_WGSL),
+      const [vessel, pondPipe, glassPipe, sweepPipe, sim] = await Promise.all([render(VESSEL_WGSL), render(POND_WGSL), render(GLASS_WGSL), render(ZONE_SWEEP_WGSL),
         dev.createComputePipelineAsync({ layout: 'auto', compute: { module: dev.createShaderModule({ code: SIM_WGSL }), entryPoint: 'main' } })]);
-      gpu = { dev, fmt, vessel, pond: pondPipe, glass: glassPipe, sim, samp: dev.createSampler({ magFilter: 'linear', minFilter: 'linear' }) };
+      gpu = { dev, fmt, vessel, pond: pondPipe, glass: glassPipe, zoneSweep: sweepPipe, sim, samp: dev.createSampler({ magFilter: 'linear', minFilter: 'linear' }) };
       const error = await dev.popErrorScope(); if (error) throw error;
       dev.lost.then(info => { if (gpu?.dev === dev) fallback(info); });
       dev.addEventListener('uncapturederror', event => fallback(event.error));
@@ -646,14 +651,15 @@ export function createWaterFX() {
   };
 
   DM.addEventListener('change', () => { readPal(); if (ring) { ring.textKey = ''; ring.dirty = true; } apply(); });
-  RM.addEventListener('change', () => { ripples.length = 0; apply(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(frameId); frameId = 0; } else { last = performance.now(); wake(); } });
+  RM.addEventListener('change', () => { zoneSweep.settle(); ripples.length = 0; apply(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { zoneSweep.settle(); cancelAnimationFrame(frameId); frameId = 0; } else { last = performance.now(); wake(); } });
   addEventListener('resize', () => { pond?.resize(); glass?.resize(); wake(); });
   addEventListener('scroll', () => { if (glass) { glass.key = ''; wake(); } }, { passive: true });
   init();
 
   return {
-    update(next) { state = next; apply(); },
+    update(next) { state = next; if (!state.enabled || state.tab !== 'plan') zoneSweep.settle(); apply(); },
+    zoneEnabled(row, paused) { zoneSweep.update(row, paused); },
     // Confirmed outcomes only: the app calls this when the controller has answered.
     event(kind) {
       const [x, y] = origin();

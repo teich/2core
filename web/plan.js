@@ -1,6 +1,6 @@
 // The Plan tab: what each zone needs, and the nights that follow from it.
 // Advisory only. Edits save to the bridge's local store and never reach Tucor.
-import { CADENCES, NIGHTS, FALLBACK_SUNRISE, addDays, cadenceFromKey, cadenceKey, cadenceLabel, currentNight, dateKey, formatDuration, parseDuration, resolvePlan, sunrise } from './planner.js';
+import { CADENCES, DEFAULT_INTENT, NIGHTS, FALLBACK_SUNRISE, adjustedSeconds, addDays, cadenceFromKey, cadenceKey, cadenceLabel, currentNight, dateKey, formatDuration, parseDuration, resolvePlan, sunrise } from './planner.js';
 
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -21,13 +21,14 @@ const clockAt = min => {
   if (h === 0 && mm === 0) return 'midnight';
   return `${h % 12 || 12}:${String(mm).padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`;
 };
-const short = seconds => seconds < 60 ? `${seconds}s` : seconds < 3600 ? String(Math.round(seconds / 60)) : `${Math.floor(seconds / 3600)}h${Math.round(seconds % 3600 / 60) ? String(Math.round(seconds % 3600 / 60)).padStart(2, '0') : ''}`;
+const short = seconds => seconds < 60 ? `${seconds}s` : seconds < 3600 ? seconds % 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : String(seconds / 60) : `${Math.floor(seconds / 3600)}h${Math.round(seconds % 3600 / 60) ? String(Math.round(seconds % 3600 / 60)).padStart(2, '0') : ''}`;
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export function createPlan({ $, api, escape, message, html, getState }) {
+export function createPlan({ $, api, escape, message, html, getState, zoneEnabled }) {
   const drafts = new Map();          // zone id → intent shown before the server confirms it
   const saves = new Map();
   let rebalanceProposal = null, reviewing = false;
+  let seasonalSaving = false, seasonalEdited = false;
   const expandedCadences = new Set();
   const typed = new Map();           // zone id → unreadable duration text, kept so it can be fixed
   let settingsDraft = null, selected = 0, needsOnly = false, whatIf = new Set(), rowsKey = '';
@@ -43,7 +44,7 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     if (settingsDraft && same(saved, settingsDraft)) settingsDraft = null;
     return settingsDraft ?? saved;
   };
-  const blank = () => ({ seconds: null, cadence: null, enabled: true, firstDue: null, waterDuringRain: false });
+  const blank = () => ({ ...DEFAULT_INTENT });
 
   // A rain delay on the controller holds any night that starts before it ends.
   function rainNights(start, cfg) {
@@ -85,7 +86,8 @@ export function createPlan({ $, api, escape, message, html, getState }) {
   function build(list) {
     $('plan-rows').innerHTML = list.map(z => `<div class="prow" role="row" data-row="${z.id}">
       <div class="pzone" role="rowheader"><span class="zone-num num">${String(z.id).padStart(2, '0')}</span><span class="pz-text"><b>${escape(z.name)}</b><small data-meta></small><label class="rain-choice"><input type="checkbox" data-rain="${z.id}" aria-label="Water ${escape(z.name)} during rain delays">Water during rain delays</label></span></div>
-      <label class="pdur" role="cell"><input class="num" data-dur="${z.id}" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Run length for ${escape(z.name)}, in minutes"><span>min</span></label>
+      <label class="pdur" role="cell"><input class="num" data-dur="${z.id}" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="100% run length for ${escape(z.name)}, in minutes"><span>min</span></label>
+      <div class="pseasonal" role="cell"><label class="pdur"><input class="num" data-seasonal="${z.id}" type="number" min="50" max="200" step="1" required inputmode="numeric" aria-label="Seasonal percentage for ${escape(z.name)}"><span>%</span></label><small class="num" data-adjusted></small></div>
       <div class="pcad" role="cell"><label class="zone-enabled"><input type="checkbox" data-enabled="${z.id}" aria-label="Enable ${escape(z.name)} in the watering plan">Enabled</label><select data-cad="${z.id}" aria-label="How often ${escape(z.name)} waters"></select></div>
       <div class="pcells" data-cells></div>
       <span class="pnext num" role="cell" data-next></span>
@@ -96,6 +98,13 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     const state = getState();
     if (!state?.plan) return;
     const list = zones(), cfg = settings(), all = intents();
+    const percentages = new Set(list.map(z => all[z.id]?.seasonalPercent ?? 100));
+    const commonPercent = percentages.size === 1 ? [...percentages][0] : null;
+    $('seasonal-status').textContent = seasonalSaving ? 'Saving all zones…' : !list.length ? 'Load zones to get started.' : commonPercent == null ? 'Mixed percentages · individual adjustments are active' : `All zones at ${commonPercent}%`;
+    if (!seasonalEdited && document.activeElement !== $('seasonal-all')) $('seasonal-all').value = commonPercent ?? '';
+    $('seasonal-all').placeholder = 'Mixed';
+    $('seasonal-all').disabled = seasonalSaving || !list.length;
+    $('seasonal-apply').disabled = seasonalSaving || !list.length;
     const key = list.map(z => `${z.id}:${z.name}`).join('|');
     if (key !== rowsKey) { rowsKey = key; build(list); }
     const start = currentNight();
@@ -149,12 +158,16 @@ export function createPlan({ $, api, escape, message, html, getState }) {
       const row = document.querySelector(`[data-row="${z.id}"]`), p = byId[z.id], intent = all[z.id] ?? blank();
       const hidden = needsOnly && !NEEDS.has(p.problem);
       row.hidden = hidden; if (!hidden) shown++;
-      row.classList.toggle('paused', p.problem === 'paused');
+      zoneEnabled(row, intent.enabled === false);
       row.classList.toggle('todo', NEEDS.has(p.problem));
       const input = row.querySelector('[data-dur]'), select = row.querySelector('[data-cad]');
       if (document.activeElement !== input) input.value = typed.get(z.id) ?? (intent.seconds == null ? '' : String(Number((intent.seconds / 60).toFixed(4))));
       input.closest('label').classList.toggle('invalid', typed.has(z.id));
       input.closest('label').classList.toggle('empty', !intent.seconds && !typed.has(z.id));
+      const seasonal = row.querySelector('[data-seasonal]'), seconds = adjustedSeconds(intent);
+      if (document.activeElement !== seasonal) seasonal.value = intent.seasonalPercent ?? 100;
+      row.querySelector('[data-adjusted]').textContent = intent.seconds == null ? '—' : `${formatDuration(seconds)} now`;
+      row.querySelectorAll('input, select').forEach(el => { el.disabled = seasonalSaving; });
       const cad = cadenceKey(intent.cadence);
       const common = [{ every: 2 }, { perWeek: 3 }, { perWeek: 2 }, { every: 7 }];
       const choices = expandedCadences.has(z.id) ? CADENCES : common;
@@ -174,13 +187,13 @@ export function createPlan({ $, api, escape, message, html, getState }) {
         : p.problem === 'duration' ? ['Add a run length', 'warn']
         : p.problem === 'cadence' ? ['Choose how often', 'warn']
         : p.problem === 'paused' ? ['Disabled · settings kept', '']
-        : [`≈ ${formatDuration(Math.max(60, Math.round(p.weeklySeconds / 60) * 60))} a week`, ''];
+        : [`≈ ${formatDuration(Math.round(p.weeklySeconds))} a week`, ''];
       const metaEl = row.querySelector('[data-meta]');
       metaEl.textContent = meta[0]; metaEl.className = meta[1];
       const cells = p.cells.map((c, d) => {
         const date = addDays(start, d), when = `${WEEKDAY[date.getDay()]} ${MONTH[date.getMonth()]} ${date.getDate()}`;
         const cls = `pc${d === selected ? ' sel' : ''}${plan.nights[d].rain ? ' rain' : ''}`;
-        if (c.kind === 'water') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} waters ${formatDuration(intent.seconds)} ${when}${c.late ? `, ${c.late} night${c.late > 1 ? 's' : ''} late` : ''}"><span class="pill-run${c.late ? ' late' : ''} num">${short(intent.seconds)}</span></button>`;
+        if (c.kind === 'water') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} waters ${formatDuration(seconds)} ${when}${c.late ? `, ${c.late} night${c.late > 1 ? 's' : ''} late` : ''}"><span class="pill-run${c.late ? ' late' : ''} num">${short(seconds)}</span></button>`;
         if (c.kind === 'held') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} is due ${when} and waits out the rain"><span class="pill-held">${RAIN_ICON}</span></button>`;
         if (c.kind === 'deferred') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} is due ${when} but doesn’t fit"><span class="pill-over">!</span></button>`;
         return `<button class="${cls}" data-night="${d}" aria-label="Show ${escape(z.name)} on ${when}"${p.problem ? ' disabled' : ''}><i></i></button>`;
@@ -296,6 +309,23 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     root.querySelectorAll('[data-width]').forEach(el => { el.style.width = `${el.dataset.width}%`; });
   }
 
+  $('seasonal-all').addEventListener('input', () => { seasonalEdited = true; });
+  $('seasonal-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (seasonalSaving || !$('seasonal-all').reportValidity()) return;
+    const seasonalPercent = Number($('seasonal-all').value);
+    seasonalSaving = true;
+    render();
+    try {
+      await Promise.all([...saves.values()]);
+      const result = await api('/plan/seasonal', { seasonalPercent });
+      for (const [id, intent] of Object.entries(result.plan.intents)) drafts.set(id, intent);
+      seasonalEdited = false;
+      message(`All zones set to ${seasonalPercent}%. Your 100% run lengths are kept.`);
+    } catch (e) { message(`Couldn’t set all zones: ${e.message}`, true); }
+    finally { seasonalSaving = false; render(); }
+  });
+
   const view = $('plan-view');
   view.addEventListener('click', e => {
     const night = e.target.closest('[data-night]'), rain = e.target.closest('[data-whatif]'), lanes = e.target.closest('[data-lanes]');
@@ -316,8 +346,11 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     render();
   });
   view.addEventListener('change', e => {
-    const input = e.target.closest('[data-dur]'), select = e.target.closest('[data-cad]'), rain = e.target.closest('[data-rain]'), enabled = e.target.closest('[data-enabled]');
-    if (input) {
+    const input = e.target.closest('[data-dur]'), select = e.target.closest('[data-cad]'), rain = e.target.closest('[data-rain]'), enabled = e.target.closest('[data-enabled]'), seasonal = e.target.closest('[data-seasonal]');
+    if (seasonal) {
+      if (!seasonal.reportValidity()) return;
+      saveIntent(seasonal.dataset.seasonal, { seasonalPercent: Number(seasonal.value) });
+    } else if (input) {
       const id = input.dataset.dur, seconds = parseDuration(input.value);
       if (Number.isNaN(seconds) || seconds > 4 * 3600 || seconds === 0) { typed.set(id, input.value); render(); return; }
       typed.delete(id);

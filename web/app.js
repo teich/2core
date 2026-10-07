@@ -571,7 +571,7 @@ async function waitUntilIdle(limit = 15000) {
   return !controlsBusy();
 }
 
-const plan = createPlan({ $, api, escape, message, html, getState: () => state });
+const plan = createPlan({ $, api, escape, message, html, getState: () => state, zoneEnabled: waterFX.zoneEnabled });
 
 /* ---------- events ---------- */
 $('login-form').addEventListener('submit', async e => { e.preventDefault(); key = $('access-key').value.trim(); sessionStorage.setItem('2core-key',key); prepare(true); await load(); });

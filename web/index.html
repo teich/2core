@@ -94,16 +94,21 @@
             <button id="plan-rebalance" class="outline">Review rebalance</button>
           </div></details>
         </div>
+        <form id="seasonal-form" class="group seasonal-panel">
+          <div><h2>Seasonal adjustment</h2><p class="hint">100% is your baseline run length. Set every zone together from 50–200%, then fine-tune any zone below.</p><p id="seasonal-status" class="muted" aria-live="polite"></p></div>
+          <label for="seasonal-all">Set all zones to <span class="seasonal-value"><input id="seasonal-all" class="num" type="number" min="50" max="200" step="1" required value="100" inputmode="numeric"><span>%</span></span></label>
+          <button id="seasonal-apply" class="primary" type="submit">Set all zones</button>
+        </form>
         <div id="rebalance-prompt" class="group rebalance-prompt" hidden><p>Zone availability changed. You can spread the remaining watering more evenly.</p><button id="review-rebalance" class="outline">Review rebalance</button><button id="dismiss-rebalance" class="quiet">Not now</button></div>
         <section id="night-card" class="group night-card" aria-label="Selected night"></section>
         <section class="group plan-table" aria-labelledby="plan-table-title">
           <div class="plan-table-head">
-            <div><h2 id="plan-table-title">What each zone needs</h2><p class="hint">Enter minutes and frequency. Watering is automatically spread across nights.</p></div>
+            <div><h2 id="plan-table-title">What each zone needs</h2><p class="hint">Enter baseline minutes at 100%. Seasonal percentages change run lengths, not frequency.</p></div>
             <div class="filters"><button id="plan-all" class="chip" aria-pressed="true">All</button><button id="plan-needs" class="chip" aria-pressed="false">Needs a plan <b id="plan-needs-count">0</b></button></div>
           </div>
           <div class="plan-scroll">
             <div class="plan-grid" role="table" aria-label="Zones by night">
-              <div class="prow phead" role="row"><span class="pzone" role="columnheader">Zone</span><span role="columnheader">Each run</span><span role="columnheader">How often</span><div class="pcells" id="plan-head-nights"></div><span class="pnext" role="columnheader">Next</span></div>
+              <div class="prow phead" role="row"><span class="pzone" role="columnheader">Zone</span><span role="columnheader">100% min</span><span role="columnheader">Seasonal %</span><span role="columnheader">How often</span><div class="pcells" id="plan-head-nights"></div><span class="pnext" role="columnheader">Next</span></div>
               <div id="plan-rows" role="rowgroup"></div>
               <p id="plan-empty" class="empty" hidden></p>
               <div class="prow pfoot" role="row"><span class="pzone" role="rowheader">Done by<small>and how full the night is</small></span><div class="pcells" id="plan-foot-nights"></div><span></span></div>

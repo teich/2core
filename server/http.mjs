@@ -14,6 +14,7 @@ const authorized = (header, key) => {
   return value.length === expected.length && timingSafeEqual(value, expected);
 };
 STATIC['/auth.js'] = ['auth.js', 'text/javascript'];
+STATIC['/zone-sweep.js'] = ['zone-sweep.js', 'text/javascript'];
 STATIC['/plan.js'] = ['plan.js', 'text/javascript'];
 // The planner is shared with the server, so it lives outside web/.
 STATIC['/planner.js'] = ['../lib/planner.mjs', 'text/javascript'];
@@ -64,6 +65,7 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       // they skip the command queue and answer immediately.
       const intent = path.match(/^\/api\/zones\/(\d+)\/intent$/);
       if (intent) return json(200, engine.intent(intent[1], payload));
+      if (path === '/api/plan/seasonal') return json(200, engine.seasonalAdjustment(payload));
       if (path === '/api/plan/rebalance-preview') return json(200, engine.rebalancePreview());
       if (path === '/api/plan/rebalance') return json(200, engine.rebalance(payload));
       if (path === '/api/plan') return json(200, engine.planSettings(payload));
