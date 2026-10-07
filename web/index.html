@@ -30,6 +30,9 @@
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 3v4M16 3v4M3.5 10h17"/><circle cx="8.5" cy="14.5" r="1.4" fill="currentColor"/><circle cx="12" cy="14.5" r="1.4" fill="currentColor"/><circle cx="15.5" cy="14.5" r="1.4" fill="currentColor"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="14" r="4" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 4v2.5M4.5 14H3M21 14h-1.5M6.7 8.7l-1-1M17.3 8.7l1-1M3 19.5h18"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" d="M16 5.5A2.5 2.5 0 0 0 13.5 3h-7A3.5 3.5 0 0 0 3 6.5v7A2.5 2.5 0 0 0 5.5 16"/></symbol>
+    <symbol id="i-tune" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 12h12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 12h12M12 6v12"/></symbol>
   </svg>
 
   <canvas id="pond" aria-hidden="true"></canvas>
@@ -84,54 +87,22 @@
       </section>
 
       <section id="plan-view" hidden aria-labelledby="view-title">
-        <div class="plan-top">
-          <div class="plan-intro"><span class="plan-preview">Preview only · controller schedules unchanged</span><p id="plan-summary" class="muted"></p></div>
-          <details class="plan-settings-panel"><summary>Night settings</summary><div class="plan-settings">
-            <label>Start after<select id="plan-earliest"><option value="1260">9:00pm</option><option value="1320">10:00pm</option><option value="1380">11:00pm</option><option value="1440">Midnight</option><option value="1500">1:00am</option></select></label>
-            <label>Try to finish<select id="plan-finish"><option value="30">30 min before sunrise</option><option value="15">15 min before sunrise</option><option value="0">By sunrise</option></select></label>
-            <label>Never past<select id="plan-hard"><option value="420">7:00am</option><option value="480">8:00am</option><option value="540">9:00am</option><option value="600">10:00am</option></select></label>
-            <div class="plan-lanes"><span id="plan-lanes-label">Maximum zones at once</span><div class="modes" role="radiogroup" aria-labelledby="plan-lanes-label"><button role="radio" data-lanes="1" aria-checked="false">1</button><button role="radio" data-lanes="2" aria-checked="false">2</button></div><span>One at a time; a second only when needed.</span></div>
-            <button id="plan-programs" class="outline">Preview controller programs</button>
-            <button id="plan-rebalance" class="outline">Review rebalance</button>
-          </div></details>
-        </div>
-        <section id="plan-fit" class="group plan-fit" aria-labelledby="plan-fit-title" aria-live="polite">
-          <h2 id="plan-fit-title">Checking the watering plan</h2>
-          <p id="plan-fit-state"></p>
-          <p id="plan-fit-edit"></p>
-          <div id="plan-fit-scenarios"></div>
-          <div id="plan-fit-alternatives"></div>
-          <p id="plan-fit-error" role="status"></p>
-          <div class="fit-actions"><button id="fit-check" class="outline">Check draft again</button><button id="fit-save" class="primary">Save this change</button><button id="fit-unfinished" class="outline">Save as unfinished plan</button><button id="fit-discard" class="quiet">Discard draft</button></div>
-          <details><summary>Seasonal comparison zones</summary><p>Check the plan with these zones both off and on. This selection does not enable or disable watering.</p><div id="fit-seasonal-zones"></div></details>
-        </section>
+        <p class="plan-preview">Preview only · controller schedules unchanged</p>
+        <button id="plan-status" class="plan-status" aria-haspopup="dialog"><span id="plan-status-icon" class="badge-icon small"><svg><use href="#i-check"/></svg></span><span class="plan-status-text"><b id="plan-status-title">Checking the plan…</b><small id="plan-status-detail"></small></span><svg class="chev" aria-hidden="true"><use href="#i-next"/></svg></button>
         <div id="rebalance-prompt" class="group rebalance-prompt" hidden><p>Zone availability changed. You can spread the remaining watering more evenly.</p><button id="review-rebalance" class="outline">Review rebalance</button><button id="dismiss-rebalance" class="quiet">Not now</button></div>
-        <section id="night-card" class="group night-card" aria-label="Selected night"></section>
-        <section class="group plan-table" aria-labelledby="plan-table-title">
-          <div class="plan-table-head">
-            <div><h2 id="plan-table-title">Zones &amp; schedule</h2><p class="hint">Set each zone’s rhythm. Select a night to explore its schedule.</p></div>
-            <div class="filters"><button id="plan-all" class="chip" aria-pressed="true">All</button><button id="plan-needs" class="chip" aria-pressed="false">Needs a plan <b id="plan-needs-count">0</b></button></div>
-          </div>
-          <div class="plan-toolbar">
-            <details class="seasonal-details"><summary>Seasonal adjustment <span id="seasonal-status" aria-live="polite"></span></summary>
-              <form id="seasonal-form" class="seasonal-panel">
-                <p class="hint">Scale run lengths from 50–200%. Baseline minutes and frequency stay the same.</p>
-                <label for="seasonal-all">All zones <span class="seasonal-value"><input id="seasonal-all" class="num" type="number" min="50" max="200" step="1" required value="100" inputmode="numeric"><span>%</span></span></label>
-                <button id="seasonal-apply" class="outline" type="submit">Apply to all</button>
-              </form>
-            </details>
-            <span class="hint plan-horizon">Next 14 nights · minutes per run</span>
-          </div>
-          <div class="plan-scroll">
-            <div class="plan-grid" role="table" aria-label="Zones by night">
-              <div class="prow phead" role="row"><span class="pzone" role="columnheader">Zone</span><span role="columnheader">Baseline</span><span role="columnheader">Seasonal</span><span role="columnheader">Frequency</span><span class="prain-head" role="columnheader" title="Keep planned watering during rain delays">Water in rain</span><div class="pcells" id="plan-head-nights"></div><span class="pnext" role="columnheader">Next</span></div>
-              <div id="plan-rows" role="rowgroup"></div>
-              <p id="plan-empty" class="empty" hidden></p>
-              <div class="prow pfoot" role="row"><span class="pzone" role="rowheader">Done by<small>and how full the night is</small></span><div class="pcells" id="plan-foot-nights"></div><span></span></div>
-            </div>
-          </div>
-        </section>
-        <details class="plan-help"><summary>How the plan works</summary><p class="hint plan-rule">2core spreads zones across nights automatically; no starting dates are needed. Initial placement is saved. Editing a zone keeps its next watering date; other zones keep their rhythm. Disable seasonal zones to omit them while keeping their settings. Rebalancing requires reviewing and confirming the date changes. A rain hold postpones exposed zones until the next clear night and shifts their rhythm from that watering. Zones marked “Water during rain delays” keep their normal rhythm. Twice a week alternates 3- and 4-day gaps. This is a preview: saved preferences do not change controller schedules or bypass its rain delay.</p></details>
+        <div class="plan-chips"><button id="plan-open-night" class="chip" aria-haspopup="dialog"><svg><use href="#i-clock"/></svg><span id="plan-window">Night</span></button><button id="plan-open-seasonal" class="chip" aria-haspopup="dialog"><svg><use href="#i-sun"/></svg>Seasonal <b id="seasonal-status">100%</b></button><button id="plan-open-settings" class="chip" aria-haspopup="dialog"><svg><use href="#i-tune"/></svg>More</button></div>
+        <div class="plan-layout">
+          <section class="group night-panel" aria-label="Nights">
+            <div id="plan-nights" class="night-strip" aria-label="Choose a night"></div>
+            <div id="night-card" class="night-card" aria-live="polite"></div>
+          </section>
+          <section class="group plan-zones" aria-labelledby="plan-zones-title">
+            <div class="plan-zones-head"><h2 id="plan-zones-title">Zones</h2><div class="filters"><button id="plan-all" class="chip" aria-pressed="true">All</button><button id="plan-needs" class="chip" aria-pressed="false">Needs a plan <b id="plan-needs-count">0</b></button></div></div>
+            <p class="hint plan-zones-hint">Tap a zone to set its run length and how often it waters.</p>
+            <div id="plan-rows"></div>
+            <p id="plan-empty" class="empty" hidden></p>
+          </section>
+        </div>
       </section>
 
       <section id="rain-view" hidden aria-labelledby="view-title">
@@ -166,23 +137,100 @@
     <nav class="tabs capsule" id="tabs" aria-label="Sections"><button data-tab="zones" aria-current="page"><svg><use href="#i-drop"/></svg>Zones</button><button data-tab="walk"><svg><use href="#i-feet"/></svg>Walk</button><button data-tab="plan"><svg><use href="#i-calendar"/></svg>Plan</button><button data-tab="rain"><svg><use href="#i-rain"/></svg>Weather</button><button data-tab="activity"><svg><use href="#i-list"/></svg>Activity</button></nav>
   </div>
 
-  <dialog id="program-dialog" class="sheet" aria-labelledby="program-title">
-    <div class="sheet-head"><div><h2 id="program-title">Controller program preview</h2><p class="muted">Dry run · no controller changes</p></div><button id="close-programs" class="outline">Close</button></div>
-    <p>Compare fixed, repeating programs with the saved intentions. Dry weather only; rainfall credit and recovery will be modeled separately.</p>
-    <fieldset id="program-overrides"><legend>Seasonal comparison — enable paused zones for this preview</legend></fieldset>
-    <button id="compare-programs" class="outline">Compare selected zones enabled</button>
-    <p id="program-error" role="status"></p>
-    <div id="program-results"></div>
+  <dialog id="plan-zone-dialog" class="sheet plan-sheet" aria-labelledby="pz-name">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span id="pz-number" class="zone-num lg num"></span><div><h2 id="pz-name"></h2><p id="pz-summary" class="muted"></p></div><button id="pz-close" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <label class="switch-row"><span><b>Water this zone</b><small>Turn off for the season. Its settings are kept.</small></span><input id="pz-enabled" type="checkbox" role="switch"></label>
+      <div id="pz-fields">
+        <div class="pz-field"><span class="pz-label" id="pz-minutes-label">Run length</span>
+          <div class="stepper"><button type="button" data-step="minutes:-1" aria-label="Shorter"><svg><use href="#i-minus"/></svg></button><label class="stepper-value"><input id="pz-minutes" class="num" inputmode="decimal" autocomplete="off" placeholder="—" aria-labelledby="pz-minutes-label"><span>min</span></label><button type="button" data-step="minutes:1" aria-label="Longer"><svg><use href="#i-plus"/></svg></button></div>
+          <div id="pz-presets" class="presets pz-presets" aria-label="Common run lengths"></div>
+        </div>
+        <div class="pz-field"><span class="pz-label" id="pz-cadence-label">How often</span>
+          <div id="pz-cadence" class="choice-grid" role="radiogroup" aria-labelledby="pz-cadence-label"></div>
+          <small id="pz-cadence-hint" class="hint warn-text"></small>
+        </div>
+        <div class="pz-field"><span class="pz-label" id="pz-seasonal-label">Seasonal adjustment</span>
+          <div class="stepper"><button type="button" data-step="seasonal:-1" aria-label="Less water"><svg><use href="#i-minus"/></svg></button><label class="stepper-value"><input id="pz-seasonal" class="num" type="number" min="50" max="200" step="1" inputmode="numeric" aria-labelledby="pz-seasonal-label"><span>%</span></label><button type="button" data-step="seasonal:1" aria-label="More water"><svg><use href="#i-plus"/></svg></button></div>
+          <small id="pz-seasonal-hint" class="hint"></small>
+        </div>
+        <label class="switch-row"><span><b>Water during rain delays</b><small>For covered beds and pots that rain doesn’t reach. Preview only; the controller’s rain delay still applies.</small></span><input id="pz-rain" type="checkbox" role="switch"></label>
+      </div>
+      <p id="pz-error" class="failure" role="alert"></p>
+    </div>
+    <div class="sheet-foot"><button id="pz-cancel" class="outline">Cancel</button><button id="pz-save" class="primary">Save</button></div>
   </dialog>
 
-  <dialog id="rebalance-dialog" class="sheet" aria-labelledby="rebalance-title">
+  <dialog id="plan-review-dialog" class="sheet plan-sheet" aria-labelledby="plan-fit-title">
     <div class="grab" aria-hidden="true"></div>
-    <h2 id="rebalance-title">Review rebalance</h2>
-    <p id="rebalance-summary"></p>
-    <ul id="rebalance-changes" class="rebalance-changes"></ul>
-    <p class="hint">These are regular watering dates; rain can postpone exposed zones. Run lengths stay the same. This changes the saved preview only, not controller schedules.</p>
-    <p id="rebalance-error" role="alert"></p>
-    <div class="dialog-actions"><button id="cancel-rebalance" class="outline">Keep current dates</button><button id="confirm-rebalance" class="primary">Confirm rebalance</button></div>
+    <div class="sheet-head"><span id="plan-fit-icon" class="badge-icon small"><svg><use href="#i-check"/></svg></span><div><h2 id="plan-fit-title">Watering plan check</h2><p id="plan-fit-state" class="muted"></p></div><button id="fit-close" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body plan-fit" aria-live="polite">
+      <ul id="plan-fit-edit" class="fit-edits"></ul>
+      <div id="plan-fit-scenarios"></div>
+      <div id="plan-fit-alternatives"></div>
+      <p id="plan-fit-error" class="failure" role="status"></p>
+      <p class="hint">Checked against dry weather for the next fourteen nights. Nothing is sent to the controller.</p>
+    </div>
+    <div class="sheet-foot fit-actions"><button id="fit-discard" class="outline">Discard</button><button id="fit-check" class="outline">Check again</button><button id="fit-unfinished" class="outline">Save anyway</button><button id="fit-save" class="primary">Save</button></div>
+  </dialog>
+
+  <dialog id="plan-settings-dialog" class="sheet plan-sheet" aria-labelledby="plan-settings-title">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span class="badge-icon small"><svg><use href="#i-tune"/></svg></span><div><h2 id="plan-settings-title">Plan settings</h2><p class="muted">Changes are checked before they save.</p></div><button id="close-plan-settings" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <section id="settings-night" class="settings-section">
+        <h3>Night window</h3>
+        <label class="setting-row">Start after<select id="plan-earliest"><option value="1260">9:00pm</option><option value="1320">10:00pm</option><option value="1380">11:00pm</option><option value="1440">Midnight</option><option value="1500">1:00am</option></select></label>
+        <label class="setting-row">Try to finish<select id="plan-finish"><option value="30">30 min before sunrise</option><option value="15">15 min before sunrise</option><option value="0">By sunrise</option></select></label>
+        <label class="setting-row">Never past<select id="plan-hard"><option value="420">7:00am</option><option value="480">8:00am</option><option value="540">9:00am</option><option value="600">10:00am</option></select></label>
+        <div class="setting-row"><span id="plan-lanes-label">Zones at once</span><div class="modes lanes-modes" role="radiogroup" aria-labelledby="plan-lanes-label"><button role="radio" data-lanes="1" aria-checked="false">1</button><button role="radio" data-lanes="2" aria-checked="false">Up to 2</button></div></div>
+        <p class="hint">One zone at a time; a second only when the night is too short.</p>
+      </section>
+      <section id="settings-seasonal" class="settings-section">
+        <h3>Seasonal adjustment</h3>
+        <form id="seasonal-form" class="seasonal-panel">
+          <div class="stepper"><button type="button" data-step="all:-1" aria-label="Less water"><svg><use href="#i-minus"/></svg></button><label class="stepper-value"><input id="seasonal-all" class="num" type="number" min="50" max="200" step="1" required value="100" inputmode="numeric" aria-label="Seasonal percentage for all zones"><span>%</span></label><button type="button" data-step="all:1" aria-label="More water"><svg><use href="#i-plus"/></svg></button></div>
+          <button id="seasonal-apply" class="primary" type="submit">Apply to all zones</button>
+        </form>
+        <p class="hint">Scales every run length from 50–200%. Baseline minutes and frequency stay the same; you can fine-tune single zones afterwards.</p>
+      </section>
+      <section class="settings-section">
+        <h3>Seasonal comparison</h3>
+        <p class="hint">Check the plan with these zones both off and on, so turning them back on next season still fits. This does not turn watering on or off.</p>
+        <div id="fit-seasonal-zones" class="check-list"></div>
+      </section>
+      <section class="settings-section">
+        <h3>Tools</h3>
+        <button id="plan-rebalance" class="soft wide-row">Even out watering dates<small>Review date changes before they save</small></button>
+        <button id="plan-programs" class="soft wide-row">Preview controller programs<small>Dry run · no controller changes</small></button>
+      </section>
+      <details class="plan-help"><summary>How the plan works</summary><p class="hint">2core spreads zones across nights automatically; no starting dates are needed. Editing a zone keeps its next watering date; other zones keep their rhythm. Turn seasonal zones off to omit them while keeping their settings. Rebalancing requires reviewing and confirming the date changes. A rain hold postpones exposed zones until the next clear night and shifts their rhythm from that watering. Zones marked “Water during rain delays” keep their normal rhythm. Twice a week alternates 3- and 4-day gaps. This is a preview: saved preferences do not change controller schedules or bypass its rain delay.</p></details>
+    </div>
+  </dialog>
+
+  <dialog id="program-dialog" class="sheet plan-sheet" aria-labelledby="program-title">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span class="badge-icon small"><svg><use href="#i-calendar"/></svg></span><div><h2 id="program-title">Controller programs</h2><p class="muted">Dry run · no controller changes</p></div><button id="close-programs" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <p class="hint">How the saved plan would become fixed, repeating controller programs. Dry weather only.</p>
+      <fieldset id="program-overrides" class="check-list"></fieldset>
+      <button id="compare-programs" class="outline">Compare with these zones on</button>
+      <p id="program-error" role="status"></p>
+      <div id="program-results"></div>
+    </div>
+  </dialog>
+
+  <dialog id="rebalance-dialog" class="sheet plan-sheet" aria-labelledby="rebalance-title">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-head"><span class="badge-icon small"><svg><use href="#i-calendar"/></svg></span><div><h2 id="rebalance-title">Even out watering dates</h2><p class="muted">Review before anything changes</p></div><button id="close-rebalance" class="icon-button" aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <p id="rebalance-summary"></p>
+      <ul id="rebalance-changes" class="rebalance-changes"></ul>
+      <p class="hint">These are regular watering dates; rain can postpone exposed zones. Run lengths stay the same. This changes the saved preview only, not controller schedules.</p>
+      <p id="rebalance-error" role="alert"></p>
+    </div>
+    <div class="sheet-foot"><button id="cancel-rebalance" class="outline">Keep current dates</button><button id="confirm-rebalance" class="primary">Confirm</button></div>
   </dialog>
 
   <dialog id="zone-dialog" class="sheet" aria-labelledby="sheet-name">
@@ -196,6 +244,7 @@
     <p id="sheet-blocked" class="hint"></p>
     <button id="sheet-start" class="primary wide"></button>
     <button id="sheet-stop" class="stop wide" hidden><svg><use href="#i-stop"/></svg>Stop watering</button>
+    <button id="sheet-plan" class="plan-link" hidden><svg aria-hidden="true"><use href="#i-calendar"/></svg><span><b>Watering plan</b><small id="sheet-plan-text"></small></span><svg class="chev" aria-hidden="true"><use href="#i-next"/></svg></button>
     <div class="sheet-secondary"><button id="sheet-favorite" class="soft" aria-pressed="false"><svg><use href="#i-star"/></svg><span>Favorite</span></button><button id="sheet-flag" class="soft flag"><svg><use href="#i-flag"/></svg>Flag</button><button id="edit-zone" class="soft"><svg><use href="#i-pencil"/></svg>Edit</button></div>
     <div id="sheet-issues" class="issue-list"></div>
     <p id="sheet-notes" class="note-text"></p>

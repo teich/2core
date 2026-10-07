@@ -297,6 +297,8 @@ function renderSheet() {
   $('sheet-start').innerHTML = `${icon('drop')}Water for ${duration(minutes)}`;
   $('sheet-stop').hidden = !(zone.running && zone.owned) || mode === 'stopping';
   $('sheet-stop').disabled = !canControl();
+  const planText = plan.describeZone(zone.id);
+  $('sheet-plan').hidden = !planText; $('sheet-plan-text').textContent = planText ?? '';
   $('sheet-favorite').setAttribute('aria-pressed', String(zone.favorite));
   $('sheet-favorite').querySelector('span').textContent = zone.favorite ? 'Favorite' : 'Favorite';
   $('sheet-favorite').setAttribute('aria-label', zone.favorite ? 'Remove from favorites' : 'Add to favorites');
@@ -641,6 +643,7 @@ function openFlag(id) {
   $('flag-dialog').showModal();
 }
 $('walk-flag').addEventListener('click', () => openFlag(getWalkZone()?.id));
+$('sheet-plan').addEventListener('click', () => { const id = selected; $('zone-dialog').close(); plan.openZone(id); });
 $('sheet-flag').addEventListener('click', () => { const id = selected; $('zone-dialog').close(); openFlag(id); });
 $('flag-options').addEventListener('click', e => {
   const b = e.target.closest('[data-issue]'); if (!b || !flagZone) return;
