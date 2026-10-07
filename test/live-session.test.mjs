@@ -434,3 +434,25 @@ test('programs pushed during controller selection are kept without asking Tucor 
   assert.equal(cloud.sent.filter(p => p.component === 'Programs').length, 0);
   assert.equal(cloud.sockets.length, 1);
 });
+
+test('a token from a password login survives a restart and is replaced once rejected', async t => {
+  const saved = { value: null };
+  const tokenStore = { load: () => saved.value, save: v => (saved.value = v) };
+  const first = await fixture(t, { token: undefined, user: 'garden', password: 'pw', tokenStore });
+  await first.driver.withSession(async () => {});
+  assert.equal(saved.value, 'fresh-token');
+
+  // After a restart the saved token is used without a password login, even over a configured one.
+  const second = await fixture(t, { token: 'configured', user: 'garden', password: 'pw', tokenStore });
+  await second.driver.withSession(async () => {});
+  assert.equal(second.cloud.http.filter(p => p.includes('get-token')).length, 0);
+  assert.equal(second.cloud.sent.find(p => p.command === 'login').data.token, 'fresh-token');
+
+  // A rejected saved token costs one login, and the new token is saved.
+  saved.value = 'expired';
+  const third = await fixture(t, { token: undefined, user: 'garden', password: 'pw', tokenStore });
+  third.cloud.rejectToken = 'expired';
+  await third.driver.withSession(async () => {});
+  assert.equal(third.cloud.http.filter(p => p.includes('get-token')).length, 1);
+  assert.equal(saved.value, 'fresh-token');
+});

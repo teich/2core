@@ -9,7 +9,7 @@ This proposal incorporates repository inspection, read-only production queries o
 ## Scope and working defaults
 
 - This is for one owner and one irrigation system. Solve the actual schedule before generalizing for hypothetical cases.
-- Be a good Tucor citizen: minimize cloud contact, avoid background polling, and preserve the existing twenty-session-per-hour and six-password-login-per-day limits. Occasional schedule and rain-hold writes fit that priority better than supervising every zone overnight.
+- Be a good Tucor citizen: minimize cloud contact, avoid background polling, and preserve the existing twenty-session-per-hour and password-login-per-day limits (24 a day since 2026-10-07). Occasional schedule and rain-hold writes fit that priority better than supervising every zone overnight.
 - At most two zones may water simultaneously, including automatic and manual work. No additional incompatible zone combinations or soak requirements are currently known.
 - Prefer finishing before sunrise. Exact timing is not mission critical.
 - Intervals count from watering; rain skips postpone watering and shift later dates. Twice a week means roughly every three to four days.

@@ -6,7 +6,7 @@
 
 The bridge is the single client responsible for Tucor sessions, command serialization, local preferences, and weather decisions. Phones talk to the bridge over the local network; the bridge talks to Tucor's cloud service and reads weather from WeatherFlow's. Tucor account credentials stay on the bridge.
 
-**2core is designed to be a light, polite Tucor client.** It never polls Tucor in the background. It connects only while someone is using the app, when a command is sent, or when a weather decision needs to write a rain delay. Hard limits (20 sessions per hour, 6 password logins per day) and backoff after failures hold even if a client misbehaves, and persist across restarts.
+**2core is designed to be a light, polite Tucor client.** It never polls Tucor in the background. It connects only while someone is using the app, when a command is sent, or when a weather decision needs to write a rain delay. Hard limits (20 sessions per hour, 24 password logins per day) and backoff after failures hold even if a client misbehaves, and persist across restarts.
 
 Live controller reads have been verified during protocol research. Physical start/stop and rain-delay writes are implemented from the vendor frontend's protocol, but should be validated with someone present at the irrigation system before unattended use. Live writes are disabled by default.
 

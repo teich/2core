@@ -6,13 +6,13 @@ import { trace } from './telemetry.mjs';
 // Tucor is a shared vendor service: every new session costs it a device list request,
 // a socket, a login, and a controller selection. These caps hold even if a
 // client or automation misbehaves, and survive restarts through the ledger.
-export const TUCOR_LIMITS = Object.freeze({ sessionsPerHour: 20, loginsPerDay: 6 });
+export const TUCOR_LIMITS = Object.freeze({ sessionsPerHour: 20, loginsPerDay: 24 });
 const BACKOFF_MS = [30000, 60000, 120000, 300000, 600000, 900000];
 const HOUR = 3600000,
   DAY = 24 * HOUR;
 const minutesFrom = (at, now) => `${Math.max(1, Math.ceil((at - now) / 60000))} min`;
 const tokenRejected = message => Object.assign(new Error(message), { code: 'TOKEN_REJECTED' });
-function memoryLedger() {
+function memory() {
   let value = null;
   return {
     load: () => value,
@@ -37,13 +37,17 @@ export class LiveDriver {
     freshMs = 3000,
     waitMs = 20000,
     releaseMs = 500,
-    ledger = memoryLedger(),
+    ledger = memory(),
+    tokenStore = memory(),
     limits = TUCOR_LIMITS,
     random = Math.random,
   }) {
     this.user = user;
     this.password = password;
-    this.token = token;
+    // A token saved by an earlier run wins over the configured one: restarts and
+    // deploys would otherwise each cost a password login.
+    this.tokenStore = tokenStore;
+    this.token = tokenStore.load() ?? token;
     this.controllerId = controllerId;
     this.socketFactory = socketFactory;
     this.logger = logger;
@@ -154,6 +158,7 @@ export class LiveDriver {
     }
     if (typeof token !== 'string' || !token) throw new Error('Unexpected Tucor login response');
     this.token = token;
+    this.tokenStore.save(token);
   }
   async connect(t, user, retry = true) {
     // A cached token is used directly; a rejection costs one password login, not a check per session.
@@ -178,6 +183,7 @@ export class LiveDriver {
       await this.close();
       if (e.code === 'TOKEN_REJECTED' && cached && retry) {
         this.token = null;
+        this.tokenStore.save(null);
         return this.connect(t, user, false);
       }
       this.settle(e, s?.codes);

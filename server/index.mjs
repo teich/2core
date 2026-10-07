@@ -32,6 +32,8 @@ const driver =
         logger,
         // Connection limits and backoff persist, so restarts cannot reset them.
         ledger: { load: () => store.get('tucorGuard'), save: value => store.set('tucorGuard', value) },
+        // The session token survives restarts so a deploy doesn't cost a password login.
+        tokenStore: { load: () => store.get('tucorToken'), save: value => store.set('tucorToken', value) },
       });
 const engine = new Engine({ driver, store, mode, logger, allowControl: process.env.ALLOW_LIVE_CONTROL === 'true' });
 const server = createServer(engine, apiKey);
