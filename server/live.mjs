@@ -266,6 +266,8 @@ class Session {
     this.waiters = new Set();
     this.components = new Map();
     this.observed = { controllerMode: null, rainShutDown: null, stations: null };
+    /** Programs and their capabilities arrive unasked after controller selection. */
+    this.programs = { capabilities: null, list: null, receivedAt: null };
     this.codes = [];
     /** @type {ReturnType<typeof trace> | null} Set by useSession for the current operation. */
     this.telemetry = null;
@@ -306,6 +308,11 @@ class Session {
       const stations = summarize([...(previous ? [previous] : []), m]).stations;
       this.components.set('Stations', { component: 'Stations', data: stations });
       this.observed.stations = at;
+    } else if (m.component === 'Programs') {
+      // Capabilities can be top-level rather than under data.
+      if (m.type === 'Capabilities') this.programs.capabilities = m.Capabilities ?? m.data?.Capabilities ?? null;
+      else if (Array.isArray(m.data) && m.data.length)
+        this.programs = { ...this.programs, list: m.data, receivedAt: new Date(at).toISOString() };
     } else if (['Main', 'Flow', 'ElectricFlow'].includes(m.component) && m.data && !Array.isArray(m.data)) {
       this.components.set('Main', { component: 'Main', data: { ...this.components.get('Main')?.data, ...m.data } });
       for (const field of ['controllerMode', 'rainShutDown'])
@@ -328,7 +335,8 @@ class Session {
     const state = summarize([...this.components.values()]);
     const times = Object.values(this.observed);
     const receivedAt = times.some(t => t === null) ? null : new Date(Math.min(...times)).toISOString();
-    return { controller: this.device, ...state, receivedAt, observed: { ...this.observed } };
+    const programs = this.programs.list ? { ...this.programs } : null;
+    return { controller: this.device, ...state, receivedAt, observed: { ...this.observed }, programs };
   }
   send(data, write = false) {
     if (!this.healthy) throw this.failure ?? new Error('Tucor connection lost; command was not sent');

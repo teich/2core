@@ -5,6 +5,9 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { LiveDriver } from '../server/live.mjs';
 import { Engine } from '../server/engine.mjs';
 import { Store } from '../server/store.mjs';
+import { readFileSync } from 'node:fs';
+
+const captured = JSON.parse(readFileSync(new URL('./fixtures/tucor-programs.json', import.meta.url), 'utf8'));
 
 const deferred = () => {
   let resolve;
@@ -50,7 +53,14 @@ class Cloud {
           else this.receive({ category: 'data', data: { item: 'User' } });
         }
         if (data.command === 'select') {
-          const selected = () => this.receive({ category: 'server', data: { code: 'I01' } });
+          const selected = () => {
+            this.receive({ category: 'server', data: { code: 'I01' } });
+            // Tucor pushes programs unasked once the controller is connected.
+            if (cloud.programs) {
+              this.receive({ component: 'Programs', type: 'Capabilities', Capabilities: cloud.programs.capabilities });
+              this.receive({ component: 'Programs', data: cloud.programs.list });
+            }
+          };
           if (cloud.selection) cloud.selection.promise.then(selected);
           else selected();
         }
@@ -411,4 +421,16 @@ test('a rain delay cleared outside 2core stops counting as a known hold', async 
   assert.equal(engine.state().rain, null);
   const decision = await engine.observeWeather({ intensityMmH: 2, observedAt: new Date().toISOString() });
   assert.equal(decision.applied, true);
+});
+
+test('programs pushed during controller selection are kept without asking Tucor for them', async t => {
+  const { engine, cloud } = await fixture(t);
+  cloud.programs = { capabilities: captured.capabilities.Capabilities, list: captured.programs.data };
+  await engine.refresh();
+  const { programs, capabilities, backups } = engine.programs();
+  assert.equal(programs.length, 10);
+  assert.equal(capabilities.maxStarts, 12);
+  assert.ok(backups.original.receivedAt);
+  assert.equal(cloud.sent.filter(p => p.component === 'Programs').length, 0);
+  assert.equal(cloud.sockets.length, 1);
 });

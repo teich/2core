@@ -10,6 +10,7 @@ import { trace } from './telemetry.mjs';
 import { PlanService } from './plan-service.mjs';
 import { WeatherPolicy } from './weather-policy.mjs';
 import { mergePreferences } from './preferences.mjs';
+import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
 import { AppError, LIMITS, number } from './validation.mjs';
 
 export { AppError, LIMITS, number };
@@ -58,7 +59,9 @@ export class Engine {
     }
     return next;
   }
-  accept(state) {
+  accept(observation) {
+    const { programs, ...state } = observation;
+    if (programs?.list) this.recordPrograms(programs);
     this.current = state;
     this.error = null;
     this.observationVersion = (this.observationVersion ?? 0) + 1;
@@ -80,6 +83,35 @@ export class Engine {
       Date.parse(rain.until) - Date.parse(state.receivedAt ?? new Date(this.clock()).toISOString()) > 120000
     )
       this.store.set('rain', null);
+  }
+  /**
+   * Keeps the controller's programs as Tucor reported them. The first copy is
+   * never replaced: it is the schedule to restore if 2core's programs go wrong.
+   */
+  recordPrograms({ capabilities, list, receivedAt }) {
+    const latest = this.store.get('programs');
+    if (latest?.receivedAt === receivedAt) return;
+    const entry = { receivedAt, capabilities: capabilities ?? latest?.capabilities ?? null, list };
+    this.store.transaction(() => {
+      if (!this.store.get('programsOriginal')) this.store.set('programsOriginal', entry);
+      else if (latest && JSON.stringify(programDefinition(latest.list)) !== JSON.stringify(programDefinition(list)))
+        this.store.event('controller programs', {
+          outcome: 'changed',
+          message: 'The controller’s programs differ from the last copy 2core saw',
+        });
+      this.store.set('programs', entry);
+    });
+  }
+  /** GET /api/programs: the controller's programs, read-only, with both raw backups. */
+  programs() {
+    const latest = this.store.get('programs'),
+      original = this.store.get('programsOriginal');
+    return {
+      observedAt: latest?.receivedAt ?? null,
+      capabilities: readCapabilities(latest?.capabilities),
+      programs: (latest?.list ?? []).map(readProgram),
+      backups: { latest, original },
+    };
   }
   refresh({ interactive = false, forceFresh = true } = {}) {
     if (this.refreshing) {

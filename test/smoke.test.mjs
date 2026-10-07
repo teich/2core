@@ -81,6 +81,12 @@ test('the demo server serves the app and runs commands end to end', async t => {
   assert.equal(state.zones.length, 12);
   assert.ok(state.controlEnabled);
 
+  // The controller's programs, read-only.
+  const programs = await get('/programs');
+  assert.ok(programs.programs.length > 0);
+  assert.equal(programs.capabilities.maxStationsPerStep, 1);
+  assert.ok(programs.backups.original.list.length);
+
   // Run a zone, then stop it.
   const started = await command('/zones/3/start', { minutes: 5 });
   assert.equal(started.result.run.zone, '3');

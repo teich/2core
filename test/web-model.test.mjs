@@ -288,3 +288,58 @@ test('plan text: night clock, compact durations and the run-length stepper', asy
     'Finishes later on 1 night; latest 5:30am.',
   );
 });
+
+test('controller programs read as days, starts and zone steps', async () => {
+  const { programDays, programRow, programsSummary } = await import('../web/model/programs.js');
+  const days = mask => [...mask].map(c => c !== '-');
+  assert.equal(programDays({ period: 'Odd', days: [] }), 'Odd days');
+  assert.equal(programDays({ period: '14 days', days: days('--------------') }), 'No watering days');
+  assert.equal(programDays({ period: '14 days', days: days('-M-W-F--M-W-F-') }), 'Every week: Mon, Wed, Fri');
+  assert.equal(
+    programDays({ period: '14 days', days: days('--t-T--S--W--s') }),
+    'Alternating weeks: Tue, Thu / Sun, Wed, Sat',
+  );
+  assert.equal(programDays({ period: '14 days', days: days('----T---------') }), 'Alternating weeks: Thu / none');
+  const row = programRow(
+    {
+      id: '4',
+      name: 'Trees',
+      active: false,
+      budget: 120,
+      type: 'budget',
+      period: '14 days',
+      days: days('----T------T--'),
+      starts: [{ minute: 1320, cycles: 1, finish: null }],
+      steps: [
+        { zone: '11', seconds: 3600 },
+        { zone: '99', seconds: 90 },
+      ],
+      seconds: 3690,
+      adjustedSeconds: 4428,
+    },
+    { 11: 'Orchard' },
+  );
+  assert.equal(row.when, '10:00pm · 1 h 13 min 48 sec');
+  assert.deepEqual(row.notes, ['Off', '120% water budget']);
+  assert.deepEqual(
+    row.steps.map(s => s.name),
+    ['Orchard', 'Zone 99'],
+  );
+  const result = {
+    observedAt: 'x',
+    programs: [{ active: true }, { active: false }],
+    backups: { original: { receivedAt: 'y' } },
+  };
+  assert.equal(
+    programsSummary(
+      result,
+      () => '2 min ago',
+      () => 'Sep 27',
+    ),
+    '2 programs · 1 on · read 2 min ago. A copy from Sep 27 is kept for restoring.',
+  );
+  assert.match(
+    programsSummary({ observedAt: null, programs: [], backups: { original: null } }, String, String),
+    /Not read yet/,
+  );
+});

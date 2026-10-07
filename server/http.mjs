@@ -97,6 +97,7 @@ export function createServer(engine, apiKey, { trustedOrigin = /** @type {string
       }
       if (!implicit && !bearer) return json(401, { error: 'Enter the 2core access key' });
       if (req.method === 'GET' && path === '/api/state') return json(200, engine.state());
+      if (req.method === 'GET' && path === '/api/programs') return json(200, engine.programs());
       const operation = path.match(/^\/api\/commands\/([a-zA-Z0-9_-]{8,100})$/);
       if (req.method === 'GET' && operation) {
         const result = engine.store.operation(operation[1]);

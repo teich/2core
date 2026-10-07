@@ -237,3 +237,25 @@ alternatives can permit two zones at once or enlarge the overnight window;
 unsupported cadence alternatives disclose changed weekly watering. Alternatives
 never automatically reduce water or move an unrelated zone. Searches are bounded
 and can honestly return no verified adjustment.
+
+
+## October 7: reading the controller's programs
+
+2core now keeps the programs Tucor pushes on controller selection, and the
+first copy it saw as the original to restore from. The Controller programs
+sheet shows them above the dry run. The write messages are recovered (see
+`protocol.md`, “Programs”). On this controller, a step's position is fixed by
+station number, and the 14-day mask can arrive with its weeks swapped.
+
+From here, the project rules allow a program-writing job the owner starts to
+use as many Tucor messages as it needs (see AGENTS.md). The remaining steps:
+
+1. Translate a compiled candidate into `IrrPgm*` messages, checked against the
+   capabilities. Do it as a dry run that shows the exact messages, and report
+   anything that can't be expressed.
+2. Trace one supervised write on a spare program slot: one zone, a short
+   runtime. Record the acknowledgements, the sync stage and the readback, and
+   check the program on the controller itself.
+3. Write the reviewed schedule, verify the readback against it, and keep the
+   original copy ready to restore. A partly applied write is reported as such
+   and isn't retried automatically.

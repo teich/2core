@@ -23,8 +23,10 @@ Evidence levels:
 | Live status | `Main`, `Stations`, `System`, `Alarms`, `Programs` messages received |
 | Station inventory | Available from `Main.decoderList`; HTTP metadata endpoint also tested |
 | History menu and program overview | Verified independently; six categories, empty program overview |
-| Start/stop a station | Exact deployed UI payload recovered; not sent |
-| Set/cancel rain shutdown | Exact deployed UI sequence recovered; not sent |
+| Start/stop a station | Deployed UI payload; verified live (2026-09-27 onward) |
+| Set/cancel rain shutdown | Exact deployed UI sequence recovered; used by 2core, no supervised live test recorded |
+| Read programs | Pushed on controller selection; kept by 2core since 2026-10-07 |
+| Write programs and sync | Messages recovered from the editor source (below); never sent |
 | Direct local control | Not investigated in this session |
 
 ## Architecture and authentication
@@ -246,14 +248,70 @@ watering, configuration synchronization, logging settings, or scheduled task
 was changed. Confirm history collection/upload availability with Tucor before
 implementing a daily runtime import.
 
-## Next validation
+## Programs (2026-10-07)
 
-1. Pick an existing zone and a short supervised duration.
-2. Read status first and ensure no competing automatic run.
-3. Start once, observe the new running handle and countdown, then stop that handle.
-4. Confirm both the reported state and physical watering stop.
-5. Separately test rain delay and verify its remaining time, then restore the
-   prior state. Resolve token expiry/reconnection semantics before unattended use.
+### Reading
+
+Right after `I01` (controller connected), Tucor pushes two `Programs` packets
+without being asked. First comes capabilities, with `Capabilities` at the top
+level rather than under `data`:
+
+```json
+{"component":"Programs","type":"Capabilities","Capabilities":{
+  "programMethod":["Sequential"],"name":{"enable":true,"maxLength":12},
+  "booster":{"enable":true,"count":2},"wb":{"minimum":0,"maximum":250},
+  "startTimes":{"maxStarts":12},"steps":{"maxStationsPerStep":1,...},
+  "programTypes":[{"value":"0","label":"WB"},{"value":"4","label":"Weather"}],
+  "allowPeriodChange":true,
+  "periods":[{"value":0,"label":"14 days","editable":true},
+             {"value":1,"label":"Odd","editable":false},
+             {"value":2,"label":"Even","editable":false}]}}
+```
+
+Then `{"component":"Programs","data":[…]}` with all ten programs, repeated
+several times during a session. An anonymized copy is in
+`test/fixtures/tucor-programs.json`. Each program has these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `ID`, `name` | Slot 1–10; name padded to 12 characters |
+| `status` | `"1"` on, `"0"` off |
+| `waterBudget` | Percent applied to every step's runtime (0–250) |
+| `irrigationType` | `"0"` water budget, `"4"` weather |
+| `period` | `"0"` 14-day mask, `"1"` odd days, `"2"` even days |
+| `fullDaySchedule` | 14 characters aligned with `allDaysArranged` (`SMtWTFsSMtWTFs`, from a Sunday): a letter waters that day, `-` doesn't. Odd and even programs report an approximate mask |
+| `starts[]` | `startSeq`, `starttime` (minutes after midnight), `cycles`, `endtime` (reported finish in minutes, can exceed 1440, or `-1`) |
+| `steps[]` | `runSeq`, `runtime` (seconds, before budget), `decoders` (station ids) |
+| `runningStatus`, `runningEntries`, `nextRun`, `today` | Live state. `nextRun` was sometimes a small number and sometimes epoch ms |
+
+Two findings matter for writing programs:
+
+- **Steps are fixed per station on this LTD.** With `maxStationsPerStep: 1`,
+  `runSeq` equals the station id. A program runs its stations in station-number
+  order and can't reorder them. The compiler's canonical zone-id ordering
+  already matches.
+- **The 14-day mask arrives in either week order.** Within one session, early
+  packets and later ones reported the same programs with the two weeks
+  swapped. Which half is the current week needs checking against `nextRun`
+  or the controller before writing a calendar.
+
+### Writing (recovered, never sent)
+
+Tucor's program editor (`EditProgram*.vue`, `SyncModal.vue` in the
+`app.37eafea5.js.map` source map) uses an `Irrigation` message family,
+distinct from the `component`/`command` messages used elsewhere:
+
+| Change | Message |
+| --- | --- |
+| Program settings | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Period`, `Weekdays` (14-character mask), `Status`, `Budget`, `Booster` |
+| Start times | `{Category:'Irrigation', Type:'IrrPgmStart', Oper:'Upd', PgmId, Seq:<1–maxStarts>, Time, Cycles, EndTime}`. The editor rewrites every slot and sends `Time:-1, Cycles:null, EndTime:null` for unused ones |
+| Step runtime | One station per step: `{Category:'Irrigation', Type:'IrrPgmCont', Oper:'Upd'\|'Del', PgmId, Seq:<step>, RunTime}` (0 on delete). Multi-station controllers use `IrrPgmStep` |
+| Sync | `{category:'server', command:'synchronize', data:{type:'initiate'}}` after `{category:'data', command:'get', data:{type:'dataset', item:'TimeStamps'}}`. `SyncModal` lets each section take the app's or the controller's values (`SelectAll` with `useApp`/`useCtrl`) |
+
+Still unknown: whether `Upd` messages are acknowledged; whether they reach
+the controller directly or only after sync; which way sync goes by default;
+and how to tell sync has finished. Until a supervised test answers these,
+treat a saved program as not installed.
 
 Do not use the configuration synchronization modal as a connection repair tool.
 No synchronization, edits to schedules, station setup, controller dial/mode

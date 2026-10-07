@@ -1,0 +1,1094 @@
+{
+  "_note": "Captured from a live Tucor LTD session on 2026-09-27; program names replaced. `capabilities` and `programs` are packets as received; `earlier` is the first Programs packet of the same session, whose 14-day masks arrived with the two weeks swapped.",
+  "capabilities": {
+    "component": "Programs",
+    "type": "Capabilities",
+    "Capabilities": {
+      "programMethod": ["Sequential"],
+      "name": {
+        "enable": true,
+        "maxLength": 12
+      },
+      "plantTypes": {
+        "enable": false
+      },
+      "booster": {
+        "enable": true,
+        "count": 2
+      },
+      "wb": {
+        "minimum": 0,
+        "maximum": 250
+      },
+      "moisture": {
+        "enable": true
+      },
+      "linkedPrograms": false,
+      "startTimes": {
+        "maxStarts": 12
+      },
+      "steps": {
+        "maxStationsPerStep": 1,
+        "enableActual": true,
+        "deleteStep": false,
+        "showTotalRun": true,
+        "showRecommend": false,
+        "warning": {
+          "showFlow": false,
+          "showFreq": false,
+          "showSoak": false,
+          "showCycle": false
+        },
+        "description": {
+          "show": false,
+          "stationName": true,
+          "stationDescription": false,
+          "disabled": true,
+          "maxLength": 20
+        }
+      },
+      "programTypes": [
+        {
+          "value": "0",
+          "label": "WB"
+        },
+        {
+          "value": "4",
+          "label": "Weather"
+        }
+      ],
+      "allowPeriodChange": true,
+      "periods": [
+        {
+          "value": 0,
+          "label": "14 days",
+          "editable": true
+        },
+        {
+          "value": 1,
+          "label": "Odd",
+          "editable": false
+        },
+        {
+          "value": 2,
+          "label": "Even",
+          "editable": false
+        }
+      ]
+    }
+  },
+  "programs": {
+    "component": "Programs",
+    "data": [
+      {
+        "ID": "1",
+        "name": "Prog 1      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "150",
+        "irrigationType": "0",
+        "fullDaySchedule": "--------------",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 9,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "330",
+            "cycles": "1",
+            "endtime": "-1"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "2",
+            "runtime": "360",
+            "decoders": ["2"]
+          },
+          {
+            "runSeq": "5",
+            "runtime": "300",
+            "decoders": ["5"]
+          },
+          {
+            "runSeq": "9",
+            "runtime": "420",
+            "decoders": ["9"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "2",
+        "name": "Prog 2      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "-M--T---M--TF-",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 15,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1110",
+            "cycles": "1",
+            "endtime": "1335"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "15",
+            "runtime": "10800",
+            "decoders": ["15"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "3",
+        "name": "Prog 3      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "--t--F---t--F-",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 16,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1080",
+            "cycles": "1",
+            "endtime": "1320"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "16",
+            "runtime": "14400",
+            "decoders": ["16"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "4",
+        "name": "Prog 4      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "----T------T--",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 1790827200000,
+        "noOfStation": 13,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "240",
+            "cycles": "1",
+            "endtime": "355"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "12",
+            "runtime": "3600",
+            "decoders": ["12"]
+          },
+          {
+            "runSeq": "13",
+            "runtime": "3300",
+            "decoders": ["13"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "5",
+        "name": "Prog 5      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "S--W--s--t-T--",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 1790740800000,
+        "noOfStation": 27,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "240",
+            "cycles": "1",
+            "endtime": "265"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "7",
+            "runtime": "1200",
+            "decoders": ["7"]
+          },
+          {
+            "runSeq": "18",
+            "runtime": "20",
+            "decoders": ["18"]
+          },
+          {
+            "runSeq": "27",
+            "runtime": "480",
+            "decoders": ["27"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "6",
+        "name": "Prog 6      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "130",
+        "irrigationType": "0",
+        "fullDaySchedule": "S--W--s--t--F-",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 1790737200000,
+        "noOfStation": 26,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "180",
+            "cycles": "1",
+            "endtime": "398"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "17",
+            "runtime": "4200",
+            "decoders": ["17"]
+          },
+          {
+            "runSeq": "25",
+            "runtime": "1500",
+            "decoders": ["25"]
+          },
+          {
+            "runSeq": "26",
+            "runtime": "1500",
+            "decoders": ["26"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "7",
+        "name": "Prog 7      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "-M-W-F-S-t-T-s",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 28,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "2",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "240",
+            "cycles": "1",
+            "endtime": "403"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "17",
+            "runtime": "2400",
+            "decoders": ["17"]
+          },
+          {
+            "runSeq": "18",
+            "runtime": "2400",
+            "decoders": ["18"]
+          },
+          {
+            "runSeq": "19",
+            "runtime": "2400",
+            "decoders": ["19"]
+          },
+          {
+            "runSeq": "21",
+            "runtime": "2400",
+            "decoders": ["21"]
+          },
+          {
+            "runSeq": "22",
+            "runtime": "2400",
+            "decoders": ["22"]
+          },
+          {
+            "runSeq": "23",
+            "runtime": "2400",
+            "decoders": ["23"]
+          },
+          {
+            "runSeq": "24",
+            "runtime": "2400",
+            "decoders": ["24"]
+          },
+          {
+            "runSeq": "25",
+            "runtime": "2400",
+            "decoders": ["25"]
+          },
+          {
+            "runSeq": "26",
+            "runtime": "2400",
+            "decoders": ["26"]
+          },
+          {
+            "runSeq": "27",
+            "runtime": "300",
+            "decoders": ["27"]
+          },
+          {
+            "runSeq": "28",
+            "runtime": "2400",
+            "decoders": ["28"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "8",
+        "name": "Prog 8      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "120",
+        "irrigationType": "0",
+        "fullDaySchedule": "S---T--S--W---",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 1790818200000,
+        "noOfStation": 20,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "90",
+            "cycles": "1",
+            "endtime": "212"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "20",
+            "runtime": "2100",
+            "decoders": ["20"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "9",
+        "name": "Prog 9      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "145",
+        "irrigationType": "0",
+        "fullDaySchedule": "-M-W-F-S-t-T-s",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 1790632800000,
+        "noOfStation": 19,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "2",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1320",
+            "cycles": "1",
+            "endtime": "1653"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "3",
+            "runtime": "1200",
+            "decoders": ["3"]
+          },
+          {
+            "runSeq": "6",
+            "runtime": "1080",
+            "decoders": ["6"]
+          },
+          {
+            "runSeq": "8",
+            "runtime": "1200",
+            "decoders": ["8"]
+          },
+          {
+            "runSeq": "9",
+            "runtime": "1440",
+            "decoders": ["9"]
+          },
+          {
+            "runSeq": "10",
+            "runtime": "1440",
+            "decoders": ["10"]
+          },
+          {
+            "runSeq": "11",
+            "runtime": "960",
+            "decoders": ["11"]
+          },
+          {
+            "runSeq": "19",
+            "runtime": "4800",
+            "decoders": ["19"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "10",
+        "name": "Prog 10     ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "145",
+        "irrigationType": "0",
+        "fullDaySchedule": "S-t-T-s-M-W-F-",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 1790546400000,
+        "noOfStation": 28,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "1",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1320",
+            "cycles": "1",
+            "endtime": "1681"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "2",
+            "runtime": "960",
+            "decoders": ["2"]
+          },
+          {
+            "runSeq": "4",
+            "runtime": "1080",
+            "decoders": ["4"]
+          },
+          {
+            "runSeq": "5",
+            "runtime": "1740",
+            "decoders": ["5"]
+          },
+          {
+            "runSeq": "6",
+            "runtime": "1500",
+            "decoders": ["6"]
+          },
+          {
+            "runSeq": "9",
+            "runtime": "1500",
+            "decoders": ["9"]
+          },
+          {
+            "runSeq": "14",
+            "runtime": "960",
+            "decoders": ["14"]
+          },
+          {
+            "runSeq": "21",
+            "runtime": "3600",
+            "decoders": ["21"]
+          },
+          {
+            "runSeq": "22",
+            "runtime": "3600",
+            "decoders": ["22"]
+          },
+          {
+            "runSeq": "23",
+            "runtime": "900",
+            "decoders": ["23"]
+          },
+          {
+            "runSeq": "24",
+            "runtime": "900",
+            "decoders": ["24"]
+          },
+          {
+            "runSeq": "28",
+            "runtime": "540",
+            "decoders": ["28"]
+          }
+        ],
+        "unixtime": 0
+      }
+    ],
+    "hasUnix": 0
+  },
+  "earlier": {
+    "component": "Programs",
+    "data": [
+      {
+        "ID": "1",
+        "name": "Prog 1      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "150",
+        "irrigationType": "0",
+        "fullDaySchedule": "--------------",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 9,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "330",
+            "cycles": "1",
+            "endtime": "-1"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "2",
+            "runtime": "360",
+            "decoders": ["2"]
+          },
+          {
+            "runSeq": "5",
+            "runtime": "300",
+            "decoders": ["5"]
+          },
+          {
+            "runSeq": "9",
+            "runtime": "420",
+            "decoders": ["9"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "2",
+        "name": "Prog 2      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "-M--TF--M--T--",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 15,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1110",
+            "cycles": "1",
+            "endtime": "1335"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "15",
+            "runtime": "10800",
+            "decoders": ["15"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "3",
+        "name": "Prog 3      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "--t--F---t--F-",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 16,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1080",
+            "cycles": "1",
+            "endtime": "1320"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "16",
+            "runtime": "14400",
+            "decoders": ["16"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "4",
+        "name": "Prog 4      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "----T------T--",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 360000000,
+        "noOfStation": 13,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "240",
+            "cycles": "1",
+            "endtime": "355"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "12",
+            "runtime": "3600",
+            "decoders": ["12"]
+          },
+          {
+            "runSeq": "13",
+            "runtime": "3300",
+            "decoders": ["13"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "5",
+        "name": "Prog 5      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "--t-T--S--W--s",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 187200000,
+        "noOfStation": 27,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "240",
+            "cycles": "1",
+            "endtime": "265"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "7",
+            "runtime": "1200",
+            "decoders": ["7"]
+          },
+          {
+            "runSeq": "18",
+            "runtime": "20",
+            "decoders": ["18"]
+          },
+          {
+            "runSeq": "27",
+            "runtime": "480",
+            "decoders": ["27"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "6",
+        "name": "Prog 6      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "130",
+        "irrigationType": "0",
+        "fullDaySchedule": "--t--F-S--W--s",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 183600000,
+        "noOfStation": 26,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "180",
+            "cycles": "1",
+            "endtime": "398"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "17",
+            "runtime": "4200",
+            "decoders": ["17"]
+          },
+          {
+            "runSeq": "25",
+            "runtime": "1500",
+            "decoders": ["25"]
+          },
+          {
+            "runSeq": "26",
+            "runtime": "1500",
+            "decoders": ["26"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "7",
+        "name": "Prog 7      ",
+        "booster": "0",
+        "status": "0",
+        "waterBudget": "100",
+        "irrigationType": "0",
+        "fullDaySchedule": "-M-W-F-S-t-T-s",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "noOfStation": 28,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "2",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "240",
+            "cycles": "1",
+            "endtime": "403"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "17",
+            "runtime": "2400",
+            "decoders": ["17"]
+          },
+          {
+            "runSeq": "18",
+            "runtime": "2400",
+            "decoders": ["18"]
+          },
+          {
+            "runSeq": "19",
+            "runtime": "2400",
+            "decoders": ["19"]
+          },
+          {
+            "runSeq": "21",
+            "runtime": "2400",
+            "decoders": ["21"]
+          },
+          {
+            "runSeq": "22",
+            "runtime": "2400",
+            "decoders": ["22"]
+          },
+          {
+            "runSeq": "23",
+            "runtime": "2400",
+            "decoders": ["23"]
+          },
+          {
+            "runSeq": "24",
+            "runtime": "2400",
+            "decoders": ["24"]
+          },
+          {
+            "runSeq": "25",
+            "runtime": "2400",
+            "decoders": ["25"]
+          },
+          {
+            "runSeq": "26",
+            "runtime": "2400",
+            "decoders": ["26"]
+          },
+          {
+            "runSeq": "27",
+            "runtime": "300",
+            "decoders": ["27"]
+          },
+          {
+            "runSeq": "28",
+            "runtime": "2400",
+            "decoders": ["28"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "8",
+        "name": "Prog 8      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "120",
+        "irrigationType": "0",
+        "fullDaySchedule": "S--W---S---T--",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 5400000,
+        "noOfStation": 20,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "0",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "90",
+            "cycles": "1",
+            "endtime": "212"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "20",
+            "runtime": "2100",
+            "decoders": ["20"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "9",
+        "name": "Prog 9      ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "145",
+        "irrigationType": "0",
+        "fullDaySchedule": "-M-W-F-S-t-T-s",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 165600000,
+        "noOfStation": 19,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "2",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1320",
+            "cycles": "1",
+            "endtime": "1653"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "3",
+            "runtime": "1200",
+            "decoders": ["3"]
+          },
+          {
+            "runSeq": "6",
+            "runtime": "1080",
+            "decoders": ["6"]
+          },
+          {
+            "runSeq": "8",
+            "runtime": "1200",
+            "decoders": ["8"]
+          },
+          {
+            "runSeq": "9",
+            "runtime": "1440",
+            "decoders": ["9"]
+          },
+          {
+            "runSeq": "10",
+            "runtime": "1440",
+            "decoders": ["10"]
+          },
+          {
+            "runSeq": "11",
+            "runtime": "960",
+            "decoders": ["11"]
+          },
+          {
+            "runSeq": "19",
+            "runtime": "4800",
+            "decoders": ["19"]
+          }
+        ],
+        "unixtime": 0
+      },
+      {
+        "ID": "10",
+        "name": "Prog 10     ",
+        "booster": "0",
+        "status": "1",
+        "waterBudget": "145",
+        "irrigationType": "0",
+        "fullDaySchedule": "S-t-T-s-M-W-F-",
+        "allDaysArranged": "SMtWTFsSMtWTFs",
+        "today": "Even",
+        "runningStatus": "Not running",
+        "runnable": true,
+        "nextRun": 79200000,
+        "noOfStation": 28,
+        "runningEntries": [],
+        "prgTopBtnName": "Start Program",
+        "period": "1",
+        "starts": [
+          {
+            "startSeq": "1",
+            "starttime": "1320",
+            "cycles": "1",
+            "endtime": "1681"
+          }
+        ],
+        "steps": [
+          {
+            "runSeq": "2",
+            "runtime": "960",
+            "decoders": ["2"]
+          },
+          {
+            "runSeq": "4",
+            "runtime": "1080",
+            "decoders": ["4"]
+          },
+          {
+            "runSeq": "5",
+            "runtime": "1740",
+            "decoders": ["5"]
+          },
+          {
+            "runSeq": "6",
+            "runtime": "1500",
+            "decoders": ["6"]
+          },
+          {
+            "runSeq": "9",
+            "runtime": "1500",
+            "decoders": ["9"]
+          },
+          {
+            "runSeq": "14",
+            "runtime": "960",
+            "decoders": ["14"]
+          },
+          {
+            "runSeq": "21",
+            "runtime": "3600",
+            "decoders": ["21"]
+          },
+          {
+            "runSeq": "22",
+            "runtime": "3600",
+            "decoders": ["22"]
+          },
+          {
+            "runSeq": "23",
+            "runtime": "900",
+            "decoders": ["23"]
+          },
+          {
+            "runSeq": "24",
+            "runtime": "900",
+            "decoders": ["24"]
+          },
+          {
+            "runSeq": "28",
+            "runtime": "540",
+            "decoders": ["28"]
+          }
+        ],
+        "unixtime": 0
+      }
+    ],
+    "hasUnix": 0
+  }
+}

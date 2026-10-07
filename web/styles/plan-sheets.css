@@ -433,6 +433,14 @@ input[role='switch']:checked::after {
   font-size: 13px;
   white-space: nowrap;
 }
+.programs li.off {
+  opacity: 0.6;
+}
+.program-dry-run {
+  font-size: 17px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--line);
+}
 .programs small {
   color: var(--ink-2);
   font-size: 12px;

@@ -1,11 +1,13 @@
 // Two reviewed, read-only previews from the plan settings: rebalancing the
-// zones' dates to even out nights, and the controller programs the saved plan
-// would compile to (a dry run; nothing is installed).
+// zones' dates to even out nights, and the controller programs, both as they
+// are now and as the saved plan would compile to (a dry run; nothing is installed).
 import { $, $$, escape } from '../core/dom.js';
 import { api } from '../core/api.js';
 import { message } from '../core/message.js';
 import { formatDuration } from '../../lib/planner.mjs';
+import { ago, day } from '../core/format.js';
 import { MONTH, clockAt } from '../model/plan.js';
+import { programRow, programsSummary } from '../model/programs.js';
 import { checkDraft } from './draft.js';
 import { intents, plan, rememberDraft, zones } from './state.js';
 
@@ -67,6 +69,27 @@ function programReport(p, title) {
       <details><summary>Controller assumptions still to verify</summary><ul>${p.assumptions.map(a => `<li>${escape(a)}</li>`).join('')}</ul></details></section>`;
 }
 
+/** What the controller runs today, from the copy 2core last read. Read-only. */
+async function showCurrentPrograms() {
+  $('program-current').innerHTML = '<p class="muted">Reading the controller’s programs…</p>';
+  try {
+    const result = await api('/programs');
+    const names = Object.fromEntries(zones().map(z => [z.id, z.name]));
+    const rows = result.programs.map(p => programRow(p, names));
+    $('program-current').innerHTML =
+      `<section class="program-report"><h3>On the controller now</h3><p class="muted">${escape(programsSummary(result, ago, day))}</p>
+      <ol class="programs">${rows
+        .map(
+          r =>
+            `<li class="${r.active ? '' : 'off'}"><div class="program-head"><b>${escape(r.name)}</b><span class="num">${escape(r.when)}</span></div><small>${escape([r.days, ...r.notes].join(' · '))}</small><p>${r.steps.map(s => `${escape(s.name)} <span class="num">${escape(s.duration)}</span>`).join(' → ')}</p></li>`,
+        )
+        .join('')}</ol></section>`;
+  } catch (e) {
+    $('program-current').innerHTML =
+      `<p class="muted">Couldn’t read the controller’s programs: ${escape(e.message)}</p>`;
+  }
+}
+
 /** Compiles the saved plan; `compare` adds a run with the checked paused zones on. */
 async function previewPrograms(compare = false) {
   $('program-error').textContent = 'Compiling the saved plan…';
@@ -99,6 +122,7 @@ export function mount() {
     $('compare-programs').hidden = !paused.length;
     $('plan-settings-dialog').close();
     $('program-dialog').showModal();
+    showCurrentPrograms();
     previewPrograms(Boolean(paused.length));
   });
   $('compare-programs').addEventListener('click', () => previewPrograms(true));

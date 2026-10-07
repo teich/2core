@@ -593,7 +593,7 @@
             Even out watering dates<small>Review date changes before they save</small>
           </button>
           <button id="plan-programs" class="soft wide-row">
-            Preview controller programs<small>Dry run · no controller changes</small>
+            Controller programs<small>Current programs and a dry run of your plan</small>
           </button>
         </section>
         <details class="plan-help">
@@ -617,13 +617,15 @@
         ></span>
         <div>
           <h2 id="program-title">Controller programs</h2>
-          <p class="muted">Dry run · no controller changes</p>
+          <p class="muted">Read-only · no controller changes</p>
         </div>
         <button id="close-programs" class="icon-button" aria-label="Close">
           <svg><use href="#i-x" /></svg>
         </button>
       </div>
       <div class="sheet-body">
+        <div id="program-current"></div>
+        <h3 class="program-dry-run">Your plan as programs</h3>
         <p class="hint">How the saved plan would become fixed, repeating controller programs. Dry weather only.</p>
         <fieldset id="program-overrides" class="check-list"></fieldset>
         <button id="compare-programs" class="outline">Compare with these zones on</button>
