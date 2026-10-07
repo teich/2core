@@ -88,10 +88,10 @@ Thresholds and duration can be updated through `/api/policy`; mode is also edita
 ## Validation
 
 ```sh
-npm test
+npm run verify   # formatting, type check, and tests
 ```
 
-Node tests cover protocol decoding, command duplication/expiry/restarts, run ownership, concurrency, weather decisions, WeatherFlow reads, Tucor connection limits and backoff, and HTTP authentication. See [research/implementation-validation.md](research/implementation-validation.md) for the checks completed here and remaining hardware questions.
+Node tests cover protocol decoding, command duplication/expiry/restarts, run ownership, concurrency, weather decisions, WeatherFlow reads, Tucor connection limits and backoff, HTTP authentication and static serving, the web app's zone/weather/plan logic, and an end-to-end run against the demo server. Contributors and coding agents: see [AGENTS.md](AGENTS.md) for the code layout and conventions. See [research/implementation-validation.md](research/implementation-validation.md) for the checks completed here and remaining hardware questions.
 
 ## Protocol research
 
