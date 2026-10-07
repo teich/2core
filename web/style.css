@@ -513,3 +513,16 @@ body:has(dialog[open]){overflow:hidden}
 .program-table th,.program-table td{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid var(--line)}
 .program-table th:nth-child(4){width:40%}
 #program-dialog .sheet-head{grid-template-columns:minmax(0,1fr) auto}
+
+.plan-fit{padding:20px;margin-block:16px;display:grid;gap:12px}
+.plan-fit h2{font-size:20px}
+.plan-fit p{font-size:14px;line-height:1.5}
+#plan-fit-scenarios{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.fit-scenario{padding:12px;border:1px solid var(--line);border-radius:12px}
+.fit-scenario details{margin-top:8px;font-size:12px}
+.fit-actions{display:flex;flex-wrap:wrap;gap:8px}
+#plan-fit-alternatives article{padding:12px;border:1px solid var(--line);border-radius:12px;margin-block:8px}
+#plan-fit-alternatives button{margin-top:8px}
+#fit-seasonal-zones{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding-block:12px}
+#fit-seasonal-zones label{display:flex;align-items:center;gap:8px;font-size:13px}
+#fit-seasonal-zones input{width:16px;height:16px;flex-shrink:0}

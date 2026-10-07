@@ -180,8 +180,9 @@ numeric zone labels and covers both scenarios across two complete calendar cycle
 Search first considers serial arrangements, then at most two concurrent zones,
 then the hard deadline. It is bounded and deterministic; successful candidates
 are feasible, with minimum-overlap claims only when they reach the lower bound.
-The first version groups identical dates/rain behavior and does not split groups
-or exploit multiple starts to compress differing calendars. It reports a blocker
+The compiler groups identical dates/rain behavior. Oversized groups can now split
+into whole-zone programs when slots permit; it does not exploit multiple starts
+to compress differing calendars. It reports a blocker
 if those limitations, the ten-program limit, transient dates, or cadence/precision
 constraints prevent a complete candidate. No partial schedule is returned.
 
@@ -210,3 +211,29 @@ them alongside active legacy programs. A future installation should persist its
 intended revision and reconciliation state through the potentially long sync,
 coalesce edits, and verify before declaring it installed. No automated writer,
 program activation, sync, or irrigation command was added here.
+
+
+## Edit feasibility and verified adjustments
+
+The normal editor now checks a draft before saving. Harmless fits save normally;
+additional overlap, later finishes, and any failed seasonal scenario require an
+explicit review action. Failed drafts stay editable, survive reload in the same
+tab, and can be saved explicitly as unfinished. A stale review cannot overwrite
+a newer plan. Rebalancing, global seasonal percentages, and night settings use
+the same review path. No controller operation was introduced.
+
+The comparison selection persists separately from enabled flags, so turning the
+vineyard on does not remove the vineyard-off comparison. Capacity feedback avoids
+equating ten occupied slots with a full garden. A change can reuse the same
+programs, while a new date pattern can consume a slot. The UI distinguishes a
+calendar-pattern limit, an arithmetic overnight-time shortage, and an unsuccessful
+bounded search. Technical counts stay under “Why?”.
+
+A regression scenario changes zone 1 from alternating days to weekly: the edited
+plan fits while the vineyard is off but needs eleven groups with it on. Verified
+alternatives shift only that edited zone's weekly phase to an existing weekly
+pattern, disclose the extra wait, and fit both seasonal states. Other verified
+alternatives can permit two zones at once or enlarge the overnight window;
+unsupported cadence alternatives disclose changed weekly watering. Alternatives
+never automatically reduce water or move an unrelated zone. Searches are bounded
+and can honestly return no verified adjustment.

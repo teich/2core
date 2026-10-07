@@ -95,6 +95,16 @@
             <button id="plan-rebalance" class="outline">Review rebalance</button>
           </div></details>
         </div>
+        <section id="plan-fit" class="group plan-fit" aria-labelledby="plan-fit-title" aria-live="polite">
+          <h2 id="plan-fit-title">Checking the watering plan</h2>
+          <p id="plan-fit-state"></p>
+          <p id="plan-fit-edit"></p>
+          <div id="plan-fit-scenarios"></div>
+          <div id="plan-fit-alternatives"></div>
+          <p id="plan-fit-error" role="status"></p>
+          <div class="fit-actions"><button id="fit-check" class="outline">Check draft again</button><button id="fit-save" class="primary">Save this change</button><button id="fit-unfinished" class="outline">Save as unfinished plan</button><button id="fit-discard" class="quiet">Discard draft</button></div>
+          <details><summary>Seasonal comparison zones</summary><p>Check the plan with these zones both off and on. This selection does not enable or disable watering.</p><div id="fit-seasonal-zones"></div></details>
+        </section>
         <div id="rebalance-prompt" class="group rebalance-prompt" hidden><p>Zone availability changed. You can spread the remaining watering more evenly.</p><button id="review-rebalance" class="outline">Review rebalance</button><button id="dismiss-rebalance" class="quiet">Not now</button></div>
         <section id="night-card" class="group night-card" aria-label="Selected night"></section>
         <section class="group plan-table" aria-labelledby="plan-table-title">

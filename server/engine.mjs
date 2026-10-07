@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { assessPlan, verifiedAlternatives } from '../lib/plan-feasibility.mjs';
 import { compilePrograms } from '../lib/program-compiler.mjs';
 import { sunrise } from '../lib/planner.mjs';
 import { trace } from './telemetry.mjs';
@@ -304,11 +305,12 @@ export class Engine {
   }
   plan() {
     const intents = Object.fromEntries(Object.entries(this.store.prefixed('intent:')).map(([id, intent]) => [id, { ...DEFAULT_INTENT, ...intent }]));
-    return { settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) }, intents };
+    return { settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) }, intents, seasonalZoneIds: this.store.get('planSeasonalZones', (this.current?.stations ?? []).filter(s => /vineyard/i.test(s.name ?? '') || intents[String(s.StId)]?.enabled === false).map(s => String(s.StId))) };
   }
-  intent(zone, patch) {
+  intentCandidate(zone, patch, plan = this.plan()) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new AppError('Expected intent patch', 400);
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
-    const next = { ...DEFAULT_INTENT, ...this.store.get(`intent:${zone}`, {}) };
+    const next = { ...DEFAULT_INTENT, ...plan.intents[zone] };
     const previous = { ...next };
     for (const [k, v] of Object.entries(patch)) {
       if (k === 'seconds') next.seconds = v === null ? null : number(v, 1, MAX_SECONDS, true);
@@ -326,9 +328,15 @@ export class Engine {
       next.firstDue = nextDueDate(previous, currentNight(new Date(this.clock())));
     }
     // Allocate only this new intention around saved ones. Existing phases remain.
-    const seeded = staggerIntents({ ...this.plan().intents, [zone]: next }, currentNight(new Date(this.clock())));
-    this.store.set(`intent:${zone}`, seeded[zone]);
-    return { ok: true, intent: seeded[zone] };
+    const seeded = staggerIntents({ ...plan.intents, [zone]: next }, currentNight(new Date(this.clock())));
+    return seeded[zone];
+  }
+  intent(zone, patch) {
+    const seasonalZoneIds = this.plan().seasonalZoneIds;
+    const intent = this.intentCandidate(zone, patch);
+    this.store.set('planSeasonalZones', seasonalZoneIds);
+    this.store.set(`intent:${zone}`, intent);
+    return { ok: true, intent };
   }
   seasonalAdjustment(patch) {
     if (Object.keys(patch).length !== 1 || !Object.hasOwn(patch, 'seasonalPercent')) throw new AppError('Expected seasonalPercent only', 400);
@@ -343,13 +351,75 @@ export class Engine {
     } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
     return { ok: true, plan: this.plan() };
   }
+  preparePlanEdit(change, base = this.plan()) {
+    if (!change || typeof change !== 'object' || Array.isArray(change) || Object.keys(change).some(k => !['intents', 'settings', 'seasonalPercent', 'seasonalZoneIds', 'rebalanceToken'].includes(k))) throw new AppError('Invalid plan change', 400);
+    const next = structuredClone(base);
+    if (Object.hasOwn(change, 'rebalanceToken')) {
+      const proposal = this.rebalancePreview();
+      if (!change.rebalanceToken || change.rebalanceToken !== proposal.token) throw new AppError('The plan changed. Review the rebalance again.', 409);
+      for (const c of proposal.changes) next.intents[c.zone] = { ...next.intents[c.zone], firstDue: c.firstDue };
+    }
+    if (Object.hasOwn(change, 'seasonalZoneIds')) {
+      const ids = change.seasonalZoneIds;
+      if (!Array.isArray(ids) || new Set(ids).size !== ids.length || ids.some(id => typeof id !== 'string' || !this.current?.stations.some(s => String(s.StId) === id))) throw new AppError('Choose known seasonal zones', 400);
+      next.seasonalZoneIds = [...ids].sort((a, b) => Number(a) - Number(b));
+    }
+    if (Object.hasOwn(change, 'seasonalPercent')) {
+      const seasonalPercent = number(change.seasonalPercent, 50, 200, true);
+      for (const id of new Set([...Object.keys(next.intents), ...(this.current?.stations ?? []).map(s => String(s.StId))])) next.intents[id] = { ...DEFAULT_INTENT, ...next.intents[id], seasonalPercent };
+    }
+    if (Object.hasOwn(change, 'intents')) {
+      if (!change.intents || typeof change.intents !== 'object' || Array.isArray(change.intents)) throw new AppError('Expected zone patches', 400);
+      for (const [id, patch] of Object.entries(change.intents)) next.intents[id] = this.intentCandidate(id, patch, next);
+    }
+    if (Object.hasOwn(change, 'settings')) {
+      if (!change.settings || typeof change.settings !== 'object' || Array.isArray(change.settings)) throw new AppError('Expected night settings', 400);
+      for (const [key, value] of Object.entries(change.settings)) {
+        if (!Object.hasOwn(SETTING_LIMITS, key)) throw new AppError('Unknown plan setting', 400);
+        next.settings[key] = number(value, ...SETTING_LIMITS[key], true);
+      }
+    }
+    return next;
+  }
+  planEditPreview(payload = {}) {
+    if (Object.keys(payload).some(k => k !== 'change')) throw new AppError('Expected change only', 400);
+    const change = payload.change ?? {}, before = this.plan(), after = this.preparePlanEdit(change, before);
+    const zones = this.state().zones.filter(z => z.configured || (after.intents[z.id]?.seconds && after.intents[z.id]?.cadence)).map(({ id, name }) => ({ id, name }));
+    const location = this.store.get('location'), start = currentNight(new Date(this.clock()));
+    const token = createHash('sha256').update(JSON.stringify({ before, change, zones, location, night: start.toISOString() })).digest('hex');
+    const input = { zones, before, after, seasonalZoneIds: after.seasonalZoneIds, start, sunriseAt: d => location ? sunrise(d, location.latitude, location.longitude) : null };
+    const assessment = assessPlan(input);
+    return { token, plan: after, assessment, seasonalZones: zones.filter(z => after.seasonalZoneIds.includes(z.id)),
+      alternatives: verifiedAlternatives({ ...input, editedZoneIds: Object.keys(change.intents ?? {}), report: assessment }) };
+  }
+  planEditApply(payload) {
+    if (Object.keys(payload).some(k => !['change', 'token', 'alternativeId', 'saveUnresolved'].includes(k)) ||
+      payload.saveUnresolved != null && typeof payload.saveUnresolved !== 'boolean') throw new AppError('Invalid plan review', 400);
+    const reviewed = this.planEditPreview({ change: payload.change });
+    if (!payload.token || payload.token !== reviewed.token) throw new AppError('The saved plan or night changed. Check this draft again before saving.', 409);
+    let plan = reviewed.plan, assessment = reviewed.assessment;
+    if (payload.alternativeId != null) {
+      const alternative = reviewed.alternatives.find(a => a.id === payload.alternativeId);
+      if (!alternative) throw new AppError('Review an available adjustment before saving', 400);
+      plan = this.preparePlanEdit(alternative.adjustments, plan); assessment = alternative.assessment;
+    }
+    if (assessment.status === 'needs-adjustment' && payload.saveUnresolved !== true) throw new AppError('This draft needs an adjustment. Choose one or explicitly save it as unfinished.', 409);
+    this.store.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const [id, intent] of Object.entries(plan.intents)) this.store.set(`intent:${id}`, intent);
+      this.store.set('planSettings', plan.settings);
+      this.store.set('planSeasonalZones', plan.seasonalZoneIds);
+      this.store.db.exec('COMMIT');
+    } catch (e) { this.store.db.exec('ROLLBACK'); throw e; }
+    return { ok: true, plan: this.plan(), assessment };
+  }
   programPreview(payload = {}) {
     if (Object.keys(payload).some(k => k !== 'enabledOverrides') ||
       payload.enabledOverrides != null && (typeof payload.enabledOverrides !== 'object' || Array.isArray(payload.enabledOverrides))) {
       throw new AppError('Expected enabledOverrides only', 400);
     }
     const plan = this.plan(), state = this.state();
-    const zones = state.zones.filter(z => z.configured || plan.intents[z.id]);
+    const zones = state.zones.filter(z => z.configured || (plan.intents[z.id]?.seconds && plan.intents[z.id]?.cadence));
     const enabledOverrides = payload.enabledOverrides ?? {};
     for (const [id, enabled] of Object.entries(enabledOverrides)) {
       if (!zones.some(z => z.id === id) || typeof enabled !== 'boolean') throw new AppError('Expected known zone ids with boolean overrides', 400);

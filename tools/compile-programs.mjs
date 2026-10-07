@@ -8,7 +8,7 @@ if (!file || date && !validDateKey(date) || enable.some(id => !/^\d+$/.test(id))
   process.exit(1);
 }
 const snapshot = JSON.parse(readFileSync(file, 'utf8'));
-const zones = snapshot.zones.filter(z => z.configured !== false || snapshot.plan.intents[z.id]);
+const zones = snapshot.zones.filter(z => z.configured !== false || (snapshot.plan.intents[z.id]?.seconds && snapshot.plan.intents[z.id]?.cadence));
 if (enable.some(id => !zones.some(z => z.id === id))) throw new Error('Unknown zone override');
 const result = compilePrograms({ zones, ...snapshot.plan, start: date ? fromKey(date) : currentNight(),
   enabledOverrides: Object.fromEntries(enable.map(id => [id, true])),

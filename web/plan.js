@@ -26,9 +26,11 @@ const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export function createPlan({ $, api, escape, message, html, getState, zoneEnabled }) {
   const drafts = new Map();          // zone id → intent shown before the server confirms it
-  const saves = new Map();
+  let pendingEdit = {}, editReview = null, editBusy = false, editError = '', observedFitKey = '', restoredDraft = false;
+  try { const saved = JSON.parse(sessionStorage.getItem('2core-plan-draft') || '{}'); if (saved && typeof saved === 'object' && !Array.isArray(saved)) pendingEdit = saved; } catch { /* ignore unavailable storage */ }
+  function rememberDraft() { try { Object.keys(pendingEdit).length ? sessionStorage.setItem('2core-plan-draft', JSON.stringify(pendingEdit)) : sessionStorage.removeItem('2core-plan-draft'); } catch { /* keep the in-memory draft */ } }
   let rebalanceProposal = null, reviewing = false;
-  let seasonalSaving = false, seasonalEdited = false;
+  let seasonalEdited = false;
   const expandedCadences = new Set();
   const typed = new Map();           // zone id → unreadable duration text, kept so it can be fixed
   let settingsDraft = null, selected = 0, needsOnly = false, whatIf = new Set(), rowsKey = '';
@@ -60,28 +62,96 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     return out;
   }
 
+  const hasDraft = () => Object.keys(pendingEdit).length > 0;
+  function stageIntent(id, patch) {
+    pendingEdit.intents ??= {};
+    pendingEdit.intents[id] = { ...pendingEdit.intents[id], ...patch };
+    drafts.set(id, { ...blank(), ...intents()[id], ...patch });
+    editReview = null; editError = ''; rememberDraft();
+  }
   async function saveIntent(id, patch) {
-    const next = { ...blank(), ...intents()[id], ...patch };
-    drafts.set(id, next);
-    render();
-    const saving = (saves.get(id) ?? Promise.resolve()).catch(() => {}).then(() => api(`/zones/${id}/intent`, patch));
-    saves.set(id, saving);
-    try {
-      const saved = await saving;
-      if (drafts.get(id) === next) drafts.set(id, saved.intent);
-      if (Object.hasOwn(patch, 'enabled')) $('rebalance-prompt').hidden = false;
-      render();
-    } catch (e) {
-      if (drafts.get(id) === next) drafts.delete(id);
-      message(`Couldn’t save the plan for zone ${id}: ${e.message}`, true); render();
-    } finally { if (saves.get(id) === saving) saves.delete(id); }
+    if (editBusy) return;
+    stageIntent(id, patch);
+    await checkDraft(true);
   }
   async function saveSettings(patch) {
+    if (editBusy) return;
+    pendingEdit.settings = { ...pendingEdit.settings, ...patch }; rememberDraft();
     settingsDraft = { ...settings(), ...patch };
-    render();
-    try { await api('/plan', patch); }
-    catch (e) { settingsDraft = null; message(`Couldn’t save the night settings: ${e.message}`, true); render(); }
+    editReview = null; await checkDraft(true);
   }
+  async function applyReviewed(alternativeId = null, saveUnresolved = false) {
+    if (!editReview || typed.size) return;
+    const reviewed = editReview;
+    editBusy = true; editError = ''; render();
+    try {
+      const result = await api('/plan/edit-apply', { change: reviewed.change, token: reviewed.token, alternativeId, saveUnresolved });
+      for (const [id, intent] of Object.entries(result.plan.intents)) drafts.set(id, intent);
+      settingsDraft = result.plan.settings;
+      if (Object.values(reviewed.change.intents ?? {}).some(p => Object.hasOwn(p, 'enabled'))) $('rebalance-prompt').hidden = false;
+      pendingEdit = {}; rememberDraft(); editReview = { ...reviewed, assessment: result.assessment, alternatives: [], plan: result.plan, change: {} };
+      seasonalEdited = false;
+      message(saveUnresolved ? 'Saved as an unfinished plan. The fit issue is still shown.' : 'Saved the reviewed watering plan.');
+    } catch (e) {
+      editError = `${e.message} Your draft is kept. Check it again before saving.`;
+      editReview = null;
+    } finally { editBusy = false; render(); }
+  }
+  async function checkDraft(autoSave = false) {
+    if (editBusy) return;
+    if (typed.size) { editError = 'Fix the marked run lengths before checking or saving this draft.'; render(); return; }
+    editBusy = true; editError = ''; render();
+    try {
+      const change = structuredClone(pendingEdit);
+      const result = await api('/plan/edit-preview', { change });
+      editReview = { ...result, change };
+      // Use the server's normalized dates (including cadence changes) in the draft.
+      if (hasDraft()) {
+        for (const [id, intent] of Object.entries(result.plan.intents)) drafts.set(id, intent);
+        settingsDraft = result.plan.settings;
+      }
+      if (autoSave && hasDraft() && result.assessment.status === 'fits') await applyReviewed();
+      else if (autoSave && hasDraft()) $('plan-fit').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    } catch (e) { editError = `Couldn’t check the plan: ${e.message}. Your draft is kept.`; editReview = null; }
+    finally { editBusy = false; render(); }
+  }
+  function renderFit() {
+    const report = editReview?.assessment, draft = hasDraft();
+    $('plan-fit-title').textContent = editBusy ? 'Checking your watering plan…' : !report ? (draft ? 'Unsaved watering draft' : 'Watering plan check') : report.status === 'fits' ? 'Your watering plan fits overnight' : report.status === 'consequence' ? 'Fits with a consequence' : 'Needs an adjustment';
+    $('plan-fit-state').textContent = `${draft ? 'Draft kept — not saved yet.' : 'Saved intentions.'} These are dry-weather checks for the next fourteen nights, not a controller installation. Rainfall and future seasonal dates need their own review.`;
+    const labels = { seconds: 'run length', cadence: 'frequency', enabled: 'watering', waterDuringRain: 'water during rain', seasonalPercent: 'seasonal percentage', firstDue: 'watering date' };
+    const valueText = (key, value) => key === 'seconds' ? value == null ? 'not set' : formatDuration(value) : key === 'cadence' ? cadenceLabel(value) : typeof value === 'boolean' ? value ? 'on' : 'off' : String(value ?? 'not set');
+    const edits = Object.entries(pendingEdit.intents ?? {}).flatMap(([id, patch]) => Object.entries(patch).map(([key, value]) => `${zones().find(z => z.id === id)?.name ?? id}: ${labels[key] ?? key} ${valueText(key, getState().plan.intents[id]?.[key])} → ${valueText(key, value)}`));
+    if (pendingEdit.seasonalPercent != null) edits.push(`All zones: seasonal percentage → ${pendingEdit.seasonalPercent}%`);
+    for (const [key, value] of Object.entries(pendingEdit.settings ?? {})) edits.push(key === 'lanes' ? `Maximum zones at once → ${value}` : key === 'finishBeforeSunrise' ? `Finish target → ${value} minutes before sunrise` : `${key === 'earliestStart' ? 'Earliest start' : 'Latest finish'} → ${clockAt(value)}`);
+    if (pendingEdit.rebalanceToken) edits.push('Apply the watering-date changes from your rebalance review.');
+    if (pendingEdit.seasonalZoneIds) edits.push('Update which zones are included in the seasonal comparison.');
+    $('plan-fit-edit').textContent = edits.join(' · ');
+    $('plan-fit-error').textContent = editError;
+    html('plan-fit-scenarios', (report?.scenarios ?? []).map(r => {
+      const seasonal = r.id === 'current' ? '' : ` (${(editReview.seasonalZones ?? []).map(z => z.name).join(', ')})`;
+      const consequence = [r.newParallelSeconds ? `${formatDuration(r.newParallelSeconds)} of simultaneous watering across fourteen nights; the old plan could not be compared.` : '', r.additionalOverlapSeconds ? `${formatDuration(r.additionalOverlapSeconds)} more simultaneous watering across ${r.affectedNights} nights.` : '', r.laterFinishNights ? `Finishes later on ${r.laterFinishNights} nights; latest ${clockAt(r.latestFinish)}.` : '', r.afterPreferredNights ? `${r.afterPreferredNights} nights finish after the preferred target.` : ''].filter(Boolean).join(' ');
+      return `<div class="fit-scenario"><b>${escape(r.label + seasonal)}</b><p>${r.status === 'needs-adjustment' ? escape(r.message) : consequence ? `Fits. ${consequence}` : `Fits ${r.maxConcurrent === 2 ? 'with up to two zones at once' : 'with one zone at a time'}.`}${r.sunriseKnown === false ? ' Sunrise is estimated from the fallback time.' : ''}</p><details><summary>Why?</summary><p>${escape(r.detail)}</p></details></div>`;
+    }).join(''));
+    html('plan-fit-alternatives', (editReview?.alternatives ?? []).map(a => `<article><p>${escape(a.description)}</p><p>${a.assessment.scenarios.map(r => `${escape(r.label)}: fits${r.additionalOverlapSeconds ? `; ${formatDuration(r.additionalOverlapSeconds)} more overlap` : r.newParallelSeconds ? `; ${formatDuration(r.newParallelSeconds)} total overlap` : ''}${r.afterPreferredNights ? `; ${r.afterPreferredNights} nights past the preferred finish` : ''}${r.laterFinishNights ? `; latest finish ${clockAt(r.latestFinish)}` : ''}`).join(' · ')}</p><button class="outline" data-fit-alternative="${a.id}"${editBusy ? ' disabled' : ''}>Use this adjustment and save</button></article>`).join('') + (report?.status === 'needs-adjustment' && !editReview.alternatives.length ? '<p>No verified adjustment found in this search. Edit the draft or keep it as an unfinished plan; this does not prove your goal is impossible.</p>' : ''));
+    $('fit-check').hidden = !draft && !editError;
+    $('fit-save').hidden = !draft || !report || report.status === 'needs-adjustment';
+    $('fit-unfinished').hidden = !draft || report?.status !== 'needs-adjustment';
+    $('fit-discard').hidden = !draft;
+    for (const id of ['fit-check', 'fit-save', 'fit-unfinished', 'fit-discard']) $(id).disabled = editBusy;
+    const selectedIds = pendingEdit.seasonalZoneIds ?? editReview?.plan.seasonalZoneIds ?? getState().plan.seasonalZoneIds ?? [];
+    html('fit-seasonal-zones', zones().map(z => `<label><input type="checkbox" data-fit-seasonal="${z.id}"${selectedIds.includes(z.id) ? ' checked' : ''}${editBusy ? ' disabled' : ''}>${escape(z.name)}</label>`).join(''));
+  }
+  $('fit-check').addEventListener('click', () => checkDraft(false));
+  $('fit-save').addEventListener('click', () => applyReviewed());
+  $('fit-unfinished').addEventListener('click', () => applyReviewed(null, true));
+  $('fit-discard').addEventListener('click', () => { pendingEdit = {}; rememberDraft(); drafts.clear(); typed.clear(); settingsDraft = null; editReview = null; editError = ''; seasonalEdited = false; checkDraft(false); });
+  $('plan-fit').addEventListener('click', e => { const button = e.target.closest('[data-fit-alternative]'); if (button && !editBusy) applyReviewed(button.dataset.fitAlternative); });
+  $('plan-fit').addEventListener('change', e => {
+    if (!e.target.matches('[data-fit-seasonal]') || editBusy) return;
+    pendingEdit.seasonalZoneIds = [...$('fit-seasonal-zones').querySelectorAll('input:checked')].map(i => i.dataset.fitSeasonal);
+    rememberDraft(); editReview = null; checkDraft(true);
+  });
 
   function build(list) {
     $('plan-rows').innerHTML = list.map(z => `<div class="prow" role="row" data-row="${z.id}">
@@ -98,14 +168,25 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
   function render() {
     const state = getState();
     if (!state?.plan) return;
+    if (!restoredDraft) {
+      restoredDraft = true;
+      if (hasDraft()) {
+        for (const [id, patch] of Object.entries(pendingEdit.intents ?? {})) drafts.set(id, { ...blank(), ...state.plan.intents[id], ...patch });
+        settingsDraft = { ...state.plan.settings, ...pendingEdit.settings };
+        queueMicrotask(() => checkDraft(false));
+      }
+    }
+    renderFit();
+    const fitKey = JSON.stringify([state.plan, state.location, dateKey(currentNight())]);
+    if (!editBusy && !hasDraft() && fitKey !== observedFitKey) { observedFitKey = fitKey; queueMicrotask(() => checkDraft(false)); }
     const list = zones(), cfg = settings(), all = intents();
     const percentages = new Set(list.map(z => all[z.id]?.seasonalPercent ?? 100));
     const commonPercent = percentages.size === 1 ? [...percentages][0] : null;
-    $('seasonal-status').textContent = seasonalSaving ? 'Saving all zones…' : !list.length ? 'Load zones to get started.' : commonPercent == null ? 'Mixed' : `All zones ${commonPercent}%`;
+    $('seasonal-status').textContent = editBusy && Object.hasOwn(pendingEdit, 'seasonalPercent') ? 'Checking all zones…' : !list.length ? 'Load zones to get started.' : commonPercent == null ? 'Mixed' : `All zones ${commonPercent}%`;
     if (!seasonalEdited && document.activeElement !== $('seasonal-all')) $('seasonal-all').value = commonPercent ?? '';
     $('seasonal-all').placeholder = 'Mixed';
-    $('seasonal-all').disabled = seasonalSaving || !list.length;
-    $('seasonal-apply').disabled = seasonalSaving || !list.length;
+    $('seasonal-all').disabled = editBusy || !list.length;
+    $('seasonal-apply').disabled = editBusy || !list.length;
     const key = list.map(z => `${z.id}:${z.name}`).join('|');
     if (key !== rowsKey) { rowsKey = key; build(list); }
     const start = currentNight();
@@ -126,8 +207,14 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
       busiest && `busiest night ${busiest.d < 2 ? label(busiest.d).toLowerCase() : label(busiest.d)} with ${formatDuration(busiest.n.seconds)} of water`,
       latest && `latest finish ${clockAt(latest.n.finish)}`,
     ].filter(Boolean).join(' · ');
-    for (const [id, k] of [['plan-earliest', 'earliestStart'], ['plan-finish', 'finishBeforeSunrise'], ['plan-hard', 'hardDeadline']]) if (document.activeElement !== $(id)) $(id).value = String(cfg[k]);
-    document.querySelectorAll('[data-lanes]').forEach(b => b.setAttribute('aria-checked', String(Number(b.dataset.lanes) === cfg.lanes)));
+    for (const [id, k] of [['plan-earliest', 'earliestStart'], ['plan-finish', 'finishBeforeSunrise'], ['plan-hard', 'hardDeadline']]) {
+      const select = $(id), value = String(cfg[k]);
+      if (![...select.options].some(o => o.value === value)) select.add(new Option(k === 'finishBeforeSunrise' ? `${cfg[k]} min before sunrise` : clockAt(cfg[k]), value));
+      if (document.activeElement !== select) select.value = value;
+    }
+    document.querySelectorAll('[data-lanes]').forEach(b => { b.setAttribute('aria-checked', String(Number(b.dataset.lanes) === cfg.lanes)); b.disabled = editBusy; });
+    for (const id of ['plan-earliest', 'plan-finish', 'plan-hard', 'plan-rebalance', 'review-rebalance', 'plan-programs']) $(id).disabled = editBusy || hasDraft();
+    for (const id of ['plan-earliest', 'plan-finish', 'plan-hard']) $(id).disabled = editBusy;
     $('plan-all').setAttribute('aria-pressed', String(!needsOnly));
     $('plan-needs').setAttribute('aria-pressed', String(needsOnly));
     $('plan-needs').parentElement.hidden = todo === 0;
@@ -167,7 +254,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
       input.closest('label').classList.toggle('empty', !intent.seconds && !typed.has(z.id));
       const seasonal = row.querySelector('[data-seasonal]'), seconds = adjustedSeconds(intent);
       if (document.activeElement !== seasonal) seasonal.value = intent.seasonalPercent ?? 100;
-      row.querySelectorAll('input, select').forEach(el => { el.disabled = seasonalSaving; });
+      row.querySelectorAll('input, select').forEach(el => { el.disabled = editBusy; });
       const cad = cadenceKey(intent.cadence);
       const common = [{ every: 2 }, { perWeek: 3 }, { perWeek: 2 }, { every: 7 }];
       const choices = expandedCadences.has(z.id) ? CADENCES : common;
@@ -270,7 +357,6 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     if (reviewing) return;
     reviewing = true;
     try {
-      await Promise.all([...saves.values()]);
       rebalanceProposal = await api('/plan/rebalance-preview', {});
       const p = rebalanceProposal, names = Object.fromEntries(zones().map(z => [z.id, z.name]));
       const pretty = key => { const [y, m, d] = key.split('-').map(Number); return `${MONTH[m - 1]} ${d}, ${y}`; };
@@ -301,8 +387,6 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     $('compare-programs').disabled = true;
     $('program-results').innerHTML = '';
     try {
-      // Wait for edits already in flight before taking the saved snapshot.
-      await Promise.all([...saves.values()]);
       const base = await api('/plan/program-preview', {});
       let reports = programReport(base, 'Saved plan');
       if (compare) {
@@ -331,13 +415,11 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     if (!rebalanceProposal) return;
     $('confirm-rebalance').disabled = true;
     try {
-      const result = await api('/plan/rebalance', { token: rebalanceProposal.token });
-      for (const [id, intent] of Object.entries(result.plan.intents)) drafts.set(id, intent);
+      pendingEdit.rebalanceToken = rebalanceProposal.token; rememberDraft();
       $('rebalance-dialog').close();
       $('rebalance-prompt').hidden = true;
-      rebalanceProposal = null;
-      render();
-      message('Rebalanced the saved plan. Run lengths and frequencies are unchanged.');
+      rebalanceProposal = null; editReview = null;
+      await checkDraft(true);
     } catch (e) { $('rebalance-error').textContent = `${e.message} Close this review and review again before confirming.`; }
   });
 
@@ -350,18 +432,19 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
   $('seasonal-all').addEventListener('input', () => { seasonalEdited = true; });
   $('seasonal-form').addEventListener('submit', async e => {
     e.preventDefault();
-    if (seasonalSaving || !$('seasonal-all').reportValidity()) return;
+    if (!$('seasonal-all').reportValidity()) return;
     const seasonalPercent = Number($('seasonal-all').value);
-    seasonalSaving = true;
-    render();
-    try {
-      await Promise.all([...saves.values()]);
-      const result = await api('/plan/seasonal', { seasonalPercent });
-      for (const [id, intent] of Object.entries(result.plan.intents)) drafts.set(id, intent);
-      seasonalEdited = false;
-      message(`All zones set to ${seasonalPercent}%. Your 100% run lengths are kept.`);
-    } catch (e) { message(`Couldn’t set all zones: ${e.message}`, true); }
-    finally { seasonalSaving = false; render(); }
+    if (editBusy) return;
+    // A later all-zones adjustment supersedes earlier per-zone percentage drafts.
+    for (const [id, patch] of Object.entries(pendingEdit.intents ?? {})) {
+      delete patch.seasonalPercent;
+      if (!Object.keys(patch).length) delete pendingEdit.intents[id];
+    }
+    if (pendingEdit.intents && !Object.keys(pendingEdit.intents).length) delete pendingEdit.intents;
+    pendingEdit.seasonalPercent = seasonalPercent; rememberDraft();
+    for (const z of zones()) drafts.set(z.id, { ...blank(), ...intents()[z.id], seasonalPercent });
+    editReview = null;
+    await checkDraft(true);
   });
 
   const view = $('plan-view');
@@ -373,14 +456,21 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     else if (e.target.closest('#plan-all')) { needsOnly = false; render(); }
     else if (e.target.closest('#plan-needs')) { needsOnly = true; render(); }
   });
-  // Typing previews immediately; leaving the field saves.
+  // Typing keeps a draft; leaving the field checks feasibility before saving.
   view.addEventListener('input', e => {
+    const seasonal = e.target.closest('[data-seasonal]');
+    if (seasonal && !editBusy) {
+      const value = Number(seasonal.value);
+      if (Number.isInteger(value) && value >= 50 && value <= 200) { stageIntent(seasonal.dataset.seasonal, { seasonalPercent: value }); render(); }
+      return;
+    }
     const input = e.target.closest('[data-dur]');
     if (!input) return;
     const id = input.dataset.dur, seconds = parseDuration(input.value);
-    if (Number.isNaN(seconds) || seconds > 4 * 3600 || seconds === 0) return;
+    if (Number.isNaN(seconds) || seconds > 4 * 3600 || seconds === 0) { typed.set(id, input.value); editReview = null; render(); return; }
     typed.delete(id);
-    drafts.set(id, { ...blank(), ...intents()[id], seconds });
+    if (editBusy) return;
+    stageIntent(id, { seconds });
     render();
   });
   view.addEventListener('change', e => {
@@ -409,7 +499,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     if (!input || e.key !== 'Enter') return;
     e.preventDefault();
     const inputs = [...view.querySelectorAll('.prow:not([hidden]) [data-dur]')];
-    // Moving focus fires the change that saves this one.
+    // Moving focus checks this draft before deciding whether it can save.
     const next = inputs[inputs.indexOf(input) + (e.shiftKey ? -1 : 1)];
     if (next) next.focus(); else input.blur();
   });

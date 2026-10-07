@@ -108,10 +108,17 @@ test('more than ten distinct calendar/rain groups is an explicit compiler limita
   assert.equal(p.status, 'blocked'); assert.equal(p.issues[0].code, 'program-limit');
 });
 
-test('a group too long to fit reports no candidate rather than silently dropping work', () => {
+test('an oversized group uses spare programs without changing watering', () => {
   const p = small([300, 300]);
-  assert.equal(p.status, 'blocked'); assert.equal(p.issues[0].code, 'no-fit');
+  assert.equal(p.status, 'candidate');
+  assert.equal(p.programs.length, 2);
+  assert.equal(p.summary.maxConcurrent, 2);
   assert.equal(p.summary.weeklySeconds, 600 * 60 * 7);
+  assert.deepEqual(p.programs.flatMap(p => p.steps).map(s => s.seconds), [18000, 18000]);
+  assert.ok(p.nights.every(n => n.finish <= 1800));
+  const blocked = small([600]);
+  assert.equal(blocked.status, 'blocked');
+  assert.equal(blocked.issues[0].code, 'no-fit');
 });
 
 test('a strict single-zone limit is preserved when later finishing is needed', () => {

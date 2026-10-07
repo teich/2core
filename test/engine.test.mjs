@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../server/store.mjs';
@@ -320,4 +320,90 @@ test('program preview validates overrides and never writes preferences or contac
   assert.deepEqual(engine.plan(), before);
   assert.equal(driver.runs.length, 0);
   assert.equal(store.get('intent:2').enabled, false);
+});
+
+function compilerFixture(t) {
+  const snapshot = JSON.parse(readFileSync(new URL('./fixtures/program-intents.json', import.meta.url)));
+  const store = new Store(); t.after(() => store.close());
+  for (const [id, intent] of Object.entries(snapshot.plan.intents)) store.set(`intent:${id}`, intent);
+  store.set('planSettings', snapshot.plan.settings);
+  store.set('lastObservation', { stations: snapshot.zones.map(z => ({ StId: z.id, name: z.id === '15' ? 'Vineyard Top' : z.id === '16' ? 'Vineyard Bottom' : z.name })), status: {} });
+  let now = new Date(2026, 9, 6, 20).getTime();
+  const driver = { withSession: () => { throw Error('No controller access allowed'); } };
+  const engine = new Engine({ store, driver, mode: 'live', clock: () => now });
+  return { engine, store, nextDay: () => { now += 864e5; } };
+}
+
+test('reviewed edits preserve the saved plan until a verified alternative is explicitly applied', t => {
+  const { engine } = compilerFixture(t), before = structuredClone(engine.plan());
+  const change = { intents: { 1: { cadence: { every: 7 } } } };
+  const review = engine.planEditPreview({ change });
+  assert.deepEqual(engine.plan(), before);
+  assert.equal(review.assessment.status, 'needs-adjustment');
+  assert.deepEqual(review.plan.seasonalZoneIds, ['15', '16']);
+  assert.ok(review.alternatives.length);
+  assert.throws(() => engine.planEditApply({ change, token: review.token }), /unfinished/);
+  const option = review.alternatives[0];
+  const result = engine.planEditApply({ change, token: review.token, alternativeId: option.id });
+  assert.notEqual(result.assessment.status, 'needs-adjustment');
+  assert.equal(result.plan.intents['1'].firstDue, option.adjustments.intents['1'].firstDue);
+  assert.deepEqual(result.plan.intents['1'].cadence, { every: 7 });
+  for (const id of Object.keys(before.intents).filter(id => id !== '1')) assert.deepEqual(result.plan.intents[id], before.intents[id]);
+  assert.deepEqual(result.plan.settings, before.settings);
+});
+
+test('saving an unfinished plan is explicit and its seasonal warning survives reload', t => {
+  const { engine, store } = compilerFixture(t);
+  const change = { intents: { 1: { cadence: { every: 7 } } } }, review = engine.planEditPreview({ change });
+  const saved = engine.planEditApply({ change, token: review.token, saveUnresolved: true });
+  assert.equal(saved.assessment.status, 'needs-adjustment');
+  assert.equal(engine.planEditPreview().assessment.status, 'needs-adjustment');
+  const restarted = new Engine({ store, driver: {}, mode: 'live', clock: () => new Date(2026, 9, 6, 20).getTime() });
+  assert.equal(restarted.planEditPreview().assessment.status, 'needs-adjustment');
+});
+
+test('review tokens bind edits, preferences, location, and the night; failures leave state intact', t => {
+  const { engine, store, nextDay } = compilerFixture(t);
+  const change = { intents: { 1: { seconds: 600 } } }, review = engine.planEditPreview({ change });
+  assert.throws(() => engine.planEditApply({ change: { intents: { 1: { seconds: 1200 } } }, token: review.token }), /changed/);
+  store.set('location', { latitude: 38, longitude: -122 });
+  assert.throws(() => engine.planEditApply({ change, token: review.token }), /changed/);
+  const fresh = engine.planEditPreview({ change }); nextDay();
+  assert.throws(() => engine.planEditApply({ change, token: fresh.token }), /changed/);
+  const current = engine.planEditPreview({ change }); engine.intent('2', { seconds: 1500 });
+  assert.throws(() => engine.planEditApply({ change, token: current.token }), /changed/);
+  const last = engine.planEditPreview({ change }), before = structuredClone(engine.plan());
+  const originalSet = store.set.bind(store);
+  store.set = (key, value) => { if (key === 'planSettings') throw Error('storage failure'); return originalSet(key, value); };
+  assert.throws(() => engine.planEditApply({ change, token: last.token }), /storage failure/);
+  store.set = originalSet;
+  assert.deepEqual(engine.plan(), before);
+});
+
+test('seasonal selections persist after enabling vineyards and global scaling ignores empty controller slots', t => {
+  const { engine, store } = compilerFixture(t);
+  engine.current.stations.push({ StId: '99', name: '' });
+  const change = { seasonalPercent: 100, intents: { 15: { enabled: true }, 16: { enabled: true } } };
+  const review = engine.planEditPreview({ change });
+  assert.notEqual(review.assessment.status, 'needs-adjustment');
+  engine.planEditApply({ change, token: review.token });
+  assert.deepEqual(store.get('planSeasonalZones'), ['15', '16']);
+  assert.equal(engine.planEditPreview().assessment.scenarios.length, 3);
+  assert.equal(engine.programPreview().status, 'candidate');
+});
+
+test('edit HTTP endpoints require auth, validate fields, and use the reviewed commit path', async t => {
+  const { engine } = compilerFixture(t);
+  const server = createServer(engine, 'test-access-key');
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => server.close());
+  const url = `http://127.0.0.1:${server.address().port}/api/plan`;
+  const headers = { Authorization: 'Bearer test-access-key', 'Content-Type': 'application/json' };
+  const post = (path, body, custom = headers) => fetch(url + path, { method: 'POST', headers: custom, body: JSON.stringify(body) });
+  assert.equal((await post('/edit-preview', {}, { 'Content-Type': 'application/json' })).status, 401);
+  for (const change of [{ nope: true }, { intents: [] }, { intents: { 999: { seconds: 60 } } }, { settings: { lanes: 3 } }, { seasonalZoneIds: ['999'] }, { seasonalPercent: 201 }]) assert.ok((await post('/edit-preview', { change })).status >= 400);
+  const change = { intents: { 1: { seconds: 600 } } }, response = await post('/edit-preview', { change });
+  assert.equal(response.status, 200);
+  const review = await response.json();
+  assert.equal((await post('/edit-apply', { change, token: review.token })).status, 200);
+  assert.equal(engine.plan().intents['1'].seconds, 600);
 });
