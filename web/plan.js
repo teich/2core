@@ -215,7 +215,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     const [status, tone] = STATUS[n.status](n);
     const ticks = [];
     for (let m = Math.ceil(lo / 120) * 120; m <= hi; m += 120) ticks.push(`<span data-left="${pos(m)}">${clockAt(m)}</span>`);
-    const laneNames = cfg.lanes === 2 ? ['Lane 1', 'Lane 2'] : ['Zones'];
+    const laneNames = n.lanes[1]?.length ? ['Lane 1', 'Lane 2'] : ['Zones'];
     const lanes = laneNames.map((name, i) => `<div class="lane"><span class="lane-name">${name}</span><div class="track">${(n.lanes[i] ?? []).map(r => {
       const width = (r.to - r.from) / span * 100;
       const title = `${names[r.zone]} · ${formatDuration(r.seconds)} · ${clockAt(r.from)}–${clockAt(r.to)}${r.late ? ` · ${r.late} night${r.late > 1 ? 's' : ''} late` : ''}`;

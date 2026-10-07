@@ -30,12 +30,12 @@ test('a past first due date rolls forward as if each watering happened', () => {
   assert.equal(cells(plan, '1'), '.W..W..W..W..W');
 });
 
-test('nights end at the preferred finish, use two lanes longest first, and never start early', () => {
+test('nights prefer one lane, end at the preferred finish, and never start early', () => {
   const intents = { 1: { seconds: 3600, cadence: { every: 1 } }, 2: { seconds: 1800, cadence: { every: 1 } }, 3: { seconds: 1200, cadence: { every: 1 } } };
   const night = resolvePlan({ zones, start, sunriseAt, intents }).nights[0];
   assert.equal(night.preferredFinish, 1440 + 7 * 60 - 15);
   assert.equal(night.finish, night.preferredFinish);
-  assert.deepEqual(night.lanes.map(l => l.map(r => r.zone)), [['1'], ['2', '3']]);
+  assert.deepEqual(night.lanes.map(l => l.map(r => r.zone)), [['1', '2', '3'], []]);
   const one = resolvePlan({ zones, start, sunriseAt, intents, settings: { lanes: 1, earliestStart: 1440 + 6 * 60 } }).nights[0];
   assert.equal(one.start, 1440 + 6 * 60);
   assert.equal(one.status, 'late');
@@ -154,4 +154,76 @@ test('seasonal run lengths determine staggering and rebalance loads without chan
   assert.equal(anchored['2'].seconds, 3600);
   const fractional = resolvePlan({ zones, start, intents: { 1: { seconds: 61, cadence: { every: 1 }, seasonalPercent: 150 } } });
   assert.equal(fractional.nights[0].seconds, 92);
+});
+
+function nightFor(minutes, settings = {}, extra = {}) {
+  return resolvePlan({ zones: minutes.map((_, i) => ({ id: String(i) })), start, nights: 1,
+    sunriseAt: () => 6 * 60 + 15,
+    intents: Object.fromEntries(minutes.map((m, i) => [i, { seconds: Math.round(m * 60), cadence: { every: 1 } }])),
+    settings: { earliestStart: 1440, hardDeadline: 8 * 60, ...settings }, ...extra }).nights[0];
+}
+const overlapMinutes = n => n.lanes.length < 2 ? 0 : n.lanes[0].reduce((sum, a) => sum + n.lanes[1].reduce((s, b) => s + Math.max(0, Math.min(a.to, b.to) - Math.max(a.from, b.from)), 0), 0);
+
+test('second lane overlaps only for the time missing from the preferred nighttime window', () => {
+  const n = nightFor([240, 120, 30]);
+  assert.equal(n.start, 1440);
+  assert.equal(n.finish, 1800);
+  assert.equal(overlapMinutes(n), 30);
+  assert.deepEqual(n.lanes.map(l => l.map(r => r.zone)), [['0', '1'], ['2']]);
+  assert.equal(n.lanes[1][0].from, 1770);
+  assert.deepEqual(n.deferred, []);
+  assert.equal(nightFor([240, 120]).lanes[1].length, 0);
+  assert.equal(nightFor([240, 120, 30], { lanes: 1 }).lanes.length, 1);
+});
+
+test('packing finds a feasible night that longest-first balancing would miss', () => {
+  const n = nightFor([180, 180, 120, 120, 120], { hardDeadline: 360 });
+  assert.deepEqual(n.deferred, []);
+  assert.equal(n.finish, 1800);
+  assert.deepEqual(n.lanes.map(l => l.reduce((s, r) => s + r.seconds / 60, 0)), [360, 360]);
+});
+
+test('extends beyond preferred finish only when necessary and never beyond hard deadline', () => {
+  const n = nightFor([240, 240, 240]);
+  assert.equal(n.finish, 1920);
+  assert.equal(overlapMinutes(n), 240);
+  const capped = nightFor([240, 240, 240], { hardDeadline: 360 });
+  assert.deepEqual(capped.deferred, ['2']);
+  assert.ok(capped.finish <= capped.hardDeadline);
+  const earlyDeadline = nightFor([60], { hardDeadline: 240 });
+  assert.equal(earlyDeadline.finish, earlyDeadline.hardDeadline);
+});
+
+test('whole-second runs, seasonal adjustment and rain holds affect the need for overlap', () => {
+  assert.ok(Math.abs(overlapMinutes(nightFor([240, 120, 1 / 60])) - 1 / 60) < 1e-9);
+  const intents = { 0: { seconds: 14400, cadence: { every: 1 }, seasonalPercent: 150 },
+    1: { seconds: 3600, cadence: { every: 1 }, waterDuringRain: true } };
+  assert.equal(overlapMinutes(nightFor([0, 0], {}, { intents })), 60);
+  const rain = nightFor([0, 0], {}, { intents, rain: new Set([dateKey(start)]) });
+  assert.equal(rain.lanes[1].length, 0);
+  assert.deepEqual(rain.held, ['0']);
+});
+
+test('small schedules match exhaustive two-lane feasibility and minimum overlap', () => {
+  // Deterministic varied durations, including cases requiring a later finish.
+  let seed = 12345;
+  for (let trial = 0; trial < 100; trial++) {
+    const minutes = Array.from({ length: 6 }, () => { seed = (seed * 16807) % 2147483647; return 20 + seed % 150; });
+    const total = minutes.reduce((a, b) => a + b, 0);
+    let minimumLength = Infinity;
+    for (let mask = 0; mask < 1 << minutes.length; mask++) {
+      const sum = minutes.reduce((s, m, i) => s + ((mask >> i) & 1 ? m : 0), 0);
+      minimumLength = Math.min(minimumLength, Math.max(sum, total - sum));
+    }
+    const n = nightFor(minutes);
+    assert.deepEqual(n.deferred, []);
+    assert.equal(n.finish, 1440 + Math.max(360, minimumLength));
+    assert.equal(overlapMinutes(n), Math.max(0, total - Math.max(360, minimumLength)));
+    const runs = n.lanes.flat();
+    assert.equal(new Set(runs.map(r => r.zone)).size, minutes.length);
+    for (const r of runs) {
+      assert.equal(r.seconds, minutes[Number(r.zone)] * 60);
+      assert.ok(r.from >= n.earliestStart && r.to <= n.hardDeadline);
+    }
+  }
 });

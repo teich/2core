@@ -58,9 +58,9 @@ Known partial or failed runs do not count as full watering. A lost installation/
 
 Show a rolling fourteen-day projection. Future dates assume the projected watering occurs; rain and owner corrections can change them. Only the next night would be installed on the controller once live execution is enabled.
 
-For each night, assign due zones to two sequential lanes with a simple longest-first greedy algorithm. Prefer overdue work when choosing what fits and keep ties stable. Work backwards from the preferred finish without starting before the earliest start; use the hard deadline when necessary.
+For each night, prefer one sequential lane. Use a second only when needed to fit before the preferred finish (bounded by the hard deadline), and offset the lanes to minimize simultaneous watering. Whole-second subset packing finds a feasible allocation without splitting runs. Prefer overdue work, then longer runs, when choosing what fits and keep ties stable. Use time after the preferred finish only when necessary, never past the hard deadline. The lane setting is a maximum; a one-lane limit remains available.
 
-Validate the candidate timeline, including midnight crossings. If it overflows, show which work is deferred and how many more minutes that candidate needs. Do not silently shorten durations or increase concurrency. The greater of the longest job and half the total duration provides a quick lower bound; a greedy failure alone is not proof that no arrangement can fit. Do not build a search engine or search-timeout reporting for this milestone.
+Validate the candidate timeline, including midnight crossings. If it overflows, show which work is deferred and how many more minutes that candidate needs. Do not silently shorten durations or increase concurrency. The greater of the longest job and half the total duration provides a quick lower bound; indivisible runs may require more room than that lower bound.
 
 The interface should make it easy to enter and adjust each zone's needs and see the consequences: watering dates, durations, lane timelines, next due dates, final finish, use of time after sunrise, and reasons for skips or deferrals. A per-zone list and simple timeline are sufficient. Controller program numbers belong in installation details.
 
