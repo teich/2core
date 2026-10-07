@@ -9,7 +9,7 @@ const authorized = (header, key) => {
   return value.length === expected.length && timingSafeEqual(value, expected);
 };
 // Only the private Unix listener may set trustedOrigin. TCP never trusts headers.
-export function createServer(engine, apiKey, { trustedOrigin } = {}) {
+export function createServer(engine, apiKey, { trustedOrigin = /** @type {string | undefined} */ (undefined) } = {}) {
   if (trustedOrigin && new URL(trustedOrigin).origin !== trustedOrigin)
     throw new Error('Trusted origin must be an exact origin without a trailing slash');
   return http.createServer(async (req, res) => {
@@ -97,7 +97,11 @@ export function createServer(engine, apiKey, { trustedOrigin } = {}) {
       else if (path === '/api/policy') fn = () => engine.configurePolicy(payload);
       else if (path === '/api/weather') fn = () => engine.weather(payload);
       else return json(404, { error: 'Unknown API route' });
-      if (req.headers.prefer?.split(',').some(value => value.trim() === 'respond-async')) {
+      if (
+        String(req.headers.prefer ?? '')
+          .split(',')
+          .some(value => value.trim() === 'respond-async')
+      ) {
         const { operation } = engine.submit(req.headers['idempotency-key'], path, payload, fn, deadline);
         res.setHeader('Preference-Applied', 'respond-async');
         if (operation) res.setHeader('Location', `/api/commands/${operation.id}`);

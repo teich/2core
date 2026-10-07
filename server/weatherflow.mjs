@@ -35,7 +35,10 @@ export function forecastRain(hourly, now = Date.now()) {
 export class WeatherFlow {
   constructor({ token, stationId, fetch = globalThis.fetch, clock = Date.now }) {
     if (!token) throw new Error('WeatherFlow weather needs an access token');
-    Object.assign(this, { token, stationId: stationId ? String(stationId) : null, fetch, clock });
+    this.token = token;
+    this.stationId = stationId ? String(stationId) : null;
+    this.fetch = fetch;
+    this.clock = clock;
     this.station = null;
   }
   describe() {

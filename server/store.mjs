@@ -11,7 +11,7 @@ export class Store {
   }
   get(key, fallback = null) {
     const row = this.db.prepare('SELECT value FROM settings WHERE key=?').get(key);
-    return row ? JSON.parse(row.value) : fallback;
+    return row ? JSON.parse(String(row.value)) : fallback;
   }
   set(key, value) {
     this.db.prepare('INSERT OR REPLACE INTO settings VALUES (?,?)').run(key, JSON.stringify(value));
@@ -21,7 +21,7 @@ export class Store {
     const rows = this.db
       .prepare('SELECT key, value FROM settings WHERE substr(key, 1, ?) = ?')
       .all(prefix.length, prefix);
-    return Object.fromEntries(rows.map(row => [row.key.slice(prefix.length), JSON.parse(row.value)]));
+    return Object.fromEntries(rows.map(row => [String(row.key).slice(prefix.length), JSON.parse(String(row.value))]));
   }
   event(kind, data) {
     this.db
@@ -33,7 +33,7 @@ export class Store {
     return this.db
       .prepare('SELECT * FROM events ORDER BY id DESC LIMIT 50')
       .all()
-      .map(e => ({ ...e, data: JSON.parse(e.data) }));
+      .map(e => ({ ...e, data: JSON.parse(String(e.data)) }));
   }
   command(id) {
     return this.db.prepare('SELECT * FROM commands WHERE id=?').get(id);
@@ -61,7 +61,9 @@ export class Store {
     const row = this.db
       .prepare('SELECT o.*, c.state, c.result FROM operations o JOIN commands c USING(id) WHERE id=?')
       .get(id);
-    return row ? { ...row, body: JSON.parse(row.body), result: row.result ? JSON.parse(row.result) : null } : null;
+    return row
+      ? { ...row, body: JSON.parse(String(row.body)), result: row.result ? JSON.parse(String(row.result)) : null }
+      : null;
   }
   operations() {
     return this.db

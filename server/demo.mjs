@@ -71,4 +71,5 @@ export class DemoDriver {
       },
     });
   }
+  async close() {}
 }

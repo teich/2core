@@ -39,7 +39,13 @@ const ISSUE_TEXT = 40;
 
 export class Engine {
   constructor({ driver, store, mode = 'demo', allowControl = false, clock = Date.now, logger = () => {} }) {
-    Object.assign(this, { driver, store, mode, clock, logger });
+    this.driver = driver;
+    this.store = store;
+    this.mode = mode;
+    this.clock = clock;
+    this.logger = logger;
+    /** Set by server/index.mjs when a weather station is configured. */
+    this.weatherSource = null;
     this.allowControl = mode === 'demo' || allowControl;
     this.queue = Promise.resolve();
     this.jobs = [];
@@ -388,12 +394,12 @@ export class Engine {
         number(sample[key], 0, key === 'forecastProbability' ? 100 : 10000);
     }
     const policy = this.store.get('policy', DEFAULT_POLICY);
-    const decision = {
+    const decision = /** @type {Record<string, any>} */ ({
       ...evaluateWeather(sample, policy, this.clock()),
       at: new Date(this.clock()).toISOString(),
       mode: policy.mode,
       applied: false,
-    };
+    });
     this.store.set('weatherDecision', decision);
     if (policy.mode === 'automatic' && decision.wet && this.allowControl) {
       const known = this.knownHold(policy.holdHours);

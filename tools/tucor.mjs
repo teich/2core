@@ -30,7 +30,7 @@ async function prompt(label, hidden = false) {
   }
 }
 
-async function request(path, { authenticated = true, method = 'GET', body, timeout = 20000 } = {}) {
+async function request(path, { authenticated = true, method = 'GET', body = undefined, timeout = 20000 } = {}) {
   // Fixed origin; do not forward credentials through redirects.
   const response = await fetch(new URL(path, ORIGIN), {
     method,

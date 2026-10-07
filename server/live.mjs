@@ -41,24 +41,22 @@ export class LiveDriver {
     limits = TUCOR_LIMITS,
     random = Math.random,
   }) {
-    Object.assign(this, {
-      user,
-      password,
-      token,
-      controllerId,
-      socketFactory,
-      logger,
-      clock,
-      idleMs,
-      handoffMs,
-      maxSessionMs,
-      freshMs,
-      waitMs,
-      releaseMs,
-      ledger,
-      limits,
-      random,
-    });
+    this.user = user;
+    this.password = password;
+    this.token = token;
+    this.controllerId = controllerId;
+    this.socketFactory = socketFactory;
+    this.logger = logger;
+    this.clock = clock;
+    this.idleMs = idleMs;
+    this.handoffMs = handoffMs;
+    this.maxSessionMs = maxSessionMs;
+    this.freshMs = freshMs;
+    this.waitMs = waitMs;
+    this.releaseMs = releaseMs;
+    this.ledger = ledger;
+    this.limits = limits;
+    this.random = random;
     this.tail = Promise.resolve();
     this.session = null;
     this.onSnapshot = null;
@@ -196,7 +194,13 @@ export class LiveDriver {
   }
   async useSession(
     fn,
-    { interactive = true, forceFresh = false, user = false, telemetry = trace(this.logger), deadline } = {},
+    {
+      interactive = true,
+      forceFresh = false,
+      user = false,
+      telemetry = trace(this.logger),
+      deadline = /** @type {number | null} */ (null),
+    } = {},
   ) {
     clearTimeout(this.idleTimer);
     await this.closing;
@@ -263,6 +267,10 @@ class Session {
     this.components = new Map();
     this.observed = { controllerMode: null, rainShutDown: null, stations: null };
     this.codes = [];
+    /** @type {ReturnType<typeof trace> | null} Set by useSession for the current operation. */
+    this.telemetry = null;
+    /** @type {number | null} */
+    this.deadline = null;
     this.socket.on('message', message => this.receive(message));
     this.socket.on('disconnect', () => this.fail(new Error('Tucor connection lost; command outcome may be unknown')));
   }
@@ -363,7 +371,7 @@ class Session {
     await t.stage(
       'socket_connect',
       () =>
-        new Promise((resolve, reject) => {
+        new Promise((/** @type {(value?: unknown) => void} */ resolve, reject) => {
           const done = error => {
             clearTimeout(timer);
             this.socket.off('connect', connected);

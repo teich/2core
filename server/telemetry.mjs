@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 // Only caller-controlled labels and durations belong here, never packets/URLs.
+/**
+ * @param {(record: object) => void} [logger]
+ * @param {string} [id]
+ * @param {(stage: string) => void} [onStage]
+ */
 export function trace(logger = () => {}, id = randomUUID(), onStage = () => {}) {
   return {
     id,

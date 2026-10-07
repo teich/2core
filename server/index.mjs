@@ -113,7 +113,7 @@ if (tailscaleServer) {
   });
   await new Promise((resolve, reject) => {
     tailscaleServer.once('error', reject);
-    tailscaleServer.listen(tailscaleSocket, resolve);
+    tailscaleServer.listen(tailscaleSocket, () => resolve(undefined));
   });
   await chmod(tailscaleSocket, 0o600);
   console.log('Private Tailscale Serve listener ready');
@@ -125,7 +125,7 @@ for (const signal of ['SIGTERM', 'SIGINT'])
       [server, tailscaleServer].filter(Boolean).map(listener => new Promise(resolve => listener.close(resolve))),
     );
     await engine.queue;
-    await driver.close?.();
+    await driver.close();
     store.close();
     process.exit(0);
   });

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "types": ["node"],
+    "strict": false,
+    "skipLibCheck": true
+  },
+  "include": ["lib", "server", "web", "tools/*.mjs"],
+  "exclude": ["web/app.js", "web/plan.js", "web/water.js", "web/zone-sweep.js", "web/service-worker.js"]
+}
