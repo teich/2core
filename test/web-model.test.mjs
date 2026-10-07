@@ -238,3 +238,53 @@ test('the connection pill says how live the view is', () => {
     'stale',
   ]);
 });
+
+test('plan text: night clock, compact durations and the run-length stepper', async () => {
+  const { clampPercent, clockAt, clockShort, consequenceText, editLines, nightLabel, shortSeconds, stepMinutes } =
+    await import('../web/model/plan.js');
+  assert.equal(clockAt(22 * 60), '10:00pm');
+  assert.equal(clockAt(1440), 'midnight');
+  assert.equal(clockAt(1440 + 6 * 60 + 5), '6:05am');
+  assert.equal(clockShort(22 * 60), '10pm');
+  assert.equal(shortSeconds(45), '45s');
+  assert.equal(shortSeconds(720), '12');
+  assert.equal(shortSeconds(750), '12:30');
+  assert.equal(shortSeconds(3900), '1h05');
+  assert.equal(stepMinutes(8, 1), 9);
+  assert.equal(stepMinutes(10, 1), 15);
+  assert.equal(stepMinutes(10, -1), 9);
+  assert.equal(stepMinutes(60, 1), 75);
+  assert.equal(stepMinutes(240, 1), 240);
+  assert.equal(stepMinutes(1, -1), 1);
+  assert.equal(clampPercent(250), 200);
+  assert.equal(clampPercent(49.4), 50);
+  const start = new Date(2026, 6, 1);
+  assert.equal(nightLabel(start, 0), 'Tonight');
+  assert.equal(nightLabel(start, 1), 'Tomorrow');
+  assert.equal(nightLabel(start, 3), 'Sat 4');
+
+  const saved = { 4: { seconds: 600, enabled: true } };
+  assert.deepEqual(
+    editLines(
+      {
+        intents: { 4: { seconds: 900, enabled: false } },
+        settings: { lanes: 2, earliestStart: 1320 },
+        rebalanceToken: 't',
+      },
+      saved,
+      id => `Zone ${id}`,
+    ),
+    [
+      ['Zone 4', 'run length 10 min → 15 min'],
+      ['Zone 4', 'watering on → off'],
+      ['Night', 'zones at once → up to two'],
+      ['Night', 'start after 10:00pm'],
+      ['Dates', 'apply the reviewed rebalance'],
+    ],
+  );
+  assert.equal(consequenceText({}), '');
+  assert.equal(
+    consequenceText({ laterFinishNights: 1, latestFinish: 1440 + 330 }),
+    'Finishes later on 1 night; latest 5:30am.',
+  );
+});

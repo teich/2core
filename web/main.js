@@ -1,13 +1,11 @@
 // Entry point: signs in, mounts every view, and runs the polling and tick timers.
 // See AGENTS.md for how the web app is organized.
-import { $, escape, html } from './core/dom.js';
-import { api } from './core/api.js';
+import { $ } from './core/dom.js';
 import { app, onFrame, on, register, tick } from './core/app.js';
 import { heartbeat, interacted, load, prepare, resumed, HEARTBEAT_MS } from './core/commands.js';
-import { message } from './core/message.js';
 import { runningZones } from './model/zones.js';
 import { createWaterFX } from './water.js';
-import { createPlan } from './plan.js';
+import * as planTab from './plan/index.js';
 import * as shell from './views/shell.js';
 import * as activity from './views/activity.js';
 import * as zones from './views/zones.js';
@@ -21,14 +19,14 @@ app.implicitAuth = await import('./auth.js').then(m => m.detectImplicitAuthentic
 app.key = sessionStorage.getItem('2core-key') || '';
 
 const waterFX = createWaterFX();
-const plan = createPlan({ $, api, escape, message, html, getState: () => app.state, zoneEnabled: waterFX.zoneEnabled });
+const plan = planTab.mount({ zoneEnabled: waterFX.zoneEnabled });
 
 // Registration order is render order.
 register(shell.mount());
 register(activity.mount());
 register(zones.mount());
 register(weather.mount());
-register({ render: () => app.tab === 'plan' && plan.render() });
+register(plan);
 register(walk.mount({ tilt: waterFX.tilt }));
 register(zoneSheet.mount({ plan, pour: waterFX.pour }));
 register(findings.mount());

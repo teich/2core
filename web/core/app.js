@@ -21,7 +21,7 @@
  * @typedef {{ zones: Zone[], operations?: Operation[], events: any[], status: any, available: boolean,
  *   controlEnabled: boolean, mode: string, observedAt?: string, connection?: any, limits?: any,
  *   policy: any, rain?: any, weatherSource?: any, weatherReading?: any, weatherDecision?: any,
- *   error?: string, plan?: any }} ServerState
+ *   error?: string, plan?: any, location?: { latitude: number, longitude: number } }} ServerState
  *   The body of GET /api/state; see server/engine.mjs `state()`.
  */
 
