@@ -23,14 +23,18 @@ Every mutation below requires `Content-Type: application/json`, a unique `Idempo
 
 ### Watering plan
 
-Intentions are local planning data. They never reach Tucor and do not change controller schedules. These two writes are idempotent replacements answered immediately, outside the command queue; they need JSON and the usual authentication but no `Idempotency-Key` (a `deadline` is ignored).
+Intentions are local planning data. They never reach Tucor and do not change controller schedules. Intent and night-setting writes are idempotent replacements answered immediately, outside the command queue; they need JSON and the usual authentication but no `Idempotency-Key` (a `deadline` is ignored).
 
 | POST path | Properties | Meaning |
 | --- | --- | --- |
-| `/api/zones/:id/intent` | any of `seconds` (integer 1–14400 or null), `cadence` (`{every: 1–30}` days, `{perWeek: 1–6}`, or null), `enabled` (boolean), `firstDue` (`YYYY-MM-DD` or null) | Merge into the zone's intention; returns `{ok, intent}` |
+| `/api/zones/:id/intent` | any of `seconds` (integer 1–14400 or null), `cadence` (`{every: 1–30}` days, `{perWeek: 1–6}`, or null), `enabled` (boolean), `waterDuringRain` (boolean, default false), `firstDue` (`YYYY-MM-DD` or null) | Merge into the zone's intention; returns `{ok, intent}` |
 | `/api/plan` | any of `earliestStart` (minutes after the evening's midnight, 1080–1560), `finishBeforeSunrise` (0–120), `hardDeadline` (minutes after the morning's midnight, 240–720), `lanes` (1–2) | Night settings; returns `{ok, settings}` |
 
-`GET /api/state` includes `plan: {settings, intents}` (intents keyed by zone id) and `location` (`{latitude, longitude}` of the Tempest, recorded from WeatherFlow, or null). The app projects nights from these with `lib/planner.mjs`, served to the browser as `/planner.js`.
+`GET /api/state` includes `plan: {settings, intents}` (intents keyed by zone id) and `location` (`{latitude, longitude}` of the Tempest, recorded from WeatherFlow, or null). Complete intentions receive a persisted initial date automatically, balanced around existing intentions. Existing dates survive restarts, duration edits, and rain-preference edits. Changing cadence preserves the next projected watering date and starts the new cadence there. `firstDue` remains a compatibility field; the UI does not ask owners to select dates. `waterDuringRain` exempts a zone only in the advisory projection; it does not bypass controller rain shutdown or manual-command checks. The app projects nights from these with `lib/planner.mjs`, served to the browser as `/planner.js`.
+
+`POST /api/plan/rebalance-preview` with `{}` returns a read-only proposal: `{token, changes, beforePeakSeconds, afterPeakSeconds}`. Each change contains a zone id, old/new next watering date (`before`, `after`), signed `days` shift, and proposed internal `firstDue`. Peak values are total zone runtime on the busiest regular night across twelve weeks, before rain holds. The greedy proposal moves only enabled, complete zones, requires a lower peak at each step, and may return no changes.
+
+`POST /api/plan/rebalance` with `{token}` applies the reviewed proposal atomically to local dates. A token is bound to the entire saved plan and current night; intervening edits or a new night return 409 and require a new review. Duration, cadence, rain flags, and disabled zones are unchanged. These endpoints use the same authentication and JSON requirements as other plan endpoints, without command idempotency keys. They never contact Tucor. Disabling or enabling a zone does not implicitly rebalance anything, and editing a disabled zone's cadence does not enable it.
 
 Policy fields: `mode` (`off`, `observe`, `automatic`), `intensityMmH` (0.01–100), `accumulationMm` and `forecastMm` (0.1–500), `forecastProbability` (1–100), `holdHours` (integer 1–72).
 

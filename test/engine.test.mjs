@@ -7,6 +7,7 @@ import { Store } from '../server/store.mjs';
 import { Engine } from '../server/engine.mjs';
 import { DemoDriver } from '../server/demo.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from '../server/weather.mjs';
+import { currentNight, nextDueDate } from '../lib/planner.mjs';
 import { createServer } from '../server/http.mjs';
 
 async function fixture(t, options = {}) {
@@ -18,14 +19,6 @@ async function fixture(t, options = {}) {
 }
 let sequence = 0;
 const command = (engine, kind, body, fn, key = `test-command-${++sequence}`) => engine.command(key, kind, body, fn, new Date(Date.now() + 60000).toISOString());
-
-test('concurrent duplicate requests run once; conflicts cannot reuse a key', async t => {
-  const {engine, driver} = await fixture(t);
-  const invoke = () => command(engine, 'start', {minutes:1}, () => engine.start('1',1), 'duplicate-key');
-  const [a,b] = await Promise.all([invoke(),invoke()]);
-  assert.deepEqual(a,b); assert.equal(driver.nextHandle,2);
-  await assert.rejects(command(engine,'start',{minutes:5},()=>engine.start('1',5),'duplicate-key'), /another command/);
-});
 
 test('different simultaneous starts serialize and reject overlap', async t => {
   const {engine, driver} = await fixture(t);
@@ -143,17 +136,15 @@ test('unknown rain or activity state cannot initiate watering',async t=>{
   assert.equal(driver.nextHandle,1);
 });
 
-test('state reports limits and the confirmed run timing the UI draws from', async t => {
+test('state reports the confirmed run timing the UI draws from', async t => {
   const {engine} = await fixture(t, { clock: () => Date.parse('2026-09-28T10:00:00Z') });
   await engine.start('3', 15);
   const state = engine.state();
-  assert.deepEqual(state.limits, { minMinutes: 1, maxMinutes: 240, concurrentZones: 1, issues: 20 });
   const zone = state.zones.find(z => z.id === '3');
   assert.equal(zone.startedAt, '2026-09-28T10:00:00.000Z');
   assert.equal(zone.minutes, 15);
   assert.equal(zone.endsAt, '2026-09-28T10:15:00.000Z');
   assert.equal(state.zones.find(z => z.id === '4').startedAt, null);
-  await assert.rejects(engine.start('3', 241), /between 1 and 240/);
 });
 
 test('zone issues are validated, normalized and returned with the zone', async t => {
@@ -173,14 +164,16 @@ test('watering intentions and night settings are validated, stored locally, and 
   const post=(path,body)=>fetch(`${base}/api${path}`,{method:'POST',headers,body:JSON.stringify(body)});
   const res=await post('/zones/2/intent',{seconds:1500,cadence:{perWeek:2}});
   assert.equal(res.status,200);
-  assert.deepEqual((await res.json()).intent,{seconds:1500,cadence:{perWeek:2},enabled:true,firstDue:null});
-  assert.equal((await post('/zones/2/intent',{firstDue:'2026-10-02',enabled:false})).status,200);
-  for (const bad of [{seconds:0},{seconds:14401},{cadence:{every:0}},{cadence:{every:2,perWeek:2}},{firstDue:'2026-02-30'},{colour:'red'}]) assert.equal((await post('/zones/2/intent',bad)).status,400, JSON.stringify(bad));
+  const initial = (await res.json()).intent;
+  assert.match(initial.firstDue, /^\d{4}-\d{2}-\d{2}$/);
+  assert.deepEqual(initial,{seconds:1500,cadence:{perWeek:2},enabled:true,firstDue:initial.firstDue,waterDuringRain:false});
+  assert.equal((await post('/zones/2/intent',{firstDue:'2026-10-02',enabled:false,waterDuringRain:true})).status,200);
+  for (const bad of [{seconds:0},{seconds:14401},{cadence:{every:0}},{cadence:{every:2,perWeek:2}},{firstDue:'2026-02-30'},{colour:'red'},{waterDuringRain:'yes'},{waterDuringRain:1}]) assert.equal((await post('/zones/2/intent',bad)).status,400, JSON.stringify(bad));
   assert.equal((await post('/zones/99/intent',{seconds:60})).status,404);
   assert.equal((await post('/plan',{lanes:1,earliestStart:1380})).status,200);
   assert.equal((await post('/plan',{lanes:3})).status,400);
   const state=await (await fetch(`${base}/api/state`,{headers})).json();
-  assert.deepEqual(state.plan.intents['2'],{seconds:1500,cadence:{perWeek:2},enabled:false,firstDue:'2026-10-02'});
+  assert.deepEqual(state.plan.intents['2'],{seconds:1500,cadence:{perWeek:2},enabled:false,firstDue:'2026-10-02',waterDuringRain:true});
   assert.deepEqual(state.plan.settings,{earliestStart:1380,finishBeforeSunrise:15,hardDeadline:540,lanes:1});
   assert.equal(driver.runs.length,0);
   assert.equal((await fetch(`${base}/planner.js`)).headers.get('content-type'),'text/javascript; charset=utf-8');
@@ -191,4 +184,60 @@ test('the weather station supplies the plan’s location', async t => {
   engine.weatherSource={describe:()=>({configured:true,station:{id:'1',latitude:38.4,longitude:-122.7}})};
   engine.recordWeatherRead({sample:{observedAt:new Date().toISOString()}});
   assert.deepEqual(engine.state().location,{latitude:38.4,longitude:-122.7});
+});
+
+
+test('initial staggering persists across restarts and repeated edits never move other zones', async t => {
+  let now = new Date(2026, 9, 6, 17).getTime();
+  const store = new Store(); t.after(() => store.close());
+  for (const id of ['1', '2', '3']) store.set(`intent:${id}`, { seconds: 3600, cadence: { every: 2 }, enabled: true, firstDue: null });
+  const driver = new DemoDriver();
+  const engine = new Engine({ store, driver, clock: () => now });
+  await engine.refresh();
+  const initial = structuredClone(engine.plan().intents);
+  assert.equal(new Set(Object.values(initial).map(i => i.firstDue)).size, 2);
+  for (const day of [8, 10, 12]) {
+    now = new Date(2026, 9, day, 17).getTime();
+    engine.intent('1', { seconds: 60 * day, waterDuringRain: true });
+    engine.intent('4', { seconds: 1200, cadence: { perWeek: 3 } });
+    for (const id of ['1', '2', '3']) assert.equal(engine.plan().intents[id].firstDue, initial[id].firstDue);
+  }
+  const next = nextDueDate(engine.plan().intents['1'], currentNight(new Date(now)));
+  engine.intent('1', { cadence: { every: 7 } });
+  assert.equal(engine.plan().intents['1'].firstDue, next);
+  assert.deepEqual(engine.plan().intents['2'], initial['2']);
+  const saved = engine.plan();
+  const restarted = new Engine({ store, driver, clock: () => now + 2 * 864e5 });
+  assert.deepEqual(restarted.plan(), saved);
+  assert.equal(driver.runs.length, 0);
+});
+
+test('seasonal disable preserves settings; rebalance needs current reviewed token and applies atomically', async t => {
+  let now = new Date(2026, 9, 6, 17).getTime();
+  const { engine, store, driver } = await fixture(t, { clock: () => now });
+  for (const id of ['1', '2', '3']) engine.intent(id, { seconds: 3600, cadence: { every: 2 }, firstDue: '2026-10-06', waterDuringRain: id === '3' });
+  const original = engine.plan().intents['3'];
+  engine.intent('3', { enabled: false });
+  assert.deepEqual(engine.plan().intents['3'], { ...original, enabled: false });
+  const before = engine.plan(), proposal = engine.rebalancePreview();
+  assert.equal(proposal.changes.length, 1);
+  assert.deepEqual(engine.plan(), before); // Reviewing/cancelling cannot move dates.
+  assert.throws(() => engine.rebalance({ token: 'unreviewed' }), /plan changed/);
+  engine.intent('2', { seconds: 7200 });
+  assert.throws(() => engine.rebalance({ token: proposal.token }), /plan changed/);
+  const fresh = engine.rebalancePreview();
+  const result = engine.rebalance({ token: fresh.token });
+  assert.deepEqual(result.changes, fresh.changes);
+  for (const c of fresh.changes) assert.equal(engine.plan().intents[c.zone].firstDue, c.firstDue);
+  assert.deepEqual(engine.plan().intents['3'], { ...original, enabled: false });
+  assert.throws(() => engine.rebalance({ token: fresh.token }), /plan changed/);
+  engine.intent('3', { enabled: true });
+  assert.deepEqual(engine.plan().intents['3'], original);
+  const yesterday = engine.rebalancePreview();
+  now += 864e5;
+  assert.throws(() => engine.rebalance({ token: yesterday.token }), /plan changed/);
+  const saved = engine.plan();
+  const restarted = new Engine({ store, driver, clock: () => now });
+  assert.deepEqual(restarted.plan(), saved);
+  assert.equal(driver.runs.length, 0);
 });

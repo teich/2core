@@ -1,6 +1,6 @@
 // The Plan tab: what each zone needs, and the nights that follow from it.
 // Advisory only. Edits save to the bridge's local store and never reach Tucor.
-import { CADENCES, NIGHTS, FALLBACK_SUNRISE, addDays, cadenceFromKey, cadenceKey, cadenceLabel, currentNight, dateKey, durationText, formatDuration, parseDuration, resolvePlan, sunrise } from './planner.js';
+import { CADENCES, NIGHTS, FALLBACK_SUNRISE, addDays, cadenceFromKey, cadenceKey, cadenceLabel, currentNight, dateKey, formatDuration, parseDuration, resolvePlan, sunrise } from './planner.js';
 
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -26,8 +26,11 @@ const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export function createPlan({ $, api, escape, message, html, getState }) {
   const drafts = new Map();          // zone id → intent shown before the server confirms it
+  const saves = new Map();
+  let rebalanceProposal = null, reviewing = false;
+  const expandedCadences = new Set();
   const typed = new Map();           // zone id → unreadable duration text, kept so it can be fixed
-  let settingsDraft = null, selected = 0, needsOnly = false, whatIf = new Set(), rowsKey = '', last = null;
+  let settingsDraft = null, selected = 0, needsOnly = false, whatIf = new Set(), rowsKey = '';
 
   const zones = () => getState().zones.filter(z => z.configured);
   const intents = () => {
@@ -40,7 +43,7 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     if (settingsDraft && same(saved, settingsDraft)) settingsDraft = null;
     return settingsDraft ?? saved;
   };
-  const blank = () => ({ seconds: null, cadence: null, enabled: true, firstDue: null });
+  const blank = () => ({ seconds: null, cadence: null, enabled: true, firstDue: null, waterDuringRain: false });
 
   // A rain delay on the controller holds any night that starts before it ends.
   function rainNights(start, cfg) {
@@ -60,8 +63,17 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     const next = { ...blank(), ...intents()[id], ...patch };
     drafts.set(id, next);
     render();
-    try { await api(`/zones/${id}/intent`, patch); }
-    catch (e) { drafts.delete(id); message(`Couldn’t save the plan for zone ${id}: ${e.message}`, true); render(); }
+    const saving = (saves.get(id) ?? Promise.resolve()).catch(() => {}).then(() => api(`/zones/${id}/intent`, patch));
+    saves.set(id, saving);
+    try {
+      const saved = await saving;
+      if (drafts.get(id) === next) drafts.set(id, saved.intent);
+      if (Object.hasOwn(patch, 'enabled')) $('rebalance-prompt').hidden = false;
+      render();
+    } catch (e) {
+      if (drafts.get(id) === next) drafts.delete(id);
+      message(`Couldn’t save the plan for zone ${id}: ${e.message}`, true); render();
+    } finally { if (saves.get(id) === saving) saves.delete(id); }
   }
   async function saveSettings(patch) {
     settingsDraft = { ...settings(), ...patch };
@@ -71,11 +83,10 @@ export function createPlan({ $, api, escape, message, html, getState }) {
   }
 
   function build(list) {
-    const options = [...CADENCES.map(c => `<option value="${cadenceKey(c)}">${cadenceLabel(c)}</option>`), '<option value="off">Paused</option>', '<option value="">Not set</option>'].join('');
     $('plan-rows').innerHTML = list.map(z => `<div class="prow" role="row" data-row="${z.id}">
-      <div class="pzone" role="rowheader"><span class="zone-num num">${String(z.id).padStart(2, '0')}</span><span class="pz-text"><b>${escape(z.name)}</b><small data-meta></small></span></div>
+      <div class="pzone" role="rowheader"><span class="zone-num num">${String(z.id).padStart(2, '0')}</span><span class="pz-text"><b>${escape(z.name)}</b><small data-meta></small><label class="rain-choice"><input type="checkbox" data-rain="${z.id}" aria-label="Water ${escape(z.name)} during rain delays">Water during rain delays</label></span></div>
       <label class="pdur" role="cell"><input class="num" data-dur="${z.id}" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="Run length for ${escape(z.name)}, in minutes"><span>min</span></label>
-      <div class="pcad" role="cell"><select data-cad="${z.id}" aria-label="How often ${escape(z.name)} waters">${options}</select></div>
+      <div class="pcad" role="cell"><label class="zone-enabled"><input type="checkbox" data-enabled="${z.id}" aria-label="Enable ${escape(z.name)} in the watering plan">Enabled</label><select data-cad="${z.id}" aria-label="How often ${escape(z.name)} waters"></select></div>
       <div class="pcells" data-cells></div>
       <span class="pnext num" role="cell" data-next></span>
     </div>`).join('');
@@ -91,7 +102,6 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     const loc = state.location;
     const sunriseAt = loc ? date => sunrise(date, loc.latitude, loc.longitude) : () => null;
     const plan = resolvePlan({ zones: list, intents: all, settings: cfg, start, rain: rainNights(start, cfg), sunriseAt });
-    last = { plan, start, list };
     selected = Math.min(selected, NIGHTS - 1);
     const names = Object.fromEntries(list.map(z => [z.id, z.name]));
     const label = d => d === 0 ? 'Tonight' : d === 1 ? 'Tomorrow' : `${WD[addDays(start, d).getDay()]} ${addDays(start, d).getDate()}`;
@@ -110,6 +120,8 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     document.querySelectorAll('[data-lanes]').forEach(b => b.setAttribute('aria-checked', String(Number(b.dataset.lanes) === cfg.lanes)));
     $('plan-all').setAttribute('aria-pressed', String(!needsOnly));
     $('plan-needs').setAttribute('aria-pressed', String(needsOnly));
+    $('plan-needs').parentElement.hidden = todo === 0;
+    if (todo === 0) needsOnly = false;
     $('plan-needs-count').textContent = todo;
     $('plan-needs-count').classList.toggle('hot', todo > 0);
 
@@ -140,27 +152,38 @@ export function createPlan({ $, api, escape, message, html, getState }) {
       row.classList.toggle('paused', p.problem === 'paused');
       row.classList.toggle('todo', NEEDS.has(p.problem));
       const input = row.querySelector('[data-dur]'), select = row.querySelector('[data-cad]');
-      if (document.activeElement !== input) input.value = typed.get(z.id) ?? durationText(intent.seconds);
+      if (document.activeElement !== input) input.value = typed.get(z.id) ?? (intent.seconds == null ? '' : String(Number((intent.seconds / 60).toFixed(4))));
       input.closest('label').classList.toggle('invalid', typed.has(z.id));
       input.closest('label').classList.toggle('empty', !intent.seconds && !typed.has(z.id));
-      const cad = intent.enabled === false && intent.cadence ? 'off' : cadenceKey(intent.cadence);
-      if (document.activeElement !== select) select.value = cad;
+      const cad = cadenceKey(intent.cadence);
+      const common = [{ every: 2 }, { perWeek: 3 }, { perWeek: 2 }, { every: 7 }];
+      const choices = expandedCadences.has(z.id) ? CADENCES : common;
+      const offered = [...choices];
+      if (intent.cadence && !offered.some(c => cadenceKey(c) === cadenceKey(intent.cadence))) offered.push(intent.cadence);
+      const options = offered.map(c => `<option value="${cadenceKey(c)}">${cadenceLabel(c)}</option>`).join('')
+        + (expandedCadences.has(z.id) ? '' : '<option value="other">Other…</option>')
+        + '<option value="">Not set</option>';
+      if (select._options !== options) { select.innerHTML = options; select._options = options; }
+      select.value = cad;
+      row.querySelector('[data-enabled]').checked = intent.enabled !== false;
+      row.querySelector('[data-enabled]').parentElement.lastChild.textContent = intent.enabled === false ? 'Disabled' : 'Enabled';
+      row.querySelector('[data-rain]').checked = intent.waterDuringRain === true;
       select.classList.toggle('empty', !intent.cadence);
-      const meta = typed.has(z.id) ? ['Try 25, 7:30, 0:20 or 2h', 'bad']
+      const meta = typed.has(z.id) ? ['Enter 1–240 minutes', 'bad']
         : p.problem === 'unset' ? ['Needs a run length and how often', 'warn']
         : p.problem === 'duration' ? ['Add a run length', 'warn']
         : p.problem === 'cadence' ? ['Choose how often', 'warn']
-        : p.problem === 'paused' ? ['Paused · not watering', '']
+        : p.problem === 'paused' ? ['Disabled · settings kept', '']
         : [`≈ ${formatDuration(Math.max(60, Math.round(p.weeklySeconds / 60) * 60))} a week`, ''];
       const metaEl = row.querySelector('[data-meta]');
       metaEl.textContent = meta[0]; metaEl.className = meta[1];
       const cells = p.cells.map((c, d) => {
         const date = addDays(start, d), when = `${WEEKDAY[date.getDay()]} ${MONTH[date.getMonth()]} ${date.getDate()}`;
         const cls = `pc${d === selected ? ' sel' : ''}${plan.nights[d].rain ? ' rain' : ''}`;
-        if (c.kind === 'water') return `<button class="${cls}" data-move="${z.id}" data-day="${d}" aria-label="${escape(z.name)} waters ${formatDuration(intent.seconds)} ${when}${c.late ? `, ${c.late} night${c.late > 1 ? 's' : ''} late` : ''}"><span class="pill-run${c.late ? ' late' : ''} num">${short(intent.seconds)}</span></button>`;
-        if (c.kind === 'held') return `<button class="${cls}" data-move="${z.id}" data-day="${d}" aria-label="${escape(z.name)} is due ${when} and waits out the rain"><span class="pill-held">${RAIN_ICON}</span></button>`;
-        if (c.kind === 'deferred') return `<button class="${cls}" data-move="${z.id}" data-day="${d}" aria-label="${escape(z.name)} is due ${when} but doesn’t fit"><span class="pill-over">!</span></button>`;
-        return `<button class="${cls}" data-move="${z.id}" data-day="${d}" aria-label="Move ${escape(z.name)}’s next watering to ${when}"${p.problem ? ' disabled' : ''}><i></i></button>`;
+        if (c.kind === 'water') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} waters ${formatDuration(intent.seconds)} ${when}${c.late ? `, ${c.late} night${c.late > 1 ? 's' : ''} late` : ''}"><span class="pill-run${c.late ? ' late' : ''} num">${short(intent.seconds)}</span></button>`;
+        if (c.kind === 'held') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} is due ${when} and waits out the rain"><span class="pill-held">${RAIN_ICON}</span></button>`;
+        if (c.kind === 'deferred') return `<button class="${cls}" data-night="${d}" aria-label="${escape(z.name)} is due ${when} but doesn’t fit"><span class="pill-over">!</span></button>`;
+        return `<button class="${cls}" data-night="${d}" aria-label="Show ${escape(z.name)} on ${when}"${p.problem ? ' disabled' : ''}><i></i></button>`;
       }).join('');
       const cellsEl = row.querySelector('[data-cells]');
       if (cellsEl._html !== cells) { cellsEl.innerHTML = cells; cellsEl._html = cells; }
@@ -185,9 +208,9 @@ export function createPlan({ $, api, escape, message, html, getState }) {
       const title = `${names[r.zone]} · ${formatDuration(r.seconds)} · ${clockAt(r.from)}–${clockAt(r.to)}${r.late ? ` · ${r.late} night${r.late > 1 ? 's' : ''} late` : ''}`;
       return `<div class="run${r.late ? ' late' : ''}" title="${escape(title)}" data-left="${pos(r.from)}" data-width="${width.toFixed(3)}">${width > 4.5 ? `<b>${escape(names[r.zone])}</b><small class="num">${formatDuration(r.seconds)}</small>` : ''}</div>`;
     }).join('')}</div></div>`).join('');
-    const notes = n.rain
-      ? (n.held.length ? [['rain', `${n.held.map(id => names[id]).join(', ')} ${n.held.length > 1 ? 'wait' : 'waits'} for the next clear night.`]] : [])
-      : [
+    const notes = [
+        ...(n.held.length ? [['rain', `${n.held.map(id => names[id]).join(', ')} ${n.held.length > 1 ? 'wait' : 'waits'} for the next clear night.`]] : []),
+        ...(n.rain && n.start != null ? [['rain', 'Covered zones keep their planned watering during rain. This preview does not bypass the controller’s rain delay.']] : []),
         ...Object.values(Object.groupBy(n.late, l => `${l.nights}:${l.reason}`)).map(group => {
           const { nights, reason } = group[0], who = group.map(l => names[l.zone]).join(', ');
           return ['warn', `${who} ${group.length > 1 ? 'water' : 'waters'} ${nights} night${nights > 1 ? 's' : ''} late after ${reason === 'rain' ? 'waiting out rain' : 'not fitting an earlier night'}.`];
@@ -230,6 +253,43 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     place($('night-card'));
   }
 
+  async function reviewRebalance() {
+    if (reviewing) return;
+    reviewing = true;
+    try {
+      await Promise.all([...saves.values()]);
+      rebalanceProposal = await api('/plan/rebalance-preview', {});
+      const p = rebalanceProposal, names = Object.fromEntries(zones().map(z => [z.id, z.name]));
+      const pretty = key => { const [y, m, d] = key.split('-').map(Number); return `${MONTH[m - 1]} ${d}, ${y}`; };
+      $('rebalance-summary').textContent = p.changes.length
+        ? `Move ${p.changes.length} zone${p.changes.length === 1 ? '' : 's'}. Over the next 12 weeks, the busiest regular night drops from ${formatDuration(p.beforePeakSeconds)} to ${formatDuration(p.afterPeakSeconds)} of total zone watering.`
+        : 'No useful rebalance found. Existing watering dates can stay as they are.';
+      $('rebalance-changes').innerHTML = p.changes.map(c => `<li><b>${escape(names[c.zone] ?? `Zone ${c.zone}`)}</b><span>${pretty(c.before)} → ${pretty(c.after)}</span><span>${Math.abs(c.days)} day${Math.abs(c.days) === 1 ? '' : 's'} ${c.days > 0 ? 'later — a longer wait this time' : 'earlier — a shorter gap this time'}. Then the usual frequency continues.</span></li>`).join('');
+      $('rebalance-error').textContent = '';
+      $('confirm-rebalance').hidden = !p.changes.length;
+      $('confirm-rebalance').disabled = false;
+      $('rebalance-dialog').showModal();
+    } catch (e) { message(`Couldn’t prepare the rebalance: ${e.message}`, true); }
+    finally { reviewing = false; }
+  }
+  $('plan-rebalance').addEventListener('click', reviewRebalance);
+  $('review-rebalance').addEventListener('click', reviewRebalance);
+  $('dismiss-rebalance').addEventListener('click', () => { $('rebalance-prompt').hidden = true; });
+  $('cancel-rebalance').addEventListener('click', () => $('rebalance-dialog').close());
+  $('confirm-rebalance').addEventListener('click', async () => {
+    if (!rebalanceProposal) return;
+    $('confirm-rebalance').disabled = true;
+    try {
+      const result = await api('/plan/rebalance', { token: rebalanceProposal.token });
+      for (const [id, intent] of Object.entries(result.plan.intents)) drafts.set(id, intent);
+      $('rebalance-dialog').close();
+      $('rebalance-prompt').hidden = true;
+      rebalanceProposal = null;
+      render();
+      message('Rebalanced the saved plan. Run lengths and frequencies are unchanged.');
+    } catch (e) { $('rebalance-error').textContent = `${e.message} Close this review and review again before confirming.`; }
+  });
+
   // The page's CSP forbids inline style attributes; position through the DOM.
   function place(root) {
     root.querySelectorAll('[data-left]').forEach(el => { el.style.left = `${el.dataset.left}%`; });
@@ -238,13 +298,9 @@ export function createPlan({ $, api, escape, message, html, getState }) {
 
   const view = $('plan-view');
   view.addEventListener('click', e => {
-    const night = e.target.closest('[data-night]'), move = e.target.closest('[data-move]'), rain = e.target.closest('[data-whatif]'), lanes = e.target.closest('[data-lanes]');
+    const night = e.target.closest('[data-night]'), rain = e.target.closest('[data-whatif]'), lanes = e.target.closest('[data-lanes]');
     if (night) { selected = Number(night.dataset.night); render(); }
-    else if (move && last) {
-      const id = move.dataset.move, intent = intents()[id];
-      if (!intent?.cadence || !intent.seconds) return;
-      saveIntent(id, { firstDue: dateKey(addDays(last.start, Number(move.dataset.day))), enabled: true });
-    } else if (rain) { whatIf.has(rain.dataset.whatif) ? whatIf.delete(rain.dataset.whatif) : whatIf.add(rain.dataset.whatif); render(); }
+    else if (rain) { whatIf.has(rain.dataset.whatif) ? whatIf.delete(rain.dataset.whatif) : whatIf.add(rain.dataset.whatif); render(); }
     else if (lanes) saveSettings({ lanes: Number(lanes.dataset.lanes) });
     else if (e.target.closest('#plan-all')) { needsOnly = false; render(); }
     else if (e.target.closest('#plan-needs')) { needsOnly = true; render(); }
@@ -260,7 +316,7 @@ export function createPlan({ $, api, escape, message, html, getState }) {
     render();
   });
   view.addEventListener('change', e => {
-    const input = e.target.closest('[data-dur]'), select = e.target.closest('[data-cad]');
+    const input = e.target.closest('[data-dur]'), select = e.target.closest('[data-cad]'), rain = e.target.closest('[data-rain]'), enabled = e.target.closest('[data-enabled]');
     if (input) {
       const id = input.dataset.dur, seconds = parseDuration(input.value);
       if (Number.isNaN(seconds) || seconds > 4 * 3600 || seconds === 0) { typed.set(id, input.value); render(); return; }
@@ -268,8 +324,11 @@ export function createPlan({ $, api, escape, message, html, getState }) {
       saveIntent(id, { seconds });
     } else if (select) {
       const id = select.dataset.cad;
-      saveIntent(id, select.value === 'off' ? { enabled: false } : { cadence: cadenceFromKey(select.value), enabled: true });
-    } else if (e.target.id === 'plan-earliest') saveSettings({ earliestStart: Number(e.target.value) });
+      if (select.value === 'other') { expandedCadences.add(id); render(); return; }
+      saveIntent(id, { cadence: cadenceFromKey(select.value) });
+    } else if (enabled) saveIntent(enabled.dataset.enabled, { enabled: enabled.checked });
+    else if (rain) saveIntent(rain.dataset.rain, { waterDuringRain: rain.checked });
+    else if (e.target.id === 'plan-earliest') saveSettings({ earliestStart: Number(e.target.value) });
     else if (e.target.id === 'plan-finish') saveSettings({ finishBeforeSunrise: Number(e.target.value) });
     else if (e.target.id === 'plan-hard') saveSettings({ hardDeadline: Number(e.target.value) });
   });

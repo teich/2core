@@ -96,3 +96,44 @@ Direct execution would need shared capacity admission for manual and scheduled w
 Suggested initial boundaries are `server/intents.mjs` for cadence and `server/planner.mjs` for pure resolution, extending `store.mjs`, the weather adapter as needed, and the existing web app. Add `server/programs.mjs` if nightly compilation is selected, or a durable scheduler if direct execution is selected.
 
 This is enough planning to begin. The next useful evidence is the owner's intentions entered into a working interface and the schedule they actually produce.
+
+
+## October 6 update: actual intentions and stable placement
+
+Production now contains complete intentions for 28 zones: 19 every other day,
+4 three times weekly, 3 twice weekly, and 2 weekly. Durations are whole minutes,
+from 1 to 240. Weekly demand is 3,937.5 zone-minutes. These cadences all repeat
+within fourteen days, so a repeating controller installation is worth comparing
+with nightly compilation before implementing execution.
+
+The owner does not need to choose starting dates. Initial placement is computed
+once and saved, preserving any already established dates. New intentions are
+placed around existing ones. Editing duration or rain preference never moves a
+zone's date; editing frequency preserves its next projected watering and applies
+the new cadence afterward. Rebalancing must be an explicit future operation,
+not a side effect of opening the app or editing another zone. Preview dates
+still assume watering occurred; live operation must use durable due dates and
+watering outcomes so missed or deferred work cannot disappear as time passes.
+
+Covered zones can be marked “Water during rain delays.” In the preview only
+exposed due zones are held; covered zones continue on their cadence, with normal
+capacity and pause constraints. No controller bypass is implemented. Before live
+cutover, validate a way to water covered zones while holding exposed ones. Rain
+and other execution exceptions will require reconciling due dates and updating
+the installed schedule, with verified readback and no blind retries. A repeating
+schedule alone does not implement the agreed postpone-and-shift rain behavior.
+
+The main cadence menu presents the four observed choices, with Other for the
+remaining choices. Durations display in minutes, night settings are collapsed,
+and the incomplete-plan filter disappears when all zones are configured.
+
+
+Seasonal zones now have an explicit enable/disable control that keeps their
+saved duration, cadence, rain preference, and anchor. Changing availability
+prompts a rebalance review without moving any other zone. The proposal reduces
+peak regular nightly zone-time over twelve weeks, one improving move at a time,
+and reports each next date's signed shift (longer wait or shorter gap). Applying
+requires confirmation against the unchanged saved plan and night, and writes
+all proposed dates atomically. Disabled zones are excluded and retain settings.
+This remains advisory; live installation and durable exception reconciliation
+are still prerequisites for changing actual watering.

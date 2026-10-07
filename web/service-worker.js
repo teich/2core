@@ -1,4 +1,4 @@
-const CACHE = '2core-shell-v2';
+const CACHE = '2core-shell-v4';
 const SHELL = ['/', '/style.css', '/app.js', '/auth.js', '/water.js', '/plan.js', '/planner.js', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { trace } from './telemetry.mjs';
 import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
-import { DEFAULT_SETTINGS, MAX_SECONDS, SETTING_LIMITS, validDateKey } from '../lib/planner.mjs';
+import { DEFAULT_SETTINGS, MAX_SECONDS, SETTING_LIMITS, currentNight, nextDueDate, proposeRebalance, staggerIntents, validDateKey } from '../lib/planner.mjs';
 
 export class AppError extends Error {
   constructor(message, status = 409) { super(message); this.status = status; }
@@ -23,6 +23,7 @@ export class Engine {
     this.inflight = new Map();
     this.store.interruptPending();
     this.current = this.store.get('lastObservation');
+    this.seedPlan();
     this.error = null;
     // An open session streams controller updates; take them instead of asking again.
     this.driver.onSnapshot = snapshot => this.accept(snapshot);
@@ -288,24 +289,60 @@ export class Engine {
     if (!error && Number.isFinite(station?.latitude) && Number.isFinite(station?.longitude)) this.store.set('location', { latitude: station.latitude, longitude: station.longitude });
   }
   // Watering intentions are local planning data. They never reach Tucor.
+  seedPlan() {
+    const saved = this.store.prefixed('intent:');
+    const seeded = staggerIntents(saved, currentNight(new Date(this.clock())));
+    this.store.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const [id, intent] of Object.entries(seeded)) {
+        if (intent.firstDue !== saved[id].firstDue) this.store.set(`intent:${id}`, intent);
+      }
+      this.store.db.exec('COMMIT');
+    } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
+  }
   plan() {
     return { settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) }, intents: this.store.prefixed('intent:') };
   }
   intent(zone, patch) {
     if (!this.current?.stations.some(s => String(s.StId) === zone)) throw new AppError('Unknown zone', 404);
-    const next = { seconds: null, cadence: null, enabled: true, firstDue: null, ...this.store.get(`intent:${zone}`, {}) };
+    const next = { seconds: null, cadence: null, enabled: true, firstDue: null, waterDuringRain: false, ...this.store.get(`intent:${zone}`, {}) };
+    const previous = { ...next };
     for (const [k, v] of Object.entries(patch)) {
       if (k === 'seconds') next.seconds = v === null ? null : number(v, 1, MAX_SECONDS, true);
       else if (k === 'cadence') {
         const keys = v && typeof v === 'object' ? Object.keys(v) : [];
         if (v !== null && !(keys.length === 1 && (keys[0] === 'every' ? number(v.every, 1, 30, true) : keys[0] === 'perWeek' && number(v.perWeek, 1, 6, true)))) throw new AppError('Cadence must be {every: days} or {perWeek: times}', 400);
         next.cadence = v;
-      } else if (k === 'enabled') { if (typeof v !== 'boolean') throw new AppError('Invalid enabled flag', 400); next.enabled = v; }
+      } else if (k === 'enabled' || k === 'waterDuringRain') { if (typeof v !== 'boolean') throw new AppError(`Invalid ${k} flag`, 400); next[k] = v; }
       else if (k === 'firstDue') { if (v !== null && !validDateKey(v)) throw new AppError('First due date must be YYYY-MM-DD', 400); next.firstDue = v; }
       else throw new AppError('Unknown intent field', 400);
     }
-    this.store.set(`intent:${zone}`, next);
-    return { ok: true, intent: next };
+    if (patch.cadence && previous.cadence && previous.firstDue && !Object.hasOwn(patch, 'firstDue')
+      && JSON.stringify(patch.cadence) !== JSON.stringify(previous.cadence)) {
+      next.firstDue = nextDueDate(previous, currentNight(new Date(this.clock())));
+    }
+    // Allocate only this new intention around saved ones. Existing phases remain.
+    const seeded = staggerIntents({ ...this.plan().intents, [zone]: next }, currentNight(new Date(this.clock())));
+    this.store.set(`intent:${zone}`, seeded[zone]);
+    return { ok: true, intent: seeded[zone] };
+  }
+  rebalancePreview() {
+    const plan = this.plan(), start = currentNight(new Date(this.clock()));
+    const token = createHash('sha256').update(JSON.stringify({ plan, night: start.toISOString() })).digest('hex');
+    return { token, ...proposeRebalance(plan.intents, start) };
+  }
+  rebalance({ token }) {
+    const proposal = this.rebalancePreview();
+    if (!token || token !== proposal.token) throw new AppError('The plan changed. Review the updated rebalance before confirming.', 409);
+    this.store.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const change of proposal.changes) {
+        const intent = this.store.get(`intent:${change.zone}`);
+        this.store.set(`intent:${change.zone}`, { ...intent, firstDue: change.firstDue });
+      }
+      this.store.db.exec('COMMIT');
+    } catch (error) { this.store.db.exec('ROLLBACK'); throw error; }
+    return { ok: true, plan: this.plan(), changes: proposal.changes };
   }
   planSettings(patch) {
     const next = { ...this.plan().settings };

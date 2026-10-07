@@ -421,3 +421,17 @@ body:has(dialog[open]){overflow:hidden}
 @media (max-width:360px){main{padding-inline:12px}.seg span{display:none}.seg{grid-template-columns:repeat(4,1fr);padding-left:5px}}
 @media (min-width:800px){.sheet{bottom:20px;border-radius:34px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.plan-settings-panel summary{cursor:pointer;padding:12px 14px;font-size:14px;font-weight:600}
+.rain-choice{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);cursor:pointer;min-height:28px;line-height:1.2}
+.rain-choice input{flex:none;width:15px;height:15px;padding:0;margin:0;accent-color:var(--water)}
+.prow:not(.phead):not(.pfoot){min-height:76px}
+
+.zone-enabled{display:flex;align-items:center;gap:6px;min-height:28px;font-size:12px;cursor:pointer}
+.zone-enabled input{flex:none;width:16px;height:16px;padding:0;margin:0;accent-color:var(--water)}
+.rebalance-prompt{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px}
+.rebalance-prompt p{flex:1;min-width:180px}
+.rebalance-changes{padding-left:20px;display:grid;gap:14px}
+.rebalance-changes li span{display:block;font-size:14px;margin-top:3px}
+#rebalance-dialog>p{margin-top:12px}
+#rebalance-error{color:var(--danger)}
