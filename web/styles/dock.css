@@ -1,0 +1,117 @@
+/* dock: glass capsules; WebGPU draws real refraction behind them */
+#glass {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  z-index: 9;
+  pointer-events: none;
+}
+#pond {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  z-index: -1;
+  pointer-events: none;
+}
+.dock {
+  position: fixed;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 10px);
+  pointer-events: none;
+}
+.dock > * {
+  pointer-events: auto;
+  width: min(100%, 528px);
+}
+.capsule {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 0.5px solid var(--edge);
+  box-shadow: var(--shadow);
+}
+[data-water-renderer='webgpu'] .capsule {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-color: transparent;
+}
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 4px;
+  border-radius: 32px;
+  width: min(100%, 440px);
+}
+.tabs button {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 0;
+  border-radius: 28px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.tabs svg {
+  width: 24px;
+  height: 24px;
+}
+.tabs button[aria-current='page'] {
+  color: var(--water);
+  background: var(--chip-2);
+}
+[data-water-renderer='webgpu'] .tabs button[aria-current='page'] {
+  background: transparent;
+}
+.run-dock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 60px;
+  padding: 6px 6px 6px 8px;
+  border-radius: 30px;
+}
+.run-dock > button:first-child {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: transparent;
+  padding: 0 10px;
+  text-align: left;
+}
+.run-dock span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+.run-dock small {
+  font-size: 13px;
+  color: var(--water);
+  font-weight: 600;
+}
+.run-dock .stop {
+  min-height: 44px;
+  border-radius: 22px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+.run-dock.wait small {
+  color: var(--ink-2);
+}

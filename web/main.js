@@ -4,7 +4,7 @@ import { $ } from './core/dom.js';
 import { app, onFrame, on, register, tick } from './core/app.js';
 import { heartbeat, interacted, load, prepare, resumed, HEARTBEAT_MS } from './core/commands.js';
 import { runningZones } from './model/zones.js';
-import { createWaterFX } from './water.js';
+import { createWaterFX } from './fx/water.js';
 import * as planTab from './plan/index.js';
 import * as shell from './views/shell.js';
 import * as activity from './views/activity.js';

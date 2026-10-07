@@ -1,0 +1,97 @@
+/* shared surfaces */
+.group {
+  border-radius: 22px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  backdrop-filter: blur(24px) saturate(170%);
+  border: 0.5px solid var(--edge);
+  box-shadow: var(--shadow);
+}
+.group.pad {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chip {
+  min-height: 36px;
+  border-radius: 18px;
+  padding: 0 13px;
+  font-size: 15px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.chip svg {
+  width: 15px;
+  height: 15px;
+}
+.chip[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--ground);
+}
+.chip b {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--chip-2);
+  display: inline-grid;
+  place-items: center;
+  font: 700 13px var(--f-num);
+}
+.chip b.hot {
+  background: var(--amber);
+  color: #1b1200;
+}
+.primary {
+  background: var(--water);
+  color: var(--water-ink);
+  font-weight: 700;
+}
+.wide {
+  width: 100%;
+  min-height: 56px;
+  border-radius: 28px;
+  font-size: 17px;
+}
+.soft {
+  background: var(--chip);
+}
+.soft.flag,
+.flag {
+  color: var(--amber);
+}
+.soft.flag {
+  background: var(--amber-soft);
+}
+.outline {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.stop {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.stop svg {
+  width: 16px;
+  height: 16px;
+}
+.presets {
+  display: flex;
+  gap: 8px;
+}
+.presets button {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+  font-size: 15px;
+}
+.presets button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--ground);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

@@ -13,7 +13,19 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="stylesheet" href="/style.css" />
+    <!-- Order matters: later sheets override earlier ones. -->
+    <link rel="stylesheet" href="/styles/base.css" />
+    <link rel="stylesheet" href="/styles/header.css" />
+    <link rel="stylesheet" href="/styles/surfaces.css" />
+    <link rel="stylesheet" href="/styles/zones.css" />
+    <link rel="stylesheet" href="/styles/walk.css" />
+    <link rel="stylesheet" href="/styles/weather.css" />
+    <link rel="stylesheet" href="/styles/login.css" />
+    <link rel="stylesheet" href="/styles/dock.css" />
+    <link rel="stylesheet" href="/styles/sheets.css" />
+    <link rel="stylesheet" href="/styles/plan.css" />
+    <link rel="stylesheet" href="/styles/plan-sheets.css" />
+    <link rel="stylesheet" href="/styles/plan-wide.css" />
     <script src="/main.js" type="module"></script>
   </head>
   <body>

@@ -1,0 +1,55 @@
+/* wider screens: nights beside zones, with room for the full strip */
+@media (min-width: 960px) {
+  body[data-view='plan'] main {
+    max-width: 1180px;
+    padding-inline: 32px;
+  }
+  .plan-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+  }
+  .night-panel {
+    position: sticky;
+    top: 16px;
+  }
+  .night-strip {
+    display: grid;
+    grid-template-columns: repeat(14, minmax(0, 1fr));
+  }
+  .nd {
+    width: auto;
+  }
+  .night-stats dd {
+    font-size: 17px;
+  }
+  .track {
+    height: 22px;
+  }
+  .pdots {
+    grid-template-columns: repeat(14, 7px);
+    gap: 3px;
+  }
+  .pdots i {
+    width: 7px;
+    height: 7px;
+  }
+  .pz:hover {
+    background: var(--chip);
+  }
+}
+@media (max-width: 360px) {
+  .night-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pdots {
+    display: none;
+  }
+}
+.warn-text {
+  color: var(--amber);
+}
+.warn-text:empty {
+  display: none;
+}

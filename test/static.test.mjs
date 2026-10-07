@@ -28,7 +28,7 @@ test('web and lib files resolve by path without a registry', () => {
 test('the service worker shell lists every asset and versions by content', async () => {
   const shell = await shellFiles();
   assert.equal(shell[0], '/');
-  for (const path of ['/main.js', '/core/app.js', '/style.css', '/manifest.webmanifest', '/lib/planner.mjs'])
+  for (const path of ['/main.js', '/core/app.js', '/styles/base.css', '/manifest.webmanifest', '/lib/planner.mjs'])
     assert.ok(shell.includes(path), path);
   assert.ok(!shell.includes('/service-worker.js'));
   for (const path of shell) assert.ok(existsSync(resolveAsset(path).file), path);

@@ -1,0 +1,188 @@
+/* design tokens (light and dark), reset and page background */
+:root {
+  --ground: #eef2ef;
+  --blob-a: #d5e8ee;
+  --blob-b: #dcebdf;
+  --surface: #fff;
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.9);
+  --edge: rgba(255, 255, 255, 0.9);
+  --shadow: 0 10px 30px rgba(20, 40, 34, 0.1), 0 1px 2px rgba(20, 40, 34, 0.06);
+  --line: rgba(15, 31, 26, 0.09);
+  --chip: rgba(15, 31, 26, 0.06);
+  --chip-2: rgba(15, 31, 26, 0.11);
+  --ink: #0f1d19;
+  --ink-2: #52635d;
+  --ink-3: #8b9993;
+  --water: #0b84cf;
+  --water-ink: #fff;
+  --water-soft: rgba(11, 132, 207, 0.13);
+  --leaf: #2e9a58;
+  --leaf-soft: rgba(46, 154, 88, 0.14);
+  --amber: #b87400;
+  --amber-soft: rgba(217, 138, 0, 0.15);
+  --danger: #d33a40;
+  --danger-soft: rgba(220, 59, 64, 0.12);
+  --f-ui: -apple-system, 'SF Pro Text', system-ui, 'Helvetica Neue', sans-serif;
+  --f-num: ui-rounded, 'SF Pro Rounded', -apple-system, system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #070b0a;
+    --blob-a: #0c2029;
+    --blob-b: #0c1d14;
+    --surface: #121917;
+    --glass: rgba(30, 40, 37, 0.66);
+    --glass-strong: rgba(28, 37, 34, 0.94);
+    --edge: rgba(255, 255, 255, 0.09);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 1px rgba(0, 0, 0, 0.3);
+    --line: rgba(255, 255, 255, 0.08);
+    --chip: rgba(255, 255, 255, 0.07);
+    --chip-2: rgba(255, 255, 255, 0.13);
+    --ink: #eaf2ee;
+    --ink-2: #9daea7;
+    --ink-3: #64736d;
+    --water: #3db2f5;
+    --water-ink: #04131c;
+    --water-soft: rgba(61, 178, 245, 0.16);
+    --leaf: #4cc47a;
+    --leaf-soft: rgba(76, 196, 122, 0.15);
+    --amber: #f2b233;
+    --amber-soft: rgba(242, 178, 51, 0.16);
+    --danger: #ff6369;
+    --danger-soft: rgba(255, 99, 105, 0.15);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+html {
+  background: var(--ground);
+}
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--ink);
+  font: 17px/1.3 var(--f-ui);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  background:
+    radial-gradient(70% 45% at 0 0, var(--blob-a), transparent 70%),
+    radial-gradient(60% 45% at 100% 100%, var(--blob-b), transparent 70%), var(--ground);
+  background-attachment: fixed;
+}
+[hidden] {
+  display: none !important;
+}
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+  border: 0;
+  background: var(--chip);
+  border-radius: 16px;
+  padding: 0 16px;
+  min-height: 48px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition:
+    transform 0.15s,
+    background 0.2s,
+    opacity 0.2s;
+}
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+:focus-visible {
+  outline: 2px solid var(--water);
+  outline-offset: 2px;
+}
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 13px;
+  background: var(--surface);
+  font-size: 17px;
+}
+label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+h2 {
+  font-size: 22px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.num {
+  font-family: var(--f-num);
+  font-variant-numeric: tabular-nums;
+}
+.muted,
+.hint {
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.hint {
+  font-size: 13px;
+}
+code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+main {
+  max-width: 560px;
+  margin: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px calc(170px + env(safe-area-inset-bottom, 0px));
+}
+#application > section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

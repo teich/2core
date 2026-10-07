@@ -1,0 +1,74 @@
+/* header */
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+}
+.top-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.status {
+  min-height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 16px;
+  background: var(--chip);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  gap: 7px;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--leaf);
+  box-shadow: 0 0 0 3px var(--leaf-soft);
+}
+.status.stale .dot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-soft);
+}
+.status.bad .dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+.icon-button {
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--ink-2);
+}
+.text-button {
+  background: transparent;
+  min-height: 40px;
+  padding: 0 8px;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.mode-note {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--amber);
+}
+#message {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--water-soft);
+  font-size: 15px;
+  margin: -4px 0 14px;
+}
+#message.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}

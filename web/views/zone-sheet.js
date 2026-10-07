@@ -19,7 +19,7 @@ import {
 } from '../model/zones.js';
 import { issueRows, openFlag } from './findings.js';
 
-/** Pixels between dial ticks; matches `.tk` in style.css. */
+/** Pixels between dial ticks; matches `.tk` in styles/sheets.css. */
 const TICK_PX = 10;
 const steps = () => dialSteps(limitsOf(app.state));
 const snap = m => steps()[stepIndex(steps(), m)];

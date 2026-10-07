@@ -1,0 +1,272 @@
+/* walk */
+.walk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 4px 16px 6px;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.rail button {
+  flex: none;
+  height: 46px;
+  min-height: 0;
+  max-width: 190px;
+  padding: 0 14px 0 6px;
+  border-radius: 15px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
+  position: relative;
+  gap: 8px;
+}
+.rail button b {
+  min-width: 30px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--chip);
+  font: 650 15px var(--f-num);
+}
+.rail button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail button[aria-pressed='true'] {
+  background: var(--water);
+  color: var(--water-ink);
+}
+.rail button[aria-pressed='true'] b {
+  background: rgba(255, 255, 255, 0.22);
+}
+.rail button.running {
+  box-shadow: inset 0 0 0 2px var(--water);
+}
+.rail button.flagged::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.water-orb {
+  position: relative;
+  width: min(60vw, 27dvh, 260px);
+  aspect-ratio: 1;
+  max-width: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--glass-strong);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 16px 44px rgba(11, 132, 207, 0.12);
+  touch-action: pan-y;
+}
+.water-level {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    color-mix(in oklab, var(--water) 45%, var(--surface)),
+    color-mix(in oklab, var(--water) 70%, var(--surface))
+  );
+  transform: translate3d(0, 100%, 0);
+  transition: transform 1s linear;
+}
+.wave {
+  position: absolute;
+  left: -50%;
+  top: -18px;
+  width: 200%;
+  height: 36px;
+  border-radius: 44%;
+  background: color-mix(in oklab, var(--water) 45%, var(--surface));
+  animation: sway 4s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.wave.second {
+  top: -26px;
+  opacity: 0.5;
+  animation-delay: -2s;
+  animation-duration: 5.5s;
+}
+.water-orb.watering .wave {
+  animation-play-state: running;
+}
+@keyframes sway {
+  from {
+    transform: translate3d(-8%, 0, 0);
+  }
+  to {
+    transform: translate3d(8%, 3px, 0) rotate(6deg);
+  }
+}
+#vessel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.orb-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.orb-label span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ink-2);
+}
+.orb-label strong {
+  font-size: clamp(48px, 17vw, 76px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.orb-label em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--ink-2);
+}
+.water-orb.gpu {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.water-orb.gpu > .water-level {
+  display: none;
+}
+.water-orb.gpu > .orb-label {
+  visibility: hidden;
+}
+.tilt {
+  position: absolute;
+  right: 2%;
+  bottom: 6%;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 20px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow);
+  color: var(--ink-3);
+}
+.tilt[aria-pressed='true'] {
+  color: var(--water);
+}
+.stage h2 {
+  font-size: 28px;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 2px 0 6px;
+  max-width: 18ch;
+}
+.walk-state {
+  font: 600 17px var(--f-num);
+  color: var(--ink-2);
+  min-height: 22px;
+}
+.walk-state.live {
+  color: var(--water);
+}
+.walk-state.wait {
+  color: var(--water);
+}
+.walk-state.fail {
+  color: var(--danger);
+}
+.walk-state.stale {
+  color: var(--amber);
+}
+#walk-detail {
+  font-size: 14px;
+  min-height: 18px;
+  max-width: 34ch;
+}
+.seg {
+  display: grid;
+  grid-template-columns: auto repeat(4, 1fr);
+  gap: 6px;
+  align-items: center;
+  border-radius: 24px;
+  padding: 5px 5px 5px 14px;
+  background: var(--glass);
+  border: 0.5px solid var(--edge);
+  box-shadow: var(--shadow);
+}
+.seg span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-right: 4px;
+}
+.seg button {
+  min-height: 38px;
+  border-radius: 19px;
+  padding: 0;
+  background: transparent;
+  font: 600 16px var(--f-num);
+}
+.seg button[aria-checked='true'] {
+  background: var(--ink);
+  color: var(--ground);
+}
+.transport {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 10px;
+}
+#next-zone span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.round {
+  width: 56px;
+  min-height: 56px;
+  padding: 0;
+  border-radius: 28px;
+}
+.duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.duo button {
+  min-height: 50px;
+  border-radius: 25px;
+}
+.duo svg {
+  width: 17px;
+  height: 17px;
+}

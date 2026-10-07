@@ -1,0 +1,21 @@
+/* login */
+.login {
+  min-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+.login-icon {
+  width: 56px;
+  height: 56px;
+}
+.login form {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+#login-error {
+  color: var(--danger);
+  min-height: 1em;
+}
