@@ -5,11 +5,7 @@
       "name": "demo",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "demo"],
-      "port": 8787,
-      "autoPort": true,
-      "env": {
-        "DATA_DIR": "./data/preview"
-      }
+      "port": 8787
     }
   ]
 }

@@ -33,7 +33,7 @@ npm run format    # prettier --write
 npm run verify    # format:check + check + test; CI runs the same three
 ```
 
-`DEMO_DELAY_MS=8000 npm run demo` makes the simulated controller slow, so waiting states show. The Claude preview config (`.claude/launch.json`) runs the demo with `DATA_DIR=./data/preview` so it doesn't share SQLite with another demo server running on the machine.
+`DEMO_DELAY_MS=8000 npm run demo` makes the simulated controller slow, so waiting states show. Run one demo server at a time: they share `data/demo/2core.sqlite`, and a second server rewrites the first one's run ownership.
 
 ## Layout
 

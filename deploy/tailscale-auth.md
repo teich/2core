@@ -35,7 +35,7 @@ Serve rewrites the upstream `Host`, so the app authenticates the private transpo
 
 `GET /api/auth` returns `{authenticated: true, mode: "tailscale"}` on the private listener, and `{authenticated: false, mode: "key"}` for an unauthenticated LAN client. An authenticated bearer request reports `mode: "key"` on LAN.
 
-`web/auth.js` exports `detectImplicitAuthentication()`. `web/app.js` has three small hooks: await that function at startup; allow `load()` when either implicit auth or a key exists; hide the app's Lock button in implicit mode. Preserve these hooks when modifying the UI. The local hook falls back to key authentication if a still-running development server cannot yet serve the new module; restart that server to load the new routes. There is no app logout for Tailscale identity—access is controlled by the tailnet.
+`web/auth.js` exports `detectImplicitAuthentication()`. Three small hooks use it: `web/main.js` awaits that function at startup (`app.implicitAuth`); `load()` in `web/core/commands.js` runs when either implicit auth or a key exists; `web/views/shell.js` hides the app's Lock button in implicit mode. Preserve these hooks when modifying the UI. The local hook falls back to key authentication if a still-running development server cannot yet serve the new module; restart that server to load the new routes. There is no app logout for Tailscale identity—access is controlled by the tailnet.
 
 This change was deployed as a narrow patch to the existing production UI. The UI agent's unfinished layout/animation changes were not deployed by this task.
 
