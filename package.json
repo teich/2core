@@ -6,11 +6,20 @@
   "description": "Timed Tucor irrigation controls with weather-aware rain delays",
   "scripts": {
     "test": "node --test",
+    "check": "tsc --noEmit -p .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run format:check && npm run check && npm test",
     "start": "node server/index.mjs",
     "demo": "MODE=demo node server/index.mjs",
     "tucor": "node tools/tucor.mjs"
   },
   "dependencies": {
     "socket.io-client": "2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
   }
 }
