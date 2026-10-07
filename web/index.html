@@ -85,8 +85,8 @@
 
       <section id="plan-view" hidden aria-labelledby="view-title">
         <div class="plan-top">
-          <div class="plan-intro"><span class="pill warn">Preview only · controller schedules unchanged</span><p id="plan-summary" class="muted num"></p></div>
-          <details class="plan-settings-panel group"><summary>Night settings</summary><div class="plan-settings">
+          <div class="plan-intro"><span class="plan-preview">Preview only · controller schedules unchanged</span><p id="plan-summary" class="muted"></p></div>
+          <details class="plan-settings-panel"><summary>Night settings</summary><div class="plan-settings">
             <label>Start after<select id="plan-earliest"><option value="1260">9:00pm</option><option value="1320">10:00pm</option><option value="1380">11:00pm</option><option value="1440">Midnight</option><option value="1500">1:00am</option></select></label>
             <label>Try to finish<select id="plan-finish"><option value="30">30 min before sunrise</option><option value="15">15 min before sunrise</option><option value="0">By sunrise</option></select></label>
             <label>Never past<select id="plan-hard"><option value="420">7:00am</option><option value="480">8:00am</option><option value="540">9:00am</option><option value="600">10:00am</option></select></label>
@@ -94,28 +94,33 @@
             <button id="plan-rebalance" class="outline">Review rebalance</button>
           </div></details>
         </div>
-        <form id="seasonal-form" class="group seasonal-panel">
-          <div><h2>Seasonal adjustment</h2><p class="hint">100% is your baseline run length. Set every zone together from 50–200%, then fine-tune any zone below.</p><p id="seasonal-status" class="muted" aria-live="polite"></p></div>
-          <label for="seasonal-all">Set all zones to <span class="seasonal-value"><input id="seasonal-all" class="num" type="number" min="50" max="200" step="1" required value="100" inputmode="numeric"><span>%</span></span></label>
-          <button id="seasonal-apply" class="primary" type="submit">Set all zones</button>
-        </form>
         <div id="rebalance-prompt" class="group rebalance-prompt" hidden><p>Zone availability changed. You can spread the remaining watering more evenly.</p><button id="review-rebalance" class="outline">Review rebalance</button><button id="dismiss-rebalance" class="quiet">Not now</button></div>
         <section id="night-card" class="group night-card" aria-label="Selected night"></section>
         <section class="group plan-table" aria-labelledby="plan-table-title">
           <div class="plan-table-head">
-            <div><h2 id="plan-table-title">What each zone needs</h2><p class="hint">Enter baseline minutes at 100%. Seasonal percentages change run lengths, not frequency.</p></div>
+            <div><h2 id="plan-table-title">Zones &amp; schedule</h2><p class="hint">Set each zone’s rhythm. Select a night to explore its schedule.</p></div>
             <div class="filters"><button id="plan-all" class="chip" aria-pressed="true">All</button><button id="plan-needs" class="chip" aria-pressed="false">Needs a plan <b id="plan-needs-count">0</b></button></div>
+          </div>
+          <div class="plan-toolbar">
+            <details class="seasonal-details"><summary>Seasonal adjustment <span id="seasonal-status" aria-live="polite"></span></summary>
+              <form id="seasonal-form" class="seasonal-panel">
+                <p class="hint">Scale run lengths from 50–200%. Baseline minutes and frequency stay the same.</p>
+                <label for="seasonal-all">All zones <span class="seasonal-value"><input id="seasonal-all" class="num" type="number" min="50" max="200" step="1" required value="100" inputmode="numeric"><span>%</span></span></label>
+                <button id="seasonal-apply" class="outline" type="submit">Apply to all</button>
+              </form>
+            </details>
+            <span class="hint plan-horizon">Next 14 nights · minutes per run</span>
           </div>
           <div class="plan-scroll">
             <div class="plan-grid" role="table" aria-label="Zones by night">
-              <div class="prow phead" role="row"><span class="pzone" role="columnheader">Zone</span><span role="columnheader">100% min</span><span role="columnheader">Seasonal %</span><span role="columnheader">How often</span><div class="pcells" id="plan-head-nights"></div><span class="pnext" role="columnheader">Next</span></div>
+              <div class="prow phead" role="row"><span class="pzone" role="columnheader">Zone</span><span role="columnheader">Baseline</span><span role="columnheader">Seasonal</span><span role="columnheader">Frequency</span><span class="prain-head" role="columnheader" title="Keep planned watering during rain delays">Water in rain</span><div class="pcells" id="plan-head-nights"></div><span class="pnext" role="columnheader">Next</span></div>
               <div id="plan-rows" role="rowgroup"></div>
               <p id="plan-empty" class="empty" hidden></p>
               <div class="prow pfoot" role="row"><span class="pzone" role="rowheader">Done by<small>and how full the night is</small></span><div class="pcells" id="plan-foot-nights"></div><span></span></div>
             </div>
           </div>
         </section>
-        <p class="hint plan-rule">2core spreads zones across nights automatically; no starting dates are needed. Initial placement is saved. Editing a zone keeps its next watering date; other zones keep their rhythm. Disable seasonal zones to omit them while keeping their settings. Rebalancing requires reviewing and confirming the date changes. A rain hold postpones exposed zones until the next clear night and shifts their rhythm from that watering. Zones marked “Water during rain delays” keep their normal rhythm. Twice a week alternates 3- and 4-day gaps. This is a preview: saved preferences do not change controller schedules or bypass its rain delay.</p>
+        <details class="plan-help"><summary>How the plan works</summary><p class="hint plan-rule">2core spreads zones across nights automatically; no starting dates are needed. Initial placement is saved. Editing a zone keeps its next watering date; other zones keep their rhythm. Disable seasonal zones to omit them while keeping their settings. Rebalancing requires reviewing and confirming the date changes. A rain hold postpones exposed zones until the next clear night and shifts their rhythm from that watering. Zones marked “Water during rain delays” keep their normal rhythm. Twice a week alternates 3- and 4-day gaps. This is a preview: saved preferences do not change controller schedules or bypass its rain delay.</p></details>
       </section>
 
       <section id="rain-view" hidden aria-labelledby="view-title">

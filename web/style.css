@@ -213,7 +213,7 @@ dt{color:var(--ink-2)}dd{margin:0;text-align:right;font-family:var(--f-num);font
 .failure{color:var(--danger)}
 
 /* plan: built for a laptop, scrolls sideways on a phone */
-body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
+body[data-view=plan] main{max-width:1600px;padding-inline:clamp(16px,3vw,40px)}
 .plan-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px 24px;flex-wrap:wrap}
 .plan-intro{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
 .plan-settings{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:12px 14px;border-radius:20px}
@@ -222,14 +222,14 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .plan-settings select{height:38px;padding:0 10px;border-radius:12px;font-size:14px;font-weight:600;width:auto}
 .plan-lanes .modes{grid-template-columns:repeat(2,48px);padding:3px;border-radius:12px}
 .plan-lanes .modes button{min-height:32px;border-radius:9px;font:700 15px var(--f-num)}
-.night-card{display:grid;grid-template-columns:minmax(220px,270px) minmax(0,1fr);gap:28px;padding:22px 24px 20px}
+.night-card{display:grid;grid-template-columns:240px minmax(0,1fr);gap:28px;padding:20px 24px}
 .night-side{display:flex;flex-direction:column;align-items:flex-start;gap:14px}
 .night-side p{font-size:13px;font-weight:600}
-.night-side h2{font-size:26px;letter-spacing:-.02em}
+.night-side h2{font-size:20px;letter-spacing:-.02em}
 .pill.rain{color:var(--water);background:var(--water-soft)}.pill.rain .dot{background:var(--water);box-shadow:none}
 .night-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;margin:0;width:100%}
 .night-stats dt{font:600 12px var(--f-ui);color:var(--ink-2)}
-.night-stats dd{text-align:left;margin:2px 0 0;font-size:20px;font-weight:650}
+.night-stats dd{text-align:left;margin:2px 0 0;font-size:16px;font-weight:600}
 .try-rain svg{width:17px;height:17px}
 .try-rain[aria-pressed=true]{background:var(--water);color:var(--water-ink)}
 .night-main{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -270,14 +270,14 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .plan-table-head .hint{margin-top:3px;font-size:13px}
 .plan-table-head .filters{margin:0;padding:0;overflow:visible}
 .plan-scroll{overflow-x:auto;overscroll-behavior-x:contain}
-.plan-grid{min-width:1160px}
-.prow{display:grid;grid-template-columns:minmax(190px,252px) 96px 112px 156px minmax(560px,1fr) 76px;align-items:center;min-height:56px;padding:0 8px 0 0;border-bottom:.5px solid var(--line)}
+.plan-grid{min-width:1292px}
+.prow{display:grid;grid-template-columns:minmax(260px,1fr) 88px 94px 142px 64px minmax(560px,1.6fr) 76px;align-items:center;min-height:56px;padding:0 8px 0 0;border-bottom:.5px solid var(--line)}
 .pcells{display:grid;grid-template-columns:repeat(14,minmax(40px,1fr));align-self:stretch}
-.pzone{position:sticky;left:0;z-index:1;align-self:stretch;display:flex;align-items:center;gap:12px;min-width:0;padding:0 10px 0 20px;background:var(--surface)}
-.pzone .zone-num{width:36px;height:36px;border-radius:11px;font-size:15px;background:var(--water-soft);color:var(--water)}
+.pzone{position:sticky;left:0;z-index:1;align-self:stretch;display:flex;align-items:center;gap:10px;min-width:0;padding:0 14px 0 20px;background:var(--surface)}
+.pzone .zone-num{width:22px;height:auto;flex:none;border-radius:0;font-size:12px;font-weight:500;background:transparent;color:var(--ink-3)}
 .pz-text{display:flex;flex-direction:column;gap:1px;min-width:0}
-.pz-text b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pz-text small{font:12.5px var(--f-num);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pz-text b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pz-text small{font:12px var(--f-ui);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pz-text small.warn{color:var(--amber)}.pz-text small.bad{color:var(--danger)}
 .prow.todo .zone-num{background:var(--amber-soft);color:var(--amber)}
 .prow.paused .zone-num{background:var(--chip);color:var(--ink-2)}
@@ -287,14 +287,14 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .prow[data-row].paused::after{opacity:.28}
 .prow[data-row].zone-sweep-pending::after{opacity:var(--zone-dim)}
 .prow[data-row].zone-sweeping::after{opacity:0}
-.pdur{display:flex;align-items:center;height:38px;margin-right:10px;padding:0 10px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-weight:400}
-.pdur input{border:0;padding:0;background:none;outline:none;font-size:15px;font-weight:650;color:var(--ink)}
+.pdur{display:flex;align-items:center;height:34px;margin-right:10px;padding:0 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-weight:400}
+.pdur input{border:0;padding:0;background:none;outline:none;font-size:13px;font-weight:500;color:var(--ink)}
 .pdur span{font-size:12px}
 .pdur:focus-within{outline:2px solid var(--water);outline-offset:1px}
 .pdur.empty{border:1.5px dashed var(--amber)}
 .pdur.invalid{border:1.5px solid var(--danger)}
 .pcad{padding-right:12px}
-.pcad select{height:38px;padding:0 8px;border-radius:12px;font-size:14px;font-weight:600}
+.pcad select{height:34px;padding:0 6px;border-radius:6px;font-size:13px;font-weight:500}
 .pcad select.empty{border:1.5px dashed var(--amber);color:var(--amber)}
 .pc{min-height:56px;height:100%;padding:0 2px;border-radius:0;background:transparent;display:grid;place-items:center}
 .pc:hover:not(:disabled){box-shadow:inset 0 0 0 1.5px var(--water-soft)}
@@ -303,12 +303,12 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .pc.rain{background:color-mix(in oklab,var(--water-soft) 30%,transparent)}
 .pc.sel,.ph.sel,.pf.sel{background:var(--water-soft)}
 .pc i{width:4px;height:4px;border-radius:50%;background:var(--chip-2)}
-.pill-run{min-width:34px;height:26px;padding:0 5px;border-radius:13px;display:grid;place-items:center;background:var(--water);color:var(--water-ink);font-size:12.5px;font-weight:700}
+.pill-run{min-width:34px;height:26px;padding:0 5px;border-radius:13px;display:grid;place-items:center;background:var(--water-soft);color:var(--water);font-size:12px;font-weight:600}
 .pill-run.late{box-shadow:inset 0 -3px 0 #f2b233}
 .pill-held{width:34px;height:26px;border-radius:13px;display:grid;place-items:center;color:var(--water);box-shadow:inset 0 0 0 1.5px var(--water-soft)}
 .pill-held svg{width:16px;height:16px}
 .pill-over{width:34px;height:26px;border-radius:13px;display:grid;place-items:center;color:var(--danger);font-weight:800;background:var(--danger-soft);box-shadow:inset 0 0 0 1.5px var(--danger)}
-.pnext{padding-left:10px;font-size:14px;font-weight:650}
+.pnext{padding-left:10px;font-size:12px;font-weight:500}
 .pnext.soon{color:var(--water)}
 .phead{min-height:0;align-items:end}
 .phead>span{font-size:12px;font-weight:700;color:var(--ink-2);padding-bottom:10px}
@@ -316,12 +316,12 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
 .ph{min-height:0;padding:6px 0 8px;border-radius:12px 12px 0 0;background:transparent;flex-direction:column;gap:1px;font-weight:600}
 .ph small{height:13px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
 .ph span{font-size:12px}
-.ph b{font-size:17px;line-height:1.1}
+.ph b{font-size:14px;line-height:1.1}
 .ph.rain small{color:var(--water)}
 .ph.sel{color:var(--water)}
 .ph:hover,.pf:hover{background:var(--chip)}
 .pfoot{border-bottom:0;align-items:start;padding-top:8px;padding-bottom:10px;background:var(--chip)}
-.pfoot .pzone{grid-column:span 4;flex-direction:column;align-items:flex-start;gap:0;font-size:13px;font-weight:700;color:var(--ink-2);background:transparent;padding-top:4px}
+.pfoot .pzone{grid-column:span 5;flex-direction:column;align-items:flex-start;gap:0;font-size:13px;font-weight:700;color:var(--ink-2);background:transparent;padding-top:4px}
 .pfoot .pzone small{font-weight:500}
 .pf{min-height:0;padding:4px 4px 6px;border-radius:0 0 12px 12px;background:transparent;flex-direction:column;gap:5px}
 .pf b{font-size:13px}
@@ -341,8 +341,7 @@ body[data-view=plan] main{max-width:1440px;padding-inline:clamp(16px,3vw,40px)}
   .lane{grid-template-columns:1fr}.lane-name{display:none}
   .overlay{left:0}
   .lanes-empty{left:0}
-  .prow{grid-template-columns:150px 86px 140px minmax(560px,1fr) 64px}
-  .pzone{padding-left:12px;gap:8px}.pzone .zone-num{width:30px;height:30px;font-size:13px}
+  .pzone{padding-left:12px;gap:8px}
 }
 
 /* login */
@@ -430,7 +429,7 @@ body:has(dialog[open]){overflow:hidden}
 .plan-settings-panel summary{cursor:pointer;padding:12px 14px;font-size:14px;font-weight:600}
 .rain-choice{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2);cursor:pointer;min-height:28px;line-height:1.2}
 .rain-choice input{flex:none;width:15px;height:15px;padding:0;margin:0;accent-color:var(--water)}
-.prow:not(.phead):not(.pfoot){min-height:76px}
+.prow:not(.phead):not(.pfoot){min-height:64px}
 
 .zone-enabled{display:flex;align-items:center;gap:6px;min-height:28px;font-size:12px;cursor:pointer}
 .zone-enabled input{flex:none;width:16px;height:16px;padding:0;margin:0;accent-color:var(--water)}
@@ -440,12 +439,65 @@ body:has(dialog[open]){overflow:hidden}
 .rebalance-changes li span{display:block;font-size:14px;margin-top:3px}
 #rebalance-dialog>p{margin-top:12px}
 #rebalance-error{color:var(--danger)}
-.seasonal-panel{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:20px}
-.seasonal-panel>div{flex:1;min-width:230px}
-.seasonal-panel .hint{margin-top:4px;max-width:540px}
-#seasonal-status{font-size:13px;margin-top:8px}
-.seasonal-panel>label{display:flex;flex-direction:column;gap:6px;font-size:13px}
-.seasonal-value{display:flex;align-items:center;gap:8px}
-.seasonal-value input{width:96px;font-size:20px}
-.pseasonal{padding:10px 0}
-.pseasonal small{display:block;color:var(--ink-2);font-size:12px;margin-top:4px}
+/* Plan controls share a restrained type scale and a single workspace surface. */
+#plan-view{font-size:13px}
+#plan-view .num{font-family:var(--f-ui)}
+#plan-view .group{border:1px solid var(--line);border-radius:14px;box-shadow:0 2px 8px rgba(20,40,34,.03)}
+#plan-view h2{font-size:18px;font-weight:600}
+#plan-view .pill{font-size:12px}
+.plan-preview{font-size:12px;color:var(--ink-2)}
+#plan-summary{font-size:13px;line-height:1.5}
+.plan-top{align-items:center}
+.plan-intro{gap:4px;flex:1;min-width:260px}
+.plan-settings-panel{position:relative;flex:none}
+.plan-settings-panel summary{border:1px solid var(--line);border-radius:8px;background:var(--glass);font-size:13px}
+.plan-settings-panel[open]{width:100%}
+.plan-settings{padding:16px 0;gap:16px}
+.plan-settings button{min-height:38px;font-size:13px;border-radius:8px}
+.plan-table-head{padding:20px 20px 16px}
+.plan-table-head .hint{margin-top:5px}
+.plan-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 20px;border-block:1px solid var(--line)}
+.seasonal-details{flex:1}
+.seasonal-details summary,.plan-help summary{cursor:pointer;font-size:13px;color:var(--ink-2);width:fit-content}
+#seasonal-status{display:inline-block;margin-left:10px;color:var(--ink);font-size:12px}
+.seasonal-panel{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:16px;padding-bottom:4px}
+.seasonal-panel .hint{flex-basis:100%}
+.seasonal-panel>label{display:flex;align-items:center;gap:12px;font-size:13px}
+.seasonal-value{display:flex;align-items:center;gap:6px}
+.seasonal-value input{width:76px;height:34px;border-radius:6px;padding:6px 8px;font-size:13px}
+.seasonal-panel button{min-height:34px;border-radius:6px;font-size:13px}
+.pseasonal{padding:7px 0}
+.phead{padding-top:6px}
+.phead>span{font-size:11px;font-weight:500}
+.phead .pzone{background:transparent}
+.prain-head{text-align:center}
+.prain{display:flex;justify-content:center}
+.rain-choice,.zone-enabled{display:flex;align-items:center;justify-content:center;min-width:28px;min-height:36px;cursor:pointer}
+.rain-choice input,.zone-enabled input{width:15px;height:15px;margin:0;accent-color:var(--water)}
+.pc.sel{background:color-mix(in srgb,var(--water-soft) 50%,transparent)}
+.pc.sel .pill-run{background:var(--water);color:var(--water-ink)}
+.prow.todo .zone-num,.prow.paused .zone-num{background:transparent}
+.plan-help{padding:4px 4px 0}
+.plan-rule{padding-top:12px;max-width:900px}
+.night-side{gap:12px}
+.night-side p{font-size:12px;font-weight:400}
+.night-side .try-rain{font-size:12px;min-height:30px;padding:0 10px}
+.night-stats{gap:10px 18px}
+.night-stats dt{font-weight:400}
+.night-notes{font-size:12px}
+@media(max-width:860px){
+  .night-card{grid-template-columns:1fr;gap:20px}
+  .night-side{display:grid;grid-template-columns:1fr auto;align-items:center}
+  .night-stats{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .night-side .try-rain,.night-side>.hint{grid-column:1/-1;justify-self:start}
+  .plan-horizon{display:none}
+}
+@media(max-width:560px){
+  .night-card{padding:16px}
+  .night-side{display:flex;align-items:flex-start}
+  .night-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .night-stats dd{font-size:14px}
+  .plan-table-head,.plan-toolbar{padding-inline:14px}
+  .plan-grid{min-width:1232px}
+  .prow{grid-template-columns:220px 80px 88px 136px 64px minmax(560px,1fr) 76px}
+}

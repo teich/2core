@@ -85,10 +85,11 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
 
   function build(list) {
     $('plan-rows').innerHTML = list.map(z => `<div class="prow" role="row" data-row="${z.id}">
-      <div class="pzone" role="rowheader"><span class="zone-num num">${String(z.id).padStart(2, '0')}</span><span class="pz-text"><b>${escape(z.name)}</b><small data-meta></small><label class="rain-choice"><input type="checkbox" data-rain="${z.id}" aria-label="Water ${escape(z.name)} during rain delays">Water during rain delays</label></span></div>
+      <div class="pzone" role="rowheader"><label class="zone-enabled"><input type="checkbox" data-enabled="${z.id}" aria-label="Enable ${escape(z.name)} in the watering plan"></label><span class="zone-num num">${String(z.id).padStart(2, '0')}</span><span class="pz-text"><b title="${escape(z.name)}">${escape(z.name)}</b><small data-meta></small></span></div>
       <label class="pdur" role="cell"><input class="num" data-dur="${z.id}" inputmode="decimal" autocomplete="off" placeholder="—" aria-label="100% run length for ${escape(z.name)}, in minutes"><span>min</span></label>
-      <div class="pseasonal" role="cell"><label class="pdur"><input class="num" data-seasonal="${z.id}" type="number" min="50" max="200" step="1" required inputmode="numeric" aria-label="Seasonal percentage for ${escape(z.name)}"><span>%</span></label><small class="num" data-adjusted></small></div>
-      <div class="pcad" role="cell"><label class="zone-enabled"><input type="checkbox" data-enabled="${z.id}" aria-label="Enable ${escape(z.name)} in the watering plan">Enabled</label><select data-cad="${z.id}" aria-label="How often ${escape(z.name)} waters"></select></div>
+      <div class="pseasonal" role="cell"><label class="pdur"><input class="num" data-seasonal="${z.id}" type="number" min="50" max="200" step="1" required inputmode="numeric" aria-label="Seasonal percentage for ${escape(z.name)}"><span>%</span></label></div>
+      <div class="pcad" role="cell"><select data-cad="${z.id}" aria-label="How often ${escape(z.name)} waters"></select></div>
+      <div class="prain" role="cell"><label class="rain-choice" title="Water during rain delays"><input type="checkbox" data-rain="${z.id}" aria-label="Water ${escape(z.name)} during rain delays"></label></div>
       <div class="pcells" data-cells></div>
       <span class="pnext num" role="cell" data-next></span>
     </div>`).join('');
@@ -100,7 +101,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
     const list = zones(), cfg = settings(), all = intents();
     const percentages = new Set(list.map(z => all[z.id]?.seasonalPercent ?? 100));
     const commonPercent = percentages.size === 1 ? [...percentages][0] : null;
-    $('seasonal-status').textContent = seasonalSaving ? 'Saving all zones…' : !list.length ? 'Load zones to get started.' : commonPercent == null ? 'Mixed percentages · individual adjustments are active' : `All zones at ${commonPercent}%`;
+    $('seasonal-status').textContent = seasonalSaving ? 'Saving all zones…' : !list.length ? 'Load zones to get started.' : commonPercent == null ? 'Mixed' : `All zones ${commonPercent}%`;
     if (!seasonalEdited && document.activeElement !== $('seasonal-all')) $('seasonal-all').value = commonPercent ?? '';
     $('seasonal-all').placeholder = 'Mixed';
     $('seasonal-all').disabled = seasonalSaving || !list.length;
@@ -166,7 +167,6 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
       input.closest('label').classList.toggle('empty', !intent.seconds && !typed.has(z.id));
       const seasonal = row.querySelector('[data-seasonal]'), seconds = adjustedSeconds(intent);
       if (document.activeElement !== seasonal) seasonal.value = intent.seasonalPercent ?? 100;
-      row.querySelector('[data-adjusted]').textContent = intent.seconds == null ? '—' : `${formatDuration(seconds)} now`;
       row.querySelectorAll('input, select').forEach(el => { el.disabled = seasonalSaving; });
       const cad = cadenceKey(intent.cadence);
       const common = [{ every: 2 }, { perWeek: 3 }, { perWeek: 2 }, { every: 7 }];
@@ -179,7 +179,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
       if (select._options !== options) { select.innerHTML = options; select._options = options; }
       select.value = cad;
       row.querySelector('[data-enabled]').checked = intent.enabled !== false;
-      row.querySelector('[data-enabled]').parentElement.lastChild.textContent = intent.enabled === false ? 'Disabled' : 'Enabled';
+      row.querySelector('[data-enabled]').parentElement.title = intent.enabled === false ? 'Enable zone' : 'Disable zone';
       row.querySelector('[data-rain]').checked = intent.waterDuringRain === true;
       select.classList.toggle('empty', !intent.cadence);
       const meta = typed.has(z.id) ? ['Enter 1–240 minutes', 'bad']
@@ -187,7 +187,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
         : p.problem === 'duration' ? ['Add a run length', 'warn']
         : p.problem === 'cadence' ? ['Choose how often', 'warn']
         : p.problem === 'paused' ? ['Disabled · settings kept', '']
-        : [`≈ ${formatDuration(Math.round(p.weeklySeconds))} a week`, ''];
+        : [`≈ ${formatDuration(Math.round(p.weeklySeconds / 60) * 60)} a week`, ''];
       const metaEl = row.querySelector('[data-meta]');
       metaEl.textContent = meta[0]; metaEl.className = meta[1];
       const cells = p.cells.map((c, d) => {
@@ -241,7 +241,7 @@ export function createPlan({ $, api, escape, message, html, getState, zoneEnable
         <dl class="night-stats num">
           <div><dt>Starts</dt><dd>${n.start == null ? '—' : clockAt(n.start)}</dd></div>
           <div><dt>Done</dt><dd>${n.finish == null ? '—' : clockAt(n.finish)}</dd></div>
-          <div><dt>Water time</dt><dd>${n.seconds ? formatDuration(n.seconds) : '—'}</dd></div>
+          <div><dt>Water time</dt><dd title="${formatDuration(n.seconds)}">${n.seconds ? short(n.seconds) : '—'}</dd></div>
           <div><dt>Zones</dt><dd>${n.lanes.flat().length || '—'}</dd></div>
         </dl>
         ${held ? '<p class="hint">The controller’s rain delay covers this night.</p>' : `<button class="chip try-rain" data-whatif="${n.date}" aria-pressed="${tried}">${RAIN_ICON}${tried ? 'Rain hold on · tap to clear' : 'What if it rains?'}</button>`}
