@@ -9,6 +9,7 @@ Guidance for coding agents working on 2core. The README describes the product an
 When goals conflict, they rank in this order:
 
 1. **Be a good citizen to Tucor's cloud.** The owner's account must not get banned. Contact Tucor only while someone is using the app, to run a command, or when automation has to write a rain delay. **Never add background polling.** Session and login limits, backoff and the persisted guard ledger (`server/live.mjs`) are safety features: don't loosen them. Check every new feature against this contact budget first.
+   - **Exception: writing programs.** Once the owner starts writing programs to the controller, that job may send as many messages as it needs to finish, including the readback and sync. Tucor's own program editor is that chatty, and we can't do better through its protocol. The exception covers only one job the owner started, inside its session. It doesn't allow polling, extra sessions or logins, or automatic retries of a write that may have failed.
 2. **Interactive experience**: manual zone runs, Walk mode, clear status.
 3. **Automation**: the weather-driven rain delay. The watering plan is advisory only.
 

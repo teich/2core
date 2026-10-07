@@ -33,7 +33,7 @@ Add the app to an iPhone home screen if useful; it has an app manifest. Commands
 
 ## Supervised first run
 
-These steps remain to be performed with someone by the irrigation. They are not completed by the simulator tests.
+Use these steps for a new installation, with someone by the irrigation; simulator tests don't cover them. On the original installation, steps 1–4 are done: starting, stopping and stop-and-next work on the real controller (see `research/implementation-validation.md`).
 
 1. Read current status and confirm zone names, no running zones, no rain hold, Automatic mode, and normal schedules. Do not use configuration synchronization.
 2. Set `ALLOW_LIVE_CONTROL=true` in `.env`, then `docker compose up -d`. Enable only while validating; weather mode should still be **observe**.
