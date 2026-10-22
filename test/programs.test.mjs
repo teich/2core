@@ -34,6 +34,8 @@ test('capabilities keep the limits that matter for writing programs', () => {
   const c = readCapabilities(captured.capabilities.Capabilities);
   assert.equal(c.maxStarts, 12);
   assert.equal(c.maxStationsPerStep, 1);
+  assert.equal(c.deleteStep, false);
+  assert.equal(c.allowPeriodChange, true);
   assert.equal(c.nameLength, 12);
   assert.deepEqual(c.budget, { minimum: 0, maximum: 250 });
   assert.deepEqual(

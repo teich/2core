@@ -279,12 +279,16 @@ several times during a session. An anonymized copy is in
 | `waterBudget` | Percent applied to every step's runtime (0–250) |
 | `irrigationType` | `"0"` water budget, `"4"` weather |
 | `period` | `"0"` 14-day mask, `"1"` odd days, `"2"` even days |
-| `fullDaySchedule` | 14 characters aligned with `allDaysArranged` (`SMtWTFsSMtWTFs`, from a Sunday): a letter waters that day, `-` doesn't. Odd and even programs report an approximate mask |
+| `fullDaySchedule` | 14 characters aligned with `allDaysArranged`, which starts on the day of the read (`WTFsSMt…` on a Wednesday; the fixture was captured on a Sunday): a letter waters that day, `-` doesn't. Odd and even programs report an approximate mask |
 | `starts[]` | `startSeq`, `starttime` (minutes after midnight), `cycles`, `endtime` (reported finish in minutes, can exceed 1440, or `-1`) |
 | `steps[]` | `runSeq`, `runtime` (seconds, before budget), `decoders` (station ids) |
 | `runningStatus`, `runningEntries`, `nextRun`, `today` | Live state. `nextRun` was sometimes a small number and sometimes epoch ms |
 
-Two findings matter for writing programs:
+Production reads on 2026-10-07 (Wednesday) and 2026-10-22 (Thursday) bear
+this out: `allDaysArranged` began `W` and then `T`, and an unchanged 14-day
+program's mask moved by one day, fifteen days later.
+
+Three findings matter for writing programs:
 
 - **Steps are fixed per station on this LTD.** With `maxStationsPerStep: 1`,
   `runSeq` equals the station id. A program runs its stations in station-number
@@ -294,6 +298,10 @@ Two findings matter for writing programs:
   packets and later ones reported the same programs with the two weeks
   swapped. Which half is the current week needs checking against `nextRun`
   or the controller before writing a calendar.
+- **Steps can't be deleted.** Capabilities report `steps.deleteStep: false`,
+  so the dry run removes a station from a program by writing a 0-second
+  runtime. Nothing in the message family sets a program's name or lets a
+  program water during a rain delay.
 
 ### Writing (recovered, never sent)
 

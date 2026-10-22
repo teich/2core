@@ -259,3 +259,33 @@ use as many Tucor messages as it needs (see AGENTS.md). The remaining steps:
 3. Write the reviewed schedule, verify the readback against it, and keep the
    original copy ready to restore. A partly applied write is reported as such
    and isn't retried automatically.
+
+## October 22: the write messages, as a dry run
+
+Step 1 is done as a dry run. `lib/program-messages.mjs` turns a compiled
+candidate into the `IrrPgm*` messages and the sync, checked against the
+controller's capabilities. `tools/compile-programs.mjs --programs
+PROGRAMS.json SNAPSHOT.json` prints them. Nothing is sent.
+
+Each slot is switched off first and on last, so a write that stops partway
+leaves programs off rather than half edited. Unchanged steps and settings are
+skipped; removed stations get a 0-second runtime because the controller
+can't delete steps.
+
+Run against production on October 22, it found:
+
+- **Rain exemptions can't be written.** Citrus and entry pots is set to water
+  during rain delays, and no program message expresses that. The write is
+  blocked until that zone's setting changes or a way to express it is found.
+- **Names stay.** No message sets a program's name, so slots keep names like
+  “\*VINES Top” while holding other zones.
+- **Most slots still change.** Each compiled program goes to the slot that
+  already holds most of its zones (an exact search over the ten slots), and a
+  slot that already matches sends nothing. That took the write from 212
+  messages to 193. Most slots still change, because the plan groups zones by
+  calendar differently from the current programs. The two every-other-day
+  programs land in “\*Odd days” and “\*EVEN DAYS”; four slots, including
+  “\*VINES Top”, end up holding mostly other zones under their old names.
+- **The calendar's first week is unconfirmed.** The day letters repeat
+  weekly, so only the supervised readback can confirm which dates a mask
+  means.
