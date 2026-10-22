@@ -12,7 +12,8 @@
     "verify": "npm run format:check && npm run check && npm test",
     "start": "node server/index.mjs",
     "demo": "MODE=demo node server/index.mjs",
-    "tucor": "node tools/tucor.mjs"
+    "tucor": "node tools/tucor.mjs",
+    "compare": "node tools/compare-programs.mjs"
   },
   "dependencies": {
     "socket.io-client": "2.5.0"

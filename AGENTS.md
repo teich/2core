@@ -44,7 +44,8 @@ lib/       Pure logic shared by server and browser (planner, plan feasibility,
 server/    Node HTTP server and controller bridge
 web/       The web app, served as-is
 test/      node --test suites (*.test.mjs) and fixtures
-tools/     CLI (tucor.mjs), deploy and secrets scripts
+tools/     CLIs (tucor.mjs, compile-programs.mjs, compare-programs.mjs),
+           deploy and secrets scripts
 deploy/    Docker and Tailscale deployment docs
 research/  Protocol research and design notes
 ```

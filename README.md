@@ -85,6 +85,18 @@ Automatic mode adds a hold or extends its own hold at most approximately hourly 
 
 Thresholds and duration can be updated through `/api/policy`; mode is also editable in the web UI. See [server/API.md](server/API.md). Live control must be enabled separately on the server before Automatic can affect irrigation.
 
+## Compare the plan with the controller
+
+`tools/compare-programs.mjs` shows, zone by zone, how many minutes a week the controller's programs water (with their water budgets applied) against 2core's plan. It only reads 2core's own cache, so it never contacts Tucor. You need Node.js 24 or later and a copy of this repository; there is nothing to install.
+
+```sh
+TWOCORE_KEY=your-access-key npm run compare -- http://your-2core-server:8787
+```
+
+Leave out `TWOCORE_KEY` if the server signs you in through Tailscale. Zones that differ by more than 10% are marked `!`. Change that with `--threshold 20`, or use `--json` for the full data. You can also pass two saved files instead of a server: the JSON from `/api/state`, then from `/api/programs`.
+
+The comparison uses weekly averages. Odd-day and even-day programs count as 3.5 waterings a week, and alternating-week programs are averaged over both weeks. Two schedules can match here and still water on different nights.
+
 ## Validation
 
 ```sh
