@@ -48,6 +48,8 @@ const COMMANDS = routes({
   '/api/rain': (engine, payload) => () => engine.rain(payload.hours),
   '/api/policy': (engine, payload) => () => engine.configurePolicy(payload),
   '/api/weather': (engine, payload) => () => engine.weather(payload),
+  '/api/programs/test-write': engine => () => engine.programTest(),
+  '/api/programs/restore-test-slot': engine => () => engine.programRestore(),
 });
 
 function routes(table) {

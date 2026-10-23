@@ -102,5 +102,7 @@ test('without a controller reading there are no programs', t => {
     capabilities: null,
     programs: [],
     backups: { latest: null, original: null },
+    writesEnabled: true,
+    tests: [],
   });
 });

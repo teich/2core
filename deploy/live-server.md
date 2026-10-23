@@ -55,6 +55,38 @@ The helper verifies credentials with Tucor before replacing files. Container rec
 
 Set `ALLOW_LIVE_CONTROL=false` in `/opt/2core/.env` and recreate the service to return to read-only mode. This does not cancel a running controller timer or an existing rain delay.
 
+## Supervised program test
+
+Writes program 1, which is off and has no days, then reads it back. See
+`research/scheduling-plan.md` (“The supervised program test”) for what it
+writes and why. Run it only with someone at the controller, not during a
+deploy or a watering test.
+
+1. Set `ALLOW_PROGRAM_WRITES=true` in `/opt/2core/.env`, then
+   `docker compose up -d --force-recreate`. Check
+   `GET /api/programs` reports `"writesEnabled": true`.
+2. Open the app once so 2core has a fresh read of the programs.
+3. Start the test (the key stays on the server):
+
+   ```sh
+   ssh root@192.168.2.6 'curl -sS -X POST http://192.168.2.6:8787/api/programs/test-write \
+     -H "Authorization: Bearer $(cat /opt/2core/secrets/api_key)" \
+     -H "Content-Type: application/json" -H "Idempotency-Key: program-test-$(date +%s)" \
+     -d "{\"deadline\": \"$(date -u -d +100sec +%FT%TZ)\"}"'
+   ```
+
+   It takes about a minute and answers with `outcome` and any `problems`.
+   An error after sending started means the outcome is unknown: don't repeat
+   it, look at program 1 first.
+4. Check program 1 on the controller itself and in Tucor's app: off, zone 2
+   for one minute, a 23:00 start, two days.
+5. Restore it the same way with `/api/programs/restore-test-slot`, and check
+   again.
+6. Set `ALLOW_PROGRAM_WRITES=false` and recreate the service.
+
+Each run's record, including everything Tucor sent back, is in
+`GET /api/programs` under `tests`.
+
 ## Deployment verification
 
 Live authentication, inventory, and status reads succeeded from the LXC. The latency update is deployed as release `20260928T011349Z-21591` (2026-09-27 local time). The original pre-update recovery snapshot is `/opt/2core/backups/20260928T010853Z-21070`.

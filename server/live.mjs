@@ -2,6 +2,7 @@ import io from 'socket.io-client';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { ORIGIN, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
 import { trace } from './telemetry.mjs';
+import { CLOSE, OPEN, READBACK } from '../lib/program-messages.mjs';
 
 // Tucor is a shared vendor service: every new session costs it a device list request,
 // a socket, a login, and a controller selection. These caps hold even if a
@@ -37,6 +38,8 @@ export class LiveDriver {
     freshMs = 3000,
     waitMs = 20000,
     releaseMs = 500,
+    // How long a program write watches for Tucor's follow-up packets, before and after the readback.
+    programSettleMs = 15000,
     ledger = memory(),
     tokenStore = memory(),
     limits = TUCOR_LIMITS,
@@ -58,6 +61,7 @@ export class LiveDriver {
     this.freshMs = freshMs;
     this.waitMs = waitMs;
     this.releaseMs = releaseMs;
+    this.programSettleMs = programSettleMs;
     this.ledger = ledger;
     this.limits = limits;
     this.random = random;
@@ -270,6 +274,8 @@ class Session {
     this.sequence = 0;
     this.events = [];
     this.waiters = new Set();
+    /** @type {Set<(m: any) => void>} Program writes keep everything Tucor sends while they run. */
+    this.recorders = new Set();
     this.components = new Map();
     this.observed = { controllerMode: null, rainShutDown: null, stations: null };
     /** Programs and their capabilities arrive unasked after controller selection. */
@@ -324,6 +330,7 @@ class Session {
       for (const field of ['controllerMode', 'rainShutDown'])
         if (Object.hasOwn(m.data, field)) this.observed[field] = at;
     }
+    for (const record of this.recorders) record(m);
     this.events.push({ sequence: ++this.sequence, message: m });
     if (this.events.length > 256) this.events.shift();
     for (const check of [...this.waiters]) check();
@@ -513,6 +520,49 @@ class Session {
         from,
       ),
     );
+  }
+  /** Starts keeping every packet Tucor sends; `stop()` returns them. */
+  record() {
+    const kept = [];
+    const record = m => kept.push({ at: new Date(this.driver.clock()).toISOString(), message: m });
+    this.recorders.add(record);
+    return {
+      stop: () => {
+        this.recorders.delete(record);
+        return kept;
+      },
+    };
+  }
+  programList(from) {
+    return this.wait(m => m.component === 'Programs' && Array.isArray(m.data) && m.data.length, 'program list', from);
+  }
+  /** Opens Tucor's Programs page as its editor does and waits for the list it sends. */
+  async openPrograms() {
+    const from = this.sequence;
+    for (const m of OPEN) this.send(m);
+    await this.telemetry.stage('programs_open', () => this.programList(from));
+    return { ...this.programs };
+  }
+  /**
+   * Sends a program write. The deadline and session are checked before the first
+   * message; after that the write runs to the end rather than stopping halfway.
+   */
+  writePrograms(messages) {
+    messages.forEach((m, i) => this.send(m, i === 0));
+  }
+  /** Asks for the program list again, which is how the editor reads its edits back. */
+  async readPrograms() {
+    const from = this.sequence;
+    for (const m of READBACK) this.send(m);
+    await this.telemetry.stage('programs_confirmation', () => this.programList(from));
+    return { ...this.programs };
+  }
+  /** Leaves time for Tucor's follow-up packets, such as ProgramUpdate or sync status. */
+  settle() {
+    return sleep(this.driver.programSettleMs);
+  }
+  closePrograms() {
+    if (this.healthy) for (const m of CLOSE) this.send(m);
   }
   async close() {
     const release = this.selected && this.socket.connected;

@@ -312,6 +312,28 @@ themselves (`I01:02` “Not Synced”, then `I01:01` “Synced”), what
 `ProgramUpdate` looks like and when, and whether the controller reads the
 calendar from the day of the write.
 
+## The supervised program test
+
+Built on October 23 for step 2, not yet run. `POST /api/programs/test-write`
+writes program 1 (“Lawns+perims”, off with no days) through the editor's
+messages: zone 2 for one minute, one start at 23:00, two days (tomorrow and a
+week later), 100% budget, and zones 5 and 9 zeroed. Nothing turns it on, so
+nothing can water. `POST /api/programs/restore-test-slot` puts it back from
+2core's first copy. Both need `ALLOW_PROGRAM_WRITES=true` as well as live
+control, run in one session, never sync and are never retried; the
+procedure is in `deploy/live-server.md`.
+
+The test refuses, before sending anything, unless program 1 is off with no
+days, matches 2core's first copy, and Tucor's calendar starts today. It then
+waits, reads back and waits again, keeping every packet and status code.
+Those records should answer:
+
+- Do edits reach the controller without a sync? Look for `I01:02` then
+  `I01:01` in the codes, and check the controller itself.
+- What does `ProgramUpdate` look like, and when does it come?
+- Does the controller read `Weekdays` from the day of the write? The two days
+  should be tomorrow and a week later on the controller.
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be

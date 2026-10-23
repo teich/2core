@@ -6,6 +6,7 @@ import { LiveDriver } from '../server/live.mjs';
 import { Engine } from '../server/engine.mjs';
 import { Store } from '../server/store.mjs';
 import { readFileSync } from 'node:fs';
+import { DemoDriver } from '../server/demo.mjs';
 
 const captured = JSON.parse(readFileSync(new URL('./fixtures/tucor-programs.json', import.meta.url), 'utf8'));
 
@@ -79,6 +80,14 @@ class Cloud {
           cloud.runs = cloud.runs.filter(s => !s.runningEntries.some(e => data.handleID.includes(e.handleID)));
         if (data.component === 'Rainshutdown')
           cloud.main = { ...cloud.main, rainShutDown: data.command === 'Start' ? data.runtime : 0 };
+        // The program editor's page and readback request.
+        if (data.component === 'Programs' && data.command === 'Mounted' && cloud.programs)
+          this.receive({ component: 'Programs', data: cloud.programs.list });
+        if (data.Category === 'Irrigation') {
+          if (cloud.dropOnProgramWrite) return this.close();
+          DemoDriver.prototype.writePrograms.call(cloud, [data]);
+          if (cloud.programUpdate) this.receive({ ProgramUpdate: true });
+        }
         if (data.command === 'AutoStatus') {
           this.stationOnly = true;
           if (!cloud.silent) this.stations();
@@ -117,6 +126,7 @@ async function fixture(t, options = {}) {
     store,
     mode: 'live',
     allowControl: true,
+    allowProgramWrites: options.allowProgramWrites ?? false,
     logger: r => logs.push(r),
     ...(options.clock ? { clock: options.clock } : {}),
   });
@@ -455,4 +465,69 @@ test('a token from a password login survives a restart and is replaced once reje
   await third.driver.withSession(async () => {});
   assert.equal(third.cloud.http.filter(p => p.includes('get-token')).length, 1);
   assert.equal(saved.value, 'fresh-token');
+});
+
+// The captured programs were read on a Sunday; their slot 1 is off with no days, like production's.
+const sunday = () => new Date(2026, 9, 11, 12).getTime();
+const programCloud = cloud => {
+  cloud.programs = { capabilities: captured.capabilities.Capabilities, list: structuredClone(captured.programs.data) };
+};
+
+test('the test write opens the editor, writes the off slot, reads it back and never syncs', async t => {
+  const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
+  programCloud(cloud);
+  cloud.programUpdate = true;
+  await engine.refresh();
+  const before = cloud.sent.length;
+  const result = await command(engine, 'program-test', () => engine.programTest());
+  assert.equal(result.outcome, 'readback matches', JSON.stringify(result.problems));
+  const sent = cloud.sent.slice(before);
+  const writes = sent.filter(m => m.Category === 'Irrigation');
+  const first = sent.indexOf(writes[0]),
+    last = sent.indexOf(writes.at(-1));
+  // The editor's page opens first, the readback and the way back to the dashboard come after.
+  assert.deepEqual(sent.slice(first - 3, first), [
+    { category: 'route', data: '/programs' },
+    { component: 'Programs', command: 'Created' },
+    { component: 'Programs', command: 'Mounted' },
+  ]);
+  assert.deepEqual(sent[last + 1], { component: 'Programs', command: 'Mounted' });
+  assert.ok(sent.slice(last).some(m => m.category === 'route' && m.data === '/home'));
+  assert.ok(!sent.some(m => m.command === 'synchronize' || m.Status === 1));
+  assert.equal(readProgramStatus(cloud), '0');
+  assert.equal(cloud.sockets.length, 1);
+  const record = engine.programs().tests[0];
+  assert.equal(record.outcome, 'readback matches');
+  assert.ok(record.trace.some(e => e.message?.ProgramUpdate));
+  assert.ok(record.trace.some(e => e.component === 'Programs' && e.programs === 10));
+});
+const readProgramStatus = cloud => cloud.programs.list.find(p => p.ID === '1').status;
+
+test('a connection lost during a program write is left unknown and never retried', async t => {
+  const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
+  programCloud(cloud);
+  await engine.refresh();
+  cloud.dropOnProgramWrite = true;
+  await assert.rejects(
+    command(engine, 'program-drop', () => engine.programTest()),
+    /connection lost/,
+  );
+  assert.equal(cloud.sent.filter(m => m.Category === 'Irrigation').length, 1);
+  assert.equal(engine.programs().tests[0].outcome, 'unknown');
+  // The same request answers from its record instead of writing again.
+  await assert.rejects(
+    command(engine, 'program-drop', () => engine.programTest()),
+    /unknown outcome/,
+  );
+  assert.equal(cloud.sent.filter(m => m.Category === 'Irrigation').length, 1);
+});
+
+test('without ALLOW_PROGRAM_WRITES a program write contacts nobody', async t => {
+  const { engine, cloud } = await fixture(t, { clock: sunday });
+  programCloud(cloud);
+  await assert.rejects(
+    command(engine, 'program-off', () => engine.programTest()),
+    /Program writes are off/,
+  );
+  assert.equal(cloud.sockets.length, 0);
 });
