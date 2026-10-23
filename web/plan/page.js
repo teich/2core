@@ -209,14 +209,6 @@ function nightNotes(n, names, cfg) {
           ],
         ]
       : []),
-    ...(n.rain && n.start != null
-      ? [
-          [
-            'rain',
-            'Covered zones keep their planned watering during rain. This preview does not bypass the controller’s rain delay.',
-          ],
-        ]
-      : []),
     ...Object.values(Object.groupBy(n.late, l => `${l.nights}:${l.reason}`)).map(group => {
       const { nights, reason } = group[0],
         who = group.map(l => names[l.zone]).join(', ');

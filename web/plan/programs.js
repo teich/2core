@@ -59,7 +59,7 @@ function programReport(p, title) {
       <ol class="programs">${p.programs
         .map(
           g =>
-            `<li><div class="program-head"><b>Program ${escape(g.slot)}</b><span class="num">${clockAt(g.startMinute)}${g.startDayOffset ? ' (+1 day)' : ''} · ${formatDuration(g.seconds)}</span></div>${g.waterDuringRain ? '<small>Waters during rain</small>' : ''}<p>${g.steps.map(s => `${escape(s.name)} <span class="num">${formatDuration(s.seconds)}</span>`).join(' → ')}</p><small class="num">${g.eveningMask
+            `<li><div class="program-head"><b>Program ${escape(g.slot)}</b><span class="num">${clockAt(g.startMinute)}${g.startDayOffset ? ' (+1 day)' : ''} · ${formatDuration(g.seconds)}</span></div><p>${g.steps.map(s => `${escape(s.name)} <span class="num">${formatDuration(s.seconds)}</span>`).join(' → ')}</p><small class="num">${g.eveningMask
               .map((on, d) => (on ? p.dates[d].slice(5).replace('-', '/') : null))
               .filter(Boolean)
               .join(', ')}</small></li>`,

@@ -30,7 +30,6 @@ const candidate = (programs, anchor = sunday) => ({
   calendarAnchor: anchor,
   programs: programs.map((p, i) => ({
     slot: i + 1,
-    waterDuringRain: false,
     calendarMask: mask([0, 7]),
     clockMinute: 1320,
     steps: [{ zone: '3', name: 'Rear lawn drip', seconds: 600 }],
@@ -41,12 +40,9 @@ const write = (programs, current, extra = {}) =>
   programMessages({ candidate: candidate(programs), current, capabilities, today: sunday, ...extra });
 
 test('the compiled fixture becomes programs, each switched off while edited and on last', () => {
-  // Rain exemptions can't be written (see the blocking test), so this plan waters dry weather only.
-  const plan = structuredClone(intents.plan);
-  for (const intent of Object.values(plan.intents)) delete intent.waterDuringRain;
   const compiled = compilePrograms({
     zones: intents.zones,
-    ...plan,
+    ...intents.plan,
     start: new Date(2026, 9, 6),
     sunriseAt: () => 431,
   });
@@ -159,7 +155,6 @@ test('anything the messages can’t express blocks the whole write', () => {
     );
     assert.deepEqual(result.programs, []);
   };
-  blocked(write([{ waterDuringRain: true }], [raw(1)]), 'rain-exemption');
   blocked(write([{}, {}], [raw(1)]), 'slots');
   blocked(write([{}], [raw(1)], { today: '2026-10-12' }), 'calendar-alignment');
   blocked(write([{}], [raw(1)], { capabilities: { ...capabilities, maxStationsPerStep: 2 } }), 'multi-station-steps');

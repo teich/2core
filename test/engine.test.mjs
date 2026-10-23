@@ -260,13 +260,9 @@ test('watering intentions and night settings are validated, stored locally, and 
     cadence: { perWeek: 2 },
     enabled: true,
     firstDue: initial.firstDue,
-    waterDuringRain: false,
     seasonalPercent: 100,
   });
-  assert.equal(
-    (await post('/zones/2/intent', { firstDue: '2026-10-02', enabled: false, waterDuringRain: true })).status,
-    200,
-  );
+  assert.equal((await post('/zones/2/intent', { firstDue: '2026-10-02', enabled: false })).status, 200);
   for (const bad of [
     { seconds: 0 },
     { seconds: 14401 },
@@ -274,8 +270,9 @@ test('watering intentions and night settings are validated, stored locally, and 
     { cadence: { every: 2, perWeek: 2 } },
     { firstDue: '2026-02-30' },
     { colour: 'red' },
-    { waterDuringRain: 'yes' },
-    { waterDuringRain: 1 },
+    // Removed for now; see research/scheduling-plan.md.
+    { waterDuringRain: true },
+    { enabled: 'yes' },
   ])
     assert.equal((await post('/zones/2/intent', bad)).status, 400, JSON.stringify(bad));
   assert.equal((await post('/zones/99/intent', { seconds: 60 })).status, 404);
@@ -287,7 +284,6 @@ test('watering intentions and night settings are validated, stored locally, and 
     cadence: { perWeek: 2 },
     enabled: false,
     firstDue: '2026-10-02',
-    waterDuringRain: true,
     seasonalPercent: 100,
   });
   assert.deepEqual(state.plan.settings, { earliestStart: 1380, finishBeforeSunrise: 15, hardDeadline: 540, lanes: 1 });
@@ -309,16 +305,16 @@ test('seasonal edits preserve baselines, scale the plan, and persist all zones a
     file = join(dir, 'test.sqlite');
   const store = new Store(file),
     driver = new DemoDriver();
-  // Existing production intentions predate seasonal percentages.
+  // Existing production intentions predate seasonal percentages, and still
+  // carry waterDuringRain, which the plan now ignores.
   const baseline = {
     seconds: 3600,
     cadence: { every: 2 },
     firstDue: '2026-10-06',
     enabled: true,
-    waterDuringRain: false,
   };
-  store.set('intent:1', baseline);
-  store.set('intent:2', { ...baseline, enabled: false });
+  store.set('intent:1', { ...baseline, waterDuringRain: false });
+  store.set('intent:2', { ...baseline, enabled: false, waterDuringRain: true });
   const engine = new Engine({ store, driver, mode: 'live', clock: () => new Date(2026, 9, 6, 17).getTime() });
   await engine.refresh();
   driver.withSession = async () => {
@@ -403,7 +399,7 @@ test('initial staggering persists across restarts and repeated edits never move 
   assert.equal(new Set(Object.values(initial).map(i => i.firstDue)).size, 2);
   for (const day of [8, 10, 12]) {
     now = new Date(2026, 9, day, 17).getTime();
-    engine.intent('1', { seconds: 60 * day, waterDuringRain: true });
+    engine.intent('1', { seconds: 60 * day });
     engine.intent('4', { seconds: 1200, cadence: { perWeek: 3 } });
     for (const id of ['1', '2', '3']) assert.equal(engine.plan().intents[id].firstDue, initial[id].firstDue);
   }
@@ -420,8 +416,7 @@ test('initial staggering persists across restarts and repeated edits never move 
 test('seasonal disable preserves settings; rebalance needs current reviewed token and applies atomically', async t => {
   let now = new Date(2026, 9, 6, 17).getTime();
   const { engine, store, driver } = await fixture(t, { clock: () => now });
-  for (const id of ['1', '2', '3'])
-    engine.intent(id, { seconds: 3600, cadence: { every: 2 }, firstDue: '2026-10-06', waterDuringRain: id === '3' });
+  for (const id of ['1', '2', '3']) engine.intent(id, { seconds: 3600, cadence: { every: 2 }, firstDue: '2026-10-06' });
   const original = engine.plan().intents['3'];
   engine.intent('3', { enabled: false });
   assert.deepEqual(engine.plan().intents['3'], { ...original, enabled: false });

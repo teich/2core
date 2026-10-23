@@ -118,7 +118,7 @@ test('sunrise follows the almanac', () => {
   assert.ok(Math.abs(((((local - offset) % 1440) + 1440) % 1440) - (6 * 60 + 4)) < 5);
 });
 
-test('covered zones water through rain while exposed zones catch up and shift cadence', () => {
+test('rain holds every due zone, which catches up on the next clear night and shifts its cadence', () => {
   const plan = resolvePlan({
     zones,
     start,
@@ -126,32 +126,30 @@ test('covered zones water through rain while exposed zones catch up and shift ca
     nights: 6,
     rain: new Set([dateKey(start), dateKey(addDays(start, 1))]),
     intents: {
-      1: { seconds: 600, cadence: { every: 2 }, waterDuringRain: true },
+      1: { seconds: 600, cadence: { every: 2 } },
       2: { seconds: 1200, cadence: { every: 2 } },
-      3: { seconds: 600, cadence: { every: 1 }, waterDuringRain: true, enabled: false },
+      3: { seconds: 600, cadence: { every: 1 }, enabled: false },
     },
   });
-  assert.equal(cells(plan, '1'), 'W.W.W.');
+  assert.equal(cells(plan, '1'), 'RRW.W.');
   assert.equal(cells(plan, '2'), 'RRW.W.');
   assert.equal(cells(plan, '3'), '......');
-  assert.equal(plan.nights[0].status, 'ok');
-  assert.deepEqual(plan.nights[0].held, ['2']);
-  assert.equal(plan.nights[0].seconds, 600);
-  assert.deepEqual(plan.nights[2].late, [{ zone: '2', nights: 2, reason: 'rain' }]);
-});
-
-test('rain exemption does not bypass capacity or shorten runs', () => {
-  const plan = resolvePlan({
+  assert.equal(plan.nights[0].status, 'rain');
+  assert.deepEqual(plan.nights[0].held, ['1', '2']);
+  assert.equal(plan.nights[0].seconds, 0);
+  assert.deepEqual(plan.nights[2].late, [
+    { zone: '1', nights: 2, reason: 'rain' },
+    { zone: '2', nights: 2, reason: 'rain' },
+  ]);
+  // A saved intent from before rain exemptions were removed doesn't water through rain.
+  const old = resolvePlan({
     zones,
     start,
     sunriseAt,
     rain: new Set([dateKey(start)]),
-    settings: { lanes: 1, earliestStart: 1560, hardDeadline: 240 },
-    intents: { 1: { seconds: 14400, cadence: { every: 1 }, waterDuringRain: true } },
+    intents: { 1: /** @type {any} */ ({ seconds: 600, cadence: { every: 1 }, waterDuringRain: true }) },
   });
-  assert.equal(plan.nights[0].status, 'over');
-  assert.deepEqual(plan.nights[0].deferred, ['1']);
-  assert.equal(plan.nights[0].seconds, 0);
+  assert.deepEqual(old.nights[0].held, ['1']);
 });
 
 test('staggering fills around established dates and never changes anchored intentions', () => {
@@ -290,12 +288,12 @@ test('whole-second runs, seasonal adjustment and rain holds affect the need for 
   assert.ok(Math.abs(overlapMinutes(nightFor([240, 120, 1 / 60])) - 1 / 60) < 1e-9);
   const intents = {
     0: { seconds: 14400, cadence: { every: 1 }, seasonalPercent: 150 },
-    1: { seconds: 3600, cadence: { every: 1 }, waterDuringRain: true },
+    1: { seconds: 3600, cadence: { every: 1 } },
   };
   assert.equal(overlapMinutes(nightFor([0, 0], {}, { intents })), 60);
   const rain = nightFor([0, 0], {}, { intents, rain: new Set([dateKey(start)]) });
   assert.equal(rain.lanes[1].length, 0);
-  assert.deepEqual(rain.held, ['0']);
+  assert.deepEqual(rain.held, ['0', '1']);
 });
 
 test('small schedules match exhaustive two-lane feasibility and minimum overlap', () => {

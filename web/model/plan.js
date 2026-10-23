@@ -80,7 +80,6 @@ const EDIT_LABELS = {
   seconds: 'run length',
   cadence: 'how often',
   enabled: 'watering',
-  waterDuringRain: 'water during rain',
   seasonalPercent: 'seasonal',
   firstDue: 'next watering',
 };

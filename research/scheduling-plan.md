@@ -115,13 +115,12 @@ not a side effect of opening the app or editing another zone. Preview dates
 still assume watering occurred; live operation must use durable due dates and
 watering outcomes so missed or deferred work cannot disappear as time passes.
 
-Covered zones can be marked “Water during rain delays.” In the preview only
-exposed due zones are held; covered zones continue on their cadence, with normal
-capacity and pause constraints. No controller bypass is implemented. Before live
-cutover, validate a way to water covered zones while holding exposed ones. Rain
-and other execution exceptions will require reconciling due dates and updating
-the installed schedule, with verified readback and no blind retries. A repeating
-schedule alone does not implement the agreed postpone-and-shift rain behavior.
+A rain hold postpones every due zone. (Covered zones could once be marked
+“Water during rain delays”; that was removed on October 23, see “Deferred:
+watering covered zones through rain” below.) Rain and other execution
+exceptions will require reconciling due dates and updating the installed
+schedule, with verified readback and no blind retries. A repeating schedule
+alone does not implement the agreed postpone-and-shift rain behavior.
 
 The main cadence menu presents the four observed choices, with Other for the
 remaining choices. Durations display in minutes, night settings are collapsed,
@@ -274,9 +273,9 @@ can't delete steps.
 
 Run against production on October 22, it found:
 
-- **Rain exemptions can't be written.** Citrus and entry pots is set to water
-  during rain delays, and no program message expresses that. The write is
-  blocked until that zone's setting changes or a way to express it is found.
+- **Rain exemptions can't be written.** Citrus and entry pots was set to
+  water during rain delays, and no program message expresses that, so the
+  write was blocked. The setting was removed the next day (below).
 - **Names stay.** No message sets a program's name, so slots keep names like
   “\*VINES Top” while holding other zones.
 - **Most slots still change.** Each compiled program goes to the slot that
@@ -289,3 +288,31 @@ Run against production on October 22, it found:
 - **The calendar's first week is unconfirmed.** The day letters repeat
   weekly, so only the supervised readback can confirm which dates a mask
   means.
+
+## Deferred: watering covered zones through rain
+
+Removed on October 23 so the plan can be written to the controller; to be
+added back later. Zones could be marked “Water during rain delays” for covered
+beds and pots that rain doesn't reach. The preview then held only exposed
+zones on rain nights, and the compiler kept covered zones in programs of their
+own. Only Citrus and entry pots (zone 7) used it.
+
+It was removed because nothing on the controller side can express it. Tucor's
+rain delay is controller-wide, and the `IrrPgm*` messages have no
+per-program rain setting (see `protocol.md`, “Writing”). Every zone now
+follows the rain delay.
+
+**The code.** It's all in the commit “Remove watering through rain delays
+for now”, and tag `rain-exemption` marks the last commit that had it.
+`git revert` of that commit restores it: the zone-sheet switch, intent
+validation, the planner's rain hold, separate compiler programs and the
+translator's `rain-exemption` block. Saved intents still carry the field;
+the server strips it when reading, so zone 7's old setting comes back with the
+code, unless a later save rewrote that intent without it.
+
+**Before adding it back,** find a controller-side way to water covered zones
+while exposed ones wait, and check it with a supervised test. Possibilities to
+look into: a per-station rain-sensor bypass in Tucor's station setup, a
+controller rain mode that only suspends some programs, or 2core starting the
+covered zones itself on held nights, which costs Tucor contact that has to be
+justified first.
