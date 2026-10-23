@@ -71,13 +71,19 @@ deploy or a watering test.
    ```sh
    ssh root@192.168.2.6 'curl -sS -X POST http://192.168.2.6:8787/api/programs/test-write \
      -H "Authorization: Bearer $(cat /opt/2core/secrets/api_key)" \
-     -H "Content-Type: application/json" -H "Idempotency-Key: program-test-$(date +%s)" \
+     -H "Content-Type: application/json" -H "Prefer: respond-async" \
+     -H "Idempotency-Key: program-test-$(date +%s)" \
      -d "{\"deadline\": \"$(date -u -d +100sec +%FT%TZ)\"}"'
    ```
 
-   It takes about a minute and answers with `outcome` and any `problems`.
-   An error after sending started means the outcome is unknown: don't repeat
-   it, look at program 1 first.
+   It answers at once with an operation; follow it at
+   `/api/commands/<id>` (same headers, `GET`). The write takes about a
+   minute and the sync can take a few more. The result's `outcome` is
+   `synced` when it's done; `not synced` means Tucor's sync would have
+   touched more than programs, so nothing was synchronized and `problems`
+   says what. An error after sending started means the outcome is unknown:
+   don't repeat it, look at program 1 first. Never finish a sync from
+   Tucor's dialog with the controller's values: that undoes the write.
 4. Check program 1 on the controller itself and in Tucor's app: off, zone 2
    for one minute, a 23:00 start, two days.
 5. Restore it the same way with `/api/programs/restore-test-slot`, and check

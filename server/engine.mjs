@@ -11,7 +11,14 @@ import { PlanService } from './plan-service.mjs';
 import { WeatherPolicy } from './weather-policy.mjs';
 import { mergePreferences } from './preferences.mjs';
 import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
-import { lettersFor, readbackProblems, restoreTarget, weekdaysFor, writeSlot } from '../lib/program-messages.mjs';
+import {
+  lettersFor,
+  readbackProblems,
+  restoreTarget,
+  syncCheck,
+  weekdaysFor,
+  writeSlot,
+} from '../lib/program-messages.mjs';
 import { dateKey } from '../lib/planner.mjs';
 import { AppError, LIMITS, number } from './validation.mjs';
 
@@ -410,16 +417,9 @@ export class Engine {
   /** POST /api/programs/test-write: the supervised test, on a slot that stays off. */
   programTest() {
     return this.programJob('test write', (raw, today) => {
-      const original = this.store.get('programsOriginal')?.list.find(p => Number(p.ID) === PROGRAM_TEST.slot);
-      if (!original) throw new AppError('2core has no saved copy of this slot to restore from; nothing was sent');
-      if (JSON.stringify(programDefinition([raw])) !== JSON.stringify(programDefinition([original])))
-        throw new AppError(
-          `Program ${PROGRAM_TEST.slot} changed since 2core first saw it; restore it first. Nothing was sent`,
-        );
-      if (readProgram(raw).active || /[^-]/.test(raw.fullDaySchedule))
-        throw new AppError(`Program ${PROGRAM_TEST.slot} is on or has watering days; nothing was sent`);
       const days = Array.from({ length: 14 }, (_, d) => PROGRAM_TEST.days.includes(d));
-      return {
+      /** @type {import('../lib/program-messages.mjs').SlotTarget} */
+      const goal = {
         active: false,
         type: 0,
         period: 0,
@@ -435,6 +435,17 @@ export class Engine {
         ],
         steps: [{ zone: PROGRAM_TEST.zone, seconds: PROGRAM_TEST.seconds }],
       };
+      // Written earlier today and not yet synced: nothing to write, only the sync.
+      if (!readbackProblems(raw, goal).length) return goal;
+      const original = this.store.get('programsOriginal')?.list.find(p => Number(p.ID) === PROGRAM_TEST.slot);
+      if (!original) throw new AppError('2core has no saved copy of this slot to restore from; nothing was sent');
+      if (JSON.stringify(programDefinition([raw])) !== JSON.stringify(programDefinition([original])))
+        throw new AppError(
+          `Program ${PROGRAM_TEST.slot} changed since 2core first saw it; restore it first. Nothing was sent`,
+        );
+      if (readProgram(raw).active || /[^-]/.test(raw.fullDaySchedule))
+        throw new AppError(`Program ${PROGRAM_TEST.slot} is on or has watering days; nothing was sent`);
+      return goal;
     });
   }
   /** POST /api/programs/restore-test-slot: puts the test slot back from 2core's first copy. */
@@ -475,17 +486,24 @@ export class Engine {
         const goal = target(raw, today);
         const { messages, changes } = writeSlot(raw, goal, readCapabilities(read.capabilities));
         Object.assign(record, { before: raw, target: goal, changes, messages });
+        // Tucor says whether its cloud and the controller differ.
+        const unsynced = () => (session.codes ?? []).filter(c => /^I01(:|$)/.test(c)).at(-1) === 'I01:02';
+        const ready = () => {
+          if (this.activeDeadline && this.clock() > this.activeDeadline)
+            throw new AppError('Command expired before sending; nothing was sent', 400);
+          // The write and its sync must finish inside this session, never across two.
+          if (session.expiresAt && session.expiresAt - this.clock() < 300000)
+            throw new AppError(
+              'The Tucor session is too close to its time limit; nothing was sent. Try again in five minutes',
+            );
+        };
         if (!messages.length) {
           record.outcome = 'nothing to change';
-          return { ok: true, outcome: record.outcome, changes };
+          if (!unsynced()) return { ok: true, outcome: record.outcome, changes };
+          ready();
+          return await this.programSync(session, record, goal);
         }
-        if (this.activeDeadline && this.clock() > this.activeDeadline)
-          throw new AppError('Command expired before sending; nothing was sent', 400);
-        // The write must finish inside this session, never across two.
-        if (session.expiresAt && session.expiresAt - this.clock() < 120000)
-          throw new AppError(
-            'The Tucor session is too close to its time limit; nothing was sent. Try again in two minutes',
-          );
+        ready();
         record.outcome = 'unknown';
         session.writePrograms(messages);
         await session.settle();
@@ -494,8 +512,9 @@ export class Engine {
         await session.settle();
         const after = (session.programs?.list ?? back.list).find(p => Number(p.ID) === slot);
         const problems = readbackProblems(after, goal);
-        Object.assign(record, { after, problems, outcome: problems.length ? 'readback differs' : 'readback matches' });
-        return { ok: !problems.length, outcome: record.outcome, changes, problems };
+        Object.assign(record, { after, problems, outcome: problems.length ? 'readback differs' : 'not synced' });
+        if (problems.length) return { ok: false, outcome: record.outcome, changes, problems };
+        return await this.programSync(session, record, goal);
       } catch (e) {
         record.error = e.message;
         throw e;
@@ -507,6 +526,33 @@ export class Engine {
         this.store.set('programTests', [record, ...this.store.get('programTests', [])].slice(0, 5));
       }
     });
+  }
+
+  /**
+   * Sends the cloud's programs to the controller with Tucor's sync, which
+   * program edits need. It runs only when Tucor proposes app-to-controller for
+   * programs and nothing for any other section, and never changes a direction.
+   * @param {any} session @param {any} record
+   * @param {import('../lib/program-messages.mjs').SlotTarget} goal
+   */
+  async programSync(session, record, goal) {
+    const slot = PROGRAM_TEST.slot,
+      changes = record.changes;
+    const check = syncCheck(await session.startSync());
+    record.sync = { sections: check.sections, problems: check.problems };
+    if (!check.ok) {
+      record.outcome = 'not synced';
+      return { ok: false, outcome: record.outcome, changes, problems: check.problems };
+    }
+    record.outcome = 'sync unknown';
+    await session.executeSync();
+    record.sync.finishedAt = new Date(this.clock()).toISOString();
+    const back = await session.readPrograms();
+    this.recordPrograms(back);
+    const after = back.list.find(p => Number(p.ID) === slot);
+    const problems = readbackProblems(after, goal);
+    Object.assign(record, { after, problems, outcome: problems.length ? 'synced, readback differs' : 'synced' });
+    return { ok: !problems.length, outcome: record.outcome, changes, problems };
   }
 
   // Weather policy: see weather-policy.mjs.

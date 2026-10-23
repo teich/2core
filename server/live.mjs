@@ -2,7 +2,7 @@ import io from 'socket.io-client';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { ORIGIN, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
 import { trace } from './telemetry.mjs';
-import { CLOSE, OPEN, READBACK } from '../lib/program-messages.mjs';
+import { CLOSE, OPEN, READBACK, SYNC_ERRORS, SYNC_EXECUTE, SYNC_START } from '../lib/program-messages.mjs';
 
 // Tucor is a shared vendor service: every new session costs it a device list request,
 // a socket, a login, and a controller selection. These caps hold even if a
@@ -40,6 +40,8 @@ export class LiveDriver {
     releaseMs = 500,
     // How long a program write watches for Tucor's follow-up packets, before and after the readback.
     programSettleMs = 15000,
+    // A sync can take minutes; Tucor shows its progress as it goes.
+    syncMs = 240000,
     ledger = memory(),
     tokenStore = memory(),
     limits = TUCOR_LIMITS,
@@ -62,6 +64,7 @@ export class LiveDriver {
     this.waitMs = waitMs;
     this.releaseMs = releaseMs;
     this.programSettleMs = programSettleMs;
+    this.syncMs = syncMs;
     this.ledger = ledger;
     this.limits = limits;
     this.random = random;
@@ -366,7 +369,7 @@ class Session {
     }
     this.socket.emit('message', data);
   }
-  wait(predicate, label, from = 0) {
+  wait(predicate, label, from = 0, ms = this.driver.waitMs) {
     return new Promise((resolve, reject) => {
       const finish = (error, value) => {
         clearTimeout(timer);
@@ -382,7 +385,7 @@ class Session {
       };
       const timer = setTimeout(
         () => finish(new Error(`No confirmation for ${label}; inspect controller before retrying`)),
-        this.driver.waitMs,
+        ms,
       );
       this.waiters.add(check);
       check();
@@ -560,6 +563,55 @@ class Session {
   /** Leaves time for Tucor's follow-up packets, such as ProgramUpdate or sync status. */
   settle() {
     return sleep(this.driver.programSettleMs);
+  }
+  /**
+   * Opens a sync as Tucor's dialog does and collects what it proposes for each
+   * section. Nothing is synchronized until `executeSync`.
+   */
+  async startSync() {
+    const from = this.sequence;
+    const records = new Map();
+    let capabilities = null;
+    // Collected as they arrive: the session's packet buffer is too short for a busy minute.
+    const collect = m => {
+      if (m.component === 'SyncModal' && m.Capabilities) capabilities = m.Capabilities;
+      const list = m.data?.item === 'TimeStamps' ? m.data.record : null;
+      // The first list has every section; later ones update one section each.
+      if (Array.isArray(list)) for (const r of list) if (r?.sectionid != null) records.set(String(r.sectionid), r);
+    };
+    this.recorders.add(collect);
+    try {
+      for (const m of SYNC_START) this.send(m);
+      await this.telemetry.stage('sync_proposal', () =>
+        this.wait(
+          m => m.data?.item === 'TimeStamps' && Array.isArray(m.data.record) && m.data.record.length,
+          'sync proposal',
+          from,
+        ),
+      );
+      await sleep(this.driver.programSettleMs);
+    } finally {
+      this.recorders.delete(collect);
+    }
+    return { capabilities, records: [...records.values()] };
+  }
+  /** Runs the sync and waits for Tucor to report it finished, or a sync error. */
+  async executeSync() {
+    const from = this.sequence;
+    this.send(SYNC_EXECUTE);
+    const done = await this.telemetry.stage('sync_confirmation', () =>
+      this.wait(
+        m =>
+          (m.category === 'server' && m.command === 'synchronize' && m.data?.status === 'OK') ||
+          (m.category === 'server' && /^I01:01$|^(E42|EF1:02|W24)/.test(m.data?.code ?? '')),
+        'sync',
+        from,
+        this.driver.syncMs,
+      ),
+    );
+    const code = done.data?.code ?? '';
+    if (SYNC_ERRORS.test(code))
+      throw new Error(`Tucor reported ${code} during the sync; inspect the controller before retrying`);
   }
   closePrograms() {
     if (this.healthy) for (const m of CLOSE) this.send(m);

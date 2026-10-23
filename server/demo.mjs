@@ -82,6 +82,8 @@ export class DemoDriver {
     this.nextHandle = 1;
     this.delayMs = delayMs;
     this.programs = { capabilities: PROGRAM_CAPABILITIES, list: structuredClone(PROGRAMS), receivedAt: null };
+    // Like Tucor, program edits wait in the cloud until a sync.
+    this.synced = true;
     this.readPrograms();
   }
   state() {
@@ -123,6 +125,7 @@ export class DemoDriver {
   }
   /** Applies the program editor's messages the way the controller is meant to. */
   writePrograms(messages) {
+    if (messages.length) this.synced = false;
     const find = id => this.programs.list.find(p => Number(p.ID) === Number(id));
     const fields = {
       Status: 'status',
@@ -157,8 +160,25 @@ export class DemoDriver {
   pause() {
     return new Promise(resolve => setTimeout(resolve, this.delayMs));
   }
+  /** What Tucor's sync dialog proposes: programs from the app when they're waiting. */
+  syncProposal() {
+    const record = (sectionid, waiting) => ({
+      sectionid,
+      useappdata: waiting ? '1' : '0',
+      usectrldata: '0',
+      warning: '0',
+    });
+    return {
+      capabilities: { sections: { 1: 'Stations', 2: 'Programs' } },
+      records: [record('1', false), record('2', !this.synced)],
+    };
+  }
   async withSession(fn) {
+    const driver = this;
     return fn({
+      get codes() {
+        return [driver.synced ? 'I01:01' : 'I01:02'];
+      },
       snapshot: () => this.state(),
       start: async (zone, minutes) => {
         await this.pause();
@@ -181,6 +201,11 @@ export class DemoDriver {
         return this.readPrograms();
       },
       settle: () => this.pause(),
+      startSync: async () => this.syncProposal(),
+      executeSync: async () => {
+        await this.pause();
+        this.synced = true;
+      },
       closePrograms: () => {},
     });
   }

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { compilePrograms } from '../lib/program-compiler.mjs';
-import { assignSlots, programMessages } from '../lib/program-messages.mjs';
+import { assignSlots, programMessages, syncCheck } from '../lib/program-messages.mjs';
 import { readCapabilities, readProgram } from '../lib/programs.mjs';
 
 const tucor = JSON.parse(readFileSync(new URL('./fixtures/tucor-programs.json', import.meta.url), 'utf8'));
@@ -81,7 +81,7 @@ test('the compiled fixture becomes programs, each switched off while edited and 
     assert.equal(starts[0].EndTime, Math.floor((source.clockMinute * 60 + source.seconds) / 60));
     assert.ok(starts.slice(1).every(s => s.Time === -1 && s.Cycles === null));
   }
-  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 4);
+  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 7);
   // The editor opens with these, and reads its edits back with Programs/Mounted; it never syncs.
   assert.deepEqual(result.open, [
     { category: 'route', data: '/programs' },
@@ -89,7 +89,11 @@ test('the compiled fixture becomes programs, each switched off while edited and 
     { component: 'Programs', command: 'Mounted' },
   ]);
   assert.deepEqual(result.readback, [{ component: 'Programs', command: 'Mounted' }]);
-  assert.ok(!JSON.stringify(result).includes('synchronize'));
+  // Edits reach the controller only through Tucor's sync, after the readback.
+  assert.deepEqual(
+    result.sync.map(m => m.data.item ?? m.data.type),
+    ['TimeStamps', 'initiate', 'execute'],
+  );
 });
 
 test('steps are addressed by station, unchanged ones are skipped, and removals zero the runtime', () => {
@@ -214,7 +218,36 @@ test('a slot that already matches the plan sends nothing', () => {
   const result = write([{}], [matching]);
   assert.equal(result.programs[0].use, 'keep');
   assert.deepEqual(result.programs[0].messages, []);
-  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 4 });
+  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 7 });
   // A read from another day can't be compared with today's calendar.
   assert.ok(write([{}], [matching], { readDate: '2026-10-04' }).issues.some(i => i.code === 'calendar-alignment'));
+});
+
+test('a sync runs only for programs going from the app to the controller', () => {
+  const capabilities = { sections: { 1: 'Stations', 2: 'Programs', 3: 'Sensors' } };
+  const row = (sectionid, app = '0', ctrl = '0', warning = '0') => ({
+    sectionid,
+    useappdata: app,
+    usectrldata: ctrl,
+    warning,
+  });
+  const ok = syncCheck({ capabilities, records: [row('1'), row('2', '1'), row('3')] });
+  assert.deepEqual(ok.problems, []);
+  assert.equal(ok.sections[1].name, 'Programs');
+  for (const [records, problem, extra] of [
+    [[row('1'), row('2', '0', '1'), row('3')], 'Programs would not go from the app to the controller.'],
+    [[row('1'), row('2', '1', '0', '1'), row('3')], 'Programs would not go from the app to the controller.'],
+    [[row('1'), row('2', '0'), row('3')], 'Programs would not go from the app to the controller.'],
+    [[row('1', '1'), row('2', '1'), row('3')], 'Stations would sync too.'],
+    [[row('1'), row('2', '1'), row('3', '0', '1')], 'Sensors would sync too.'],
+    [[row('1'), row('3')], 'Tucor listed no programs section.'],
+    [[], 'Tucor didn’t say what a sync would change.'],
+    [[row('2', '1')], 'Tucor warns about the controller’s state.', { ctrlWarn: true }],
+  ]) {
+    const result = syncCheck({ capabilities: { ...capabilities, ...extra }, records });
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.includes(problem), JSON.stringify(result.problems));
+  }
+  // A reply 2core can't read blocks it too.
+  assert.equal(syncCheck({ capabilities: null, records: undefined }).ok, false);
 });

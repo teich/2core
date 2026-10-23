@@ -295,9 +295,9 @@ Tucor had redeployed its web app since the September research, so the editor
 was read again from the current bundle (`protocol.md`, “Writing”). The
 message shapes held, with corrections the dry run now follows:
 
-- **No sync.** The editor never sends `synchronize`; the sync is a separate
-  dialog that can take the controller's values over the app's. The dry run
-  no longer includes it, and 2core must not send it.
+- **No sync in the editor.** The editor never sends `synchronize`; the sync
+  is a separate dialog that can take the controller's values over the app's.
+  (The first test write showed edits do need it; see below.)
 - **Reading back** is `{component:'Programs', command:'Mounted'}`, which makes
   Tucor send the program list again. The editor sends it when it opens and
   whenever a pushed packet carries `ProgramUpdate`.
@@ -320,7 +320,7 @@ messages: zone 2 for one minute, one start at 23:00, two days (tomorrow and a
 week later), 100% budget, and zones 5 and 9 zeroed. Nothing turns it on, so
 nothing can water. `POST /api/programs/restore-test-slot` puts it back from
 2core's first copy. Both need `ALLOW_PROGRAM_WRITES=true` as well as live
-control, run in one session, never sync and are never retried; the
+control, run in one session and are never retried; the
 procedure is in `deploy/live-server.md`.
 
 The test refuses, before sending anything, unless program 1 is off with no
@@ -333,6 +333,18 @@ Those records should answer:
 - What does `ProgramUpdate` look like, and when does it come?
 - Does the controller read `Weekdays` from the day of the write? The two days
   should be tomorrow and a week later on the controller.
+
+### First run, October 23
+
+The first attempt refused before sending: the “changed since 2core first saw
+it” check compared the day letters Tucor starts on the day of each read.
+Program definitions now ignore the read day. The second attempt wrote program
+1 with 17 messages and Tucor's readback matched, but the status went to
+`I01:02` “Not synchronized” and stayed, and the controller kept its old
+program. Tucor requires the sync to be started by hand, so the program jobs
+now run it, under the narrow rule in `protocol.md` (“Sync”). Run again the
+same day, the test finds program 1 already holding its target, writes
+nothing, and only syncs.
 
 ## Deferred: watering covered zones through rain
 

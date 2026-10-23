@@ -334,22 +334,45 @@ arrives. When a pushed packet carries `ProgramUpdate`, the editor sends
 where it waters and `-` where it doesn't, in that order, starting with the
 day of the read. That matches what Tucor reports in `fullDaySchedule`.
 
-**No sync.** The program editor never sends `synchronize`. The sync is a
-separate dialog behind the header's connection icon, which reads
-`I01:01` “Synced” or `I01:02` “Not Synced”; only some sensor editors start
-one themselves. The dialog lets each section keep the app's or the
-controller's values, so a sync could undo program edits that hadn't reached
-the controller. 2core must not send it.
+**Sync.** The program editor never sends `synchronize`, but its edits stay in
+Tucor's cloud until someone syncs: Tucor requires the sync to be started by
+hand (confirmed by the owner, and by the test below, where the status went to
+`I01:02` and stayed). The sync is a separate dialog behind the header's
+connection icon, which reads `I01:01` “Synced” or `I01:02` “Not Synced”.
+From `SyncModal.vue`:
+
+1. It opens with `{category:'data', command:'get', data:{type:'dataset',
+   item:'TimeStamps'}}` and `{category:'server', command:'synchronize',
+   data:{type:'initiate'}}`.
+2. Tucor answers with `{component:'SyncModal', Capabilities:{sections,
+   ctrlWarn}}` (`sections` maps a section id to its name) and a
+   `TimeStamps` dataset whose `record` lists, per `sectionid`, change times
+   and Tucor's proposal: `useappdata` `'1'` sends the app's values to the
+   controller, `usectrldata` `'1'` takes the controller's, `warning` `'1'`
+   flags a conflict. Later `TimeStamps` packets update one section each.
+3. The person may change a section's direction (`{Category:'Settings',
+   Type:'SyncDirection', Oper:'Upd', Seq:<section>, UseApp, UseCtrl}`, or
+   `SelectAll`), then starts it with `{category:'server',
+   command:'synchronize', data:{type:'execute'}}`. With `ctrlWarn` the
+   dialog asks for confirmation first.
+4. Progress arrives as `I23:<percent>`; it ends with `synchronize` status
+   `OK` or `I01:01`. `E42:*`, `EF1:02` and `W24:*` are sync problems. The
+   dialog also lists `IFE`, which Tucor sends on every connection.
+
+A sync covers every section, so 2core runs it only when Tucor proposes the
+app's programs and nothing else, and never changes a direction.
 
 **Acknowledgements.** The editor doesn't wait for a reply to each message.
 It shows “saving” on any `Upd`, refreshes on `ProgramUpdate`, and treats
 the refreshed list as the result.
 
-Still unknown, and for the supervised test to answer: whether edits reach
-the controller by themselves (watch for `I01:02` followed by `I01:01`, and
-check the controller), what `ProgramUpdate` looks like and when it arrives,
-and whether the controller reads `Weekdays` relative to the day of the
-write. Until a readback and the controller agree, treat a saved program as
+First test write, 2026-10-23: 17 messages to program 1; Tucor's readback
+matched within seconds, the status went from `I01:01` to `I01:02` about six
+seconds later and stayed there, and the controller kept its old program
+until a sync. No packet carried `ProgramUpdate`; about 14 seconds after the
+writes Tucor sent the capabilities and the program list again. Still
+unknown: the sync proposal's real shape, and whether the controller reads
+`Weekdays` from the day of the write. Until a readback and the controller agree, treat a saved program as
 not installed.
 
 Do not use the configuration synchronization modal as a connection repair tool.

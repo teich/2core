@@ -87,6 +87,27 @@ class Cloud {
           if (cloud.dropOnProgramWrite) return this.close();
           DemoDriver.prototype.writePrograms.call(cloud, [data]);
           if (cloud.programUpdate) this.receive({ ProgramUpdate: true });
+          // Edits wait in Tucor's cloud until a sync.
+          cloud.unsynced = true;
+          this.receive({ category: 'server', command: 'info', data: { code: 'I01:02' } });
+        }
+        if (data.command === 'synchronize' && data.data.type === 'initiate') {
+          this.receive({ component: 'SyncModal', Capabilities: { sections: { 1: 'Stations', 2: 'Programs' } } });
+          const row = (sectionid, app) => ({ sectionid, useappdata: app, usectrldata: '0', warning: '0' });
+          this.receive({
+            category: 'data',
+            data: {
+              item: 'TimeStamps',
+              record: cloud.syncRecords ?? [row('1', '0'), row('2', cloud.unsynced ? '1' : '0')],
+            },
+          });
+        }
+        if (data.command === 'synchronize' && data.data.type === 'execute') {
+          cloud.unsynced = false;
+          cloud.executed = (cloud.executed ?? 0) + 1;
+          this.receive({ category: 'server', command: 'info', data: { code: 'I23:50' } });
+          this.receive({ category: 'server', command: 'synchronize', data: { status: 'OK' } });
+          this.receive({ category: 'server', command: 'info', data: { code: 'I01:01' } });
         }
         if (data.command === 'AutoStatus') {
           this.stationOnly = true;
@@ -473,14 +494,14 @@ const programCloud = cloud => {
   cloud.programs = { capabilities: captured.capabilities.Capabilities, list: structuredClone(captured.programs.data) };
 };
 
-test('the test write opens the editor, writes the off slot, reads it back and never syncs', async t => {
+test('the test write opens the editor, writes the off slot, reads it back and syncs only programs', async t => {
   const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
   programCloud(cloud);
   cloud.programUpdate = true;
   await engine.refresh();
   const before = cloud.sent.length;
   const result = await command(engine, 'program-test', () => engine.programTest());
-  assert.equal(result.outcome, 'readback matches', JSON.stringify(result.problems));
+  assert.equal(result.outcome, 'synced', JSON.stringify(result.problems));
   const sent = cloud.sent.slice(before);
   const writes = sent.filter(m => m.Category === 'Irrigation');
   const first = sent.indexOf(writes[0]),
@@ -493,11 +514,24 @@ test('the test write opens the editor, writes the off slot, reads it back and ne
   ]);
   assert.deepEqual(sent[last + 1], { component: 'Programs', command: 'Mounted' });
   assert.ok(sent.slice(last).some(m => m.category === 'route' && m.data === '/home'));
-  assert.ok(!sent.some(m => m.command === 'synchronize' || m.Status === 1));
+  assert.ok(!sent.some(m => m.Status === 1));
+  // After the readback: the dialog's opening, then execute, then another readback. No direction is ever changed.
+  const syncs = sent.filter(m => m.command === 'synchronize').map(m => m.data.type);
+  assert.deepEqual(syncs, ['initiate', 'execute']);
+  const execute = sent.findIndex(m => m.data?.type === 'execute');
+  assert.ok(execute > last + 1);
+  assert.ok(sent.findIndex(m => m.data?.item === 'TimeStamps') > last + 1);
+  assert.deepEqual(sent[execute + 1], { component: 'Programs', command: 'Mounted' });
+  assert.ok(!sent.some(m => m.Type === 'SyncDirection' || m.command === 'SelectAll'));
+  assert.equal(cloud.executed, 1);
   assert.equal(readProgramStatus(cloud), '0');
   assert.equal(cloud.sockets.length, 1);
   const record = engine.programs().tests[0];
-  assert.equal(record.outcome, 'readback matches');
+  assert.equal(record.outcome, 'synced');
+  assert.deepEqual(
+    record.sync.sections.map(s => s.name),
+    ['Stations', 'Programs'],
+  );
   assert.ok(record.trace.some(e => e.message?.ProgramUpdate));
   assert.ok(record.trace.some(e => e.component === 'Programs' && e.programs === 10));
 });
@@ -530,4 +564,19 @@ test('without ALLOW_PROGRAM_WRITES a program write contacts nobody', async t => 
     /Program writes are off/,
   );
   assert.equal(cloud.sockets.length, 0);
+});
+
+test('a sync proposal that touches more than programs leaves the write unsynced', async t => {
+  const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
+  programCloud(cloud);
+  await engine.refresh();
+  cloud.syncRecords = [
+    { sectionid: '1', useappdata: '0', usectrldata: '1', warning: '0' },
+    { sectionid: '2', useappdata: '1', usectrldata: '0', warning: '0' },
+  ];
+  const result = await command(engine, 'program-blocked-sync', () => engine.programTest());
+  assert.equal(result.outcome, 'not synced');
+  assert.deepEqual(result.problems, ['Stations would sync too.']);
+  assert.ok(!cloud.sent.some(m => m.data?.type === 'execute'));
+  assert.equal(cloud.executed, undefined);
 });

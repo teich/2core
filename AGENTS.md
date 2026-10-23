@@ -17,7 +17,7 @@ Hard rules:
 
 - **No automatic write retries.** A command whose outcome is unknown is reported as unknown; the person decides what to do. The web app never resends a tracked command.
 - **Live writes are off by default** (`ALLOW_LIVE_CONTROL`). Demo mode never touches hardware. Don't change defaults that affect real irrigation.
-- **Program writes are off by default too** (`ALLOW_PROGRAM_WRITES`, which also needs live control). The only program writes are the supervised test on program 1 and its restore (`programJob` in `engine.mjs`). They never send Tucor's sync.
+- **Program writes are off by default too** (`ALLOW_PROGRAM_WRITES`, which also needs live control). The only program writes are the supervised test on program 1 and its restore (`programJob` in `engine.mjs`). They run Tucor's sync only when it would send programs from the app to the controller and touch nothing else, and never change a sync direction.
 - **The plan never reaches Tucor.** Intentions, night settings, rebalancing and the program compiler are local; the program output is a dry run.
 - **Runs started outside 2core are never stopped by 2core**, and the UI never offers stop for them.
 - **Tucor credentials stay on the server.** Never log URLs with tokens (WeatherFlow takes its token as a query parameter); use `redact()` in `lib/protocol.mjs`.
