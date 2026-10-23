@@ -58,6 +58,26 @@ test('program definitions ignore running state and the swapped 14-day window', (
   assert.notDeepEqual(programDefinition(edited), programDefinition(later));
 });
 
+test('program definitions ignore the day of the read', () => {
+  // The same program read on a Wednesday and, fifteen days later, on a Thursday (production, October 2026).
+  const wednesday = {
+    ID: '8',
+    waterBudget: '100',
+    allDaysArranged: 'WTFsSMtWTFsSMt',
+    fullDaySchedule: 'W---S---T--S--',
+  };
+  const thursday = { ...wednesday, allDaysArranged: 'TFsSMtWTFsSMtW', fullDaySchedule: '---S---T--S--W' };
+  assert.deepEqual(programDefinition([wednesday]), programDefinition([thursday]));
+  // A week later the two weeks arrive swapped, which still compares equal.
+  const later = { ...wednesday, allDaysArranged: 'WTFsSMtWTFsSMt', fullDaySchedule: '-T--S--W---S--' };
+  assert.deepEqual(programDefinition([wednesday]), programDefinition([later]));
+  assert.notDeepEqual(
+    programDefinition([wednesday]),
+    programDefinition([{ ...thursday, fullDaySchedule: '---S---T---S-W' }]),
+  );
+  assert.notDeepEqual(programDefinition([wednesday]), programDefinition([{ ...thursday, waterBudget: '120' }]));
+});
+
 function engineWith(t) {
   const store = new Store();
   t.after(() => store.close());

@@ -109,3 +109,12 @@ test('program writes need live control and their own flag outside the demo', asy
   const { engine } = await fixture(t, { mode: 'live', allowControl: true, allowProgramWrites: true });
   assert.equal(engine.programs().writesEnabled, true);
 });
+
+test('a first copy read on another day still matches an unchanged slot', async t => {
+  const { engine, store } = await fixture(t);
+  // Production’s first copy was read on a Wednesday; its day letters started there.
+  const saved = store.get('programsOriginal');
+  for (const p of saved.list) p.allDaysArranged = 'WTFsSMtWTFsSMt';
+  store.set('programsOriginal', saved);
+  assert.equal((await engine.programTest()).outcome, 'readback matches');
+});
