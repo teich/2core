@@ -77,9 +77,19 @@ test('the compiled fixture becomes programs, each switched off while edited and 
     const starts = p.messages.filter(m => m.Type === 'IrrPgmStart');
     assert.equal(starts.length, capabilities.maxStarts);
     assert.equal(starts[0].Time, source.clockMinute);
+    // The editor's end time: start plus the program's runtime, in whole minutes.
+    assert.equal(starts[0].EndTime, Math.floor((source.clockMinute * 60 + source.seconds) / 60));
     assert.ok(starts.slice(1).every(s => s.Time === -1 && s.Cycles === null));
   }
-  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 2);
+  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 4);
+  // The editor opens with these, and reads its edits back with Programs/Mounted; it never syncs.
+  assert.deepEqual(result.open, [
+    { category: 'route', data: '/programs' },
+    { component: 'Programs', command: 'Created' },
+    { component: 'Programs', command: 'Mounted' },
+  ]);
+  assert.deepEqual(result.readback, [{ component: 'Programs', command: 'Mounted' }]);
+  assert.ok(!JSON.stringify(result).includes('synchronize'));
 });
 
 test('steps are addressed by station, unchanged ones are skipped, and removals zero the runtime', () => {
@@ -104,9 +114,9 @@ test('steps are addressed by station, unchanged ones are skipped, and removals z
   ]);
   assert.ok(result.programs[0].changes.includes('Add zone 5 · 29 min'));
   assert.ok(result.programs[0].changes.includes('Remove zone 9'));
-  assert.ok(result.warnings.some(w => w.code === 'zeroed-steps'));
+  // With one station per step the editor never deletes, even where the controller could.
   const deletable = write([{ steps }], current, { capabilities: { ...capabilities, deleteStep: true } });
-  assert.equal(deletable.programs[0].messages.find(m => m.Seq === 9 && m.Type === 'IrrPgmCont').Oper, 'Del');
+  assert.equal(deletable.programs[0].messages.find(m => m.Seq === 9 && m.Type === 'IrrPgmCont').Oper, 'Upd');
 });
 
 test('settings are only rewritten when they differ, and spare slots are switched off', () => {
@@ -122,6 +132,7 @@ test('settings are only rewritten when they differ, and spare slots are switched
     ['Status', 'IrrType', 'Period', 'Weekdays', 'Budget', 'Status'],
   );
   assert.equal(first.messages.find(m => m.Weekdays).Weekdays, 'S------S------');
+  assert.equal(first.messages.find(m => m.Weekdays).Period, 0);
   assert.deepEqual(result.programs[1].messages, [
     { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 2, Status: 0 },
   ]);
@@ -203,7 +214,7 @@ test('a slot that already matches the plan sends nothing', () => {
   const result = write([{}], [matching]);
   assert.equal(result.programs[0].use, 'keep');
   assert.deepEqual(result.programs[0].messages, []);
-  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 2 });
+  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 4 });
   // A read from another day can't be compared with today's calendar.
   assert.ok(write([{}], [matching], { readDate: '2026-10-04' }).issues.some(i => i.code === 'calendar-alignment'));
 });

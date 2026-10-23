@@ -10,7 +10,9 @@ history, and status parsing. No local-controller probing was needed.
 Source snapshots live in the ignored `assets/` and `source/` directories next to
 this file. Hashes are recorded in `assets-manifest.json`. Main deployed bundle:
 `https://tucor.mysrc.online/js/app.37eafea5.js`; its map is the same URL plus `.map`.
-SSO bundle: `/sso/js/app.6605415d.js`, also with a source map.
+SSO bundle: `/sso/js/app.6605415d.js`, also with a source map. Tucor had
+redeployed by 2026-10-23; the program-writing notes below come from that day's
+bundle, `/js/app.cebfb023.js` and its chunks.
 
 Evidence levels:
 
@@ -303,23 +305,52 @@ Three findings matter for writing programs:
   runtime. Nothing in the message family sets a program's name or lets a
   program water during a rain delay.
 
-### Writing (recovered, never sent)
+### Writing (recovered 2026-10-23, never sent)
 
-Tucor's program editor (`EditProgram*.vue`, `SyncModal.vue` in the
-`app.37eafea5.js.map` source map) uses an `Irrigation` message family,
-distinct from the `component`/`command` messages used elsewhere:
+Read from the current editor: `EditPrograms.vue` and its `EditProgramType`,
+`EditProgramRunTimes`, `EditProgramStartTimes` and `EditProgramParameters`
+steps, plus `pages/Programs.vue` and `SyncModal.vue`, in
+`app.cebfb023.js.map`. Writes use an `Irrigation` message family, distinct
+from the `component`/`command` messages used elsewhere. Every message goes
+out with `socket.emit('message', …)`, like the rest of the app.
+
+**Opening the editor.** Navigating sends `{category:'route', data:'/programs'}`.
+The Programs page, the editor and each editor step send
+`{component:'Programs', command:'Mounted'}` (the page also sends `Created`).
+That request is how the editor reads programs back: Tucor answers with the
+`Programs` packet, and the editor stays locked until a list of all ten
+arrives. When a pushed packet carries `ProgramUpdate`, the editor sends
+`Programs`/`Mounted` again to refresh.
 
 | Change | Message |
 | --- | --- |
-| Program settings | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Period`, `Weekdays` (14-character mask), `Status`, `Budget`, `Booster` |
-| Start times | `{Category:'Irrigation', Type:'IrrPgmStart', Oper:'Upd', PgmId, Seq:<1–maxStarts>, Time, Cycles, EndTime}`. The editor rewrites every slot and sends `Time:-1, Cycles:null, EndTime:null` for unused ones |
-| Step runtime | One station per step: `{Category:'Irrigation', Type:'IrrPgmCont', Oper:'Upd'\|'Del', PgmId, Seq:<step>, RunTime}` (0 on delete). Multi-station controllers use `IrrPgmStep` |
-| Sync | `{category:'server', command:'synchronize', data:{type:'initiate'}}` after `{category:'data', command:'get', data:{type:'dataset', item:'TimeStamps'}}`. `SyncModal` lets each section take the app's or the controller's values (`SelectAll` with `useApp`/`useCtrl`) |
+| Type, status, budget, booster | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Status`, `Budget`, `Booster` (`0` for none) |
+| Calendar | `Period` alone when the period changes; each day toggle then sends `Period` and `Weekdays` together. Days can only change on an editable period (the 14-day calendar here) |
+| Start times | `{Category:'Irrigation', Type:'IrrPgmStart', Oper:'Upd', PgmId, Seq:<1–maxStarts>, Time, Cycles, EndTime}` for every slot, `Time:-1, Cycles:null, EndTime:null` for unused ones. `Time` is minutes after midnight; `EndTime` is `floor((start + runtime × cycles + soak × (cycles − 1)) / 60)` in minutes and can pass 1440 |
+| Step runtime, one station per step | `{Category:'Irrigation', Type:'IrrPgmCont', Oper:'Upd', PgmId, Seq:<station id>, RunTime:<seconds>}`. Always `Upd`; removing a station writes `RunTime: 0` |
+| Step runtime, grouped stations | `IrrPgmStep` with `StepNo`, `Station` and `Seq`, plus `IrrPgmCont` addressed by step. Not used on this controller |
 
-Still unknown: whether `Upd` messages are acknowledged; whether they reach
-the controller directly or only after sync; which way sync goes by default;
-and how to tell sync has finished. Until a supervised test answers these,
-treat a saved program as not installed.
+`Weekdays` is built from `allDaysArranged`: the day's letter (`S M t W T F s`)
+where it waters and `-` where it doesn't, in that order, starting with the
+day of the read. That matches what Tucor reports in `fullDaySchedule`.
+
+**No sync.** The program editor never sends `synchronize`. The sync is a
+separate dialog behind the header's connection icon, which reads
+`I01:01` “Synced” or `I01:02` “Not Synced”; only some sensor editors start
+one themselves. The dialog lets each section keep the app's or the
+controller's values, so a sync could undo program edits that hadn't reached
+the controller. 2core must not send it.
+
+**Acknowledgements.** The editor doesn't wait for a reply to each message.
+It shows “saving” on any `Upd`, refreshes on `ProgramUpdate`, and treats
+the refreshed list as the result.
+
+Still unknown, and for the supervised test to answer: whether edits reach
+the controller by themselves (watch for `I01:02` followed by `I01:01`, and
+check the controller), what `ProgramUpdate` looks like and when it arrives,
+and whether the controller reads `Weekdays` relative to the day of the
+write. Until a readback and the controller agree, treat a saved program as
+not installed.
 
 Do not use the configuration synchronization modal as a connection repair tool.
 No synchronization, edits to schedules, station setup, controller dial/mode

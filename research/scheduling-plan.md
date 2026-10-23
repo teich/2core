@@ -262,7 +262,7 @@ use as many Tucor messages as it needs (see AGENTS.md). The remaining steps:
 ## October 22: the write messages, as a dry run
 
 Step 1 is done as a dry run. `lib/program-messages.mjs` turns a compiled
-candidate into the `IrrPgm*` messages and the sync, checked against the
+candidate into the `IrrPgm*` messages, checked against the
 controller's capabilities. `tools/compile-programs.mjs --programs
 PROGRAMS.json SNAPSHOT.json` prints them. Nothing is sent.
 
@@ -288,6 +288,29 @@ Run against production on October 22, it found:
 - **The calendar's first week is unconfirmed.** The day letters repeat
   weekly, so only the supervised readback can confirm which dates a mask
   means.
+
+## October 23: what Tucor's current editor does
+
+Tucor had redeployed its web app since the September research, so the editor
+was read again from the current bundle (`protocol.md`, “Writing”). The
+message shapes held, with corrections the dry run now follows:
+
+- **No sync.** The editor never sends `synchronize`; the sync is a separate
+  dialog that can take the controller's values over the app's. The dry run
+  no longer includes it, and 2core must not send it.
+- **Reading back** is `{component:'Programs', command:'Mounted'}`, which makes
+  Tucor send the program list again. The editor sends it when it opens and
+  whenever a pushed packet carries `ProgramUpdate`.
+- **Days** go out as `Period` and `Weekdays` in one message, the mask built
+  from `allDaysArranged` as the dry run already did.
+- **End times** are the start plus the program's runtime, in minutes, not -1.
+- **Removing a station** is always `Upd` with `RunTime: 0` when each step
+  holds one station.
+
+What only a supervised write can show: whether edits reach the controller by
+themselves (`I01:02` “Not Synced”, then `I01:01` “Synced”), what
+`ProgramUpdate` looks like and when, and whether the controller reads the
+calendar from the day of the write.
 
 ## Deferred: watering covered zones through rain
 
