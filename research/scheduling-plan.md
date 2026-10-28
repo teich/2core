@@ -346,6 +346,13 @@ now run it, under the narrow rule in `protocol.md` (“Sync”). Run again the
 same day, the test finds program 1 already holding its target, writes
 nothing, and only syncs.
 
+### Synced by hand, October 28
+
+The owner ran Tucor's sync by hand, with only Programs listed, and the
+controller showed program 1 exactly as written, including the days counted
+from the day of the write. That answers the test's questions apart from the
+sync proposal's shape. The restore, with 2core's own sync, is next.
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be

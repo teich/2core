@@ -368,12 +368,20 @@ the refreshed list as the result.
 
 First test write, 2026-10-23: 17 messages to program 1; Tucor's readback
 matched within seconds, the status went from `I01:01` to `I01:02` about six
-seconds later and stayed there, and the controller kept its old program
-until a sync. No packet carried `ProgramUpdate`; about 14 seconds after the
-writes Tucor sent the capabilities and the program list again. Still
-unknown: the sync proposal's real shape, and whether the controller reads
-`Weekdays` from the day of the write. Until a readback and the controller agree, treat a saved program as
-not installed.
+seconds later and stayed there, and the controller kept its old program.
+No packet carried `ProgramUpdate`; about 14 seconds after the writes Tucor
+sent the capabilities and the program list again.
+
+On 2026-10-28 the owner synced it by hand from Tucor's dialog, with only
+Programs listed. The controller then showed exactly what was written: off,
+zone 2 for one minute, 23:00, 100%, and Saturdays October 31 and November 7.
+Those are the written days (October 24 and 31, from the day of the write)
+carried forward on the 14-day cycle, so the controller reads `Weekdays` from
+the day of the write. 2core's next read reported `I01:01` “Synced”.
+
+While Tucor's own app had the controller selected, 2core's reads failed with
+“controller busy” until every Tucor tab and app was closed. Still unknown:
+the sync proposal's exact shape, which 2core's own sync step relies on.
 
 Do not use the configuration synchronization modal as a connection repair tool.
 No synchronization, edits to schedules, station setup, controller dial/mode
