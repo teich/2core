@@ -21,6 +21,7 @@ const LOCAL = routes({
   '/api/plan/rebalance-preview': engine => engine.rebalancePreview(),
   '/api/plan/rebalance': (engine, payload) => engine.rebalance(payload),
   '/api/plan': (engine, payload) => engine.planSettings(payload),
+  '/api/programs/install-preview': engine => engine.programInstallPreview(),
 });
 
 /**
@@ -50,6 +51,8 @@ const COMMANDS = routes({
   '/api/weather': (engine, payload) => () => engine.weather(payload),
   '/api/programs/test-write': engine => () => engine.programTest(),
   '/api/programs/restore-test-slot': engine => () => engine.programRestore(),
+  '/api/programs/install': (engine, payload) => () => engine.programInstall(payload),
+  '/api/programs/restore-before-install': (engine, payload) => () => engine.programRestoreInstall(payload),
 });
 
 function routes(table) {

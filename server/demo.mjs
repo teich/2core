@@ -119,7 +119,11 @@ export class DemoDriver {
   /** Tucor lists the fortnight from the day of the read. */
   readPrograms() {
     const arranged = lettersFor(dateKey(new Date()));
-    for (const p of this.programs.list) p.allDaysArranged = arranged;
+    for (const p of this.programs.list) {
+      p.allDaysArranged = arranged;
+      // Tucor letters each watering day as allDaysArranged does.
+      p.fullDaySchedule = [...p.fullDaySchedule].map((ch, i) => (ch === '-' ? '-' : arranged[i])).join('');
+    }
     this.programs = { ...this.programs, receivedAt: new Date().toISOString() };
     return structuredClone(this.programs);
   }

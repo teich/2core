@@ -4,6 +4,7 @@ import { Store } from '../server/store.mjs';
 import { Engine, PROGRAM_TEST } from '../server/engine.mjs';
 import { DemoDriver } from '../server/demo.mjs';
 import { programDefinition, readProgram } from '../lib/programs.mjs';
+import { readbackProblems } from '../lib/program-messages.mjs';
 
 async function fixture(t, options = {}) {
   const store = new Store();
@@ -167,4 +168,96 @@ test('a sync that would touch anything but programs, or go the other way, never 
   assert.equal(result.outcome, 'not synced');
   assert.deepEqual(result.problems, ['Stations would sync too.']);
   assert.equal(executed, 0);
+});
+
+// A plan for the demo's twelve zones: every other day, so it compiles into two programs.
+async function planned(t) {
+  const f = await fixture(t);
+  for (let zone = 1; zone <= 12; zone++)
+    f.engine.intent(String(zone), { seconds: 300 + zone * 60, cadence: { every: 2 } });
+  await f.engine.refresh();
+  return f;
+}
+
+test('installing a reviewed plan writes every slot, syncs, and can be put back from its backup', async t => {
+  const { engine, driver } = await planned(t);
+  const before = structuredClone(driver.programs.list);
+  const preview = engine.programInstallPreview();
+  assert.equal(preview.status, 'ready', JSON.stringify(preview.issues));
+  const result = await engine.programInstall({ token: preview.token });
+  assert.equal(result.outcome, 'synced', JSON.stringify(result.problems));
+  assert.equal(driver.synced, true);
+  // Every slot now holds what the review showed.
+  for (const p of preview.programs)
+    assert.deepEqual(
+      readbackProblems(
+        driver.programs.list.find(r => Number(r.ID) === p.slot),
+        p.target,
+      ),
+      [],
+    );
+  const used = preview.programs.filter(p => p.use === 'plan');
+  assert.equal(used.length, 2);
+  assert.ok(used.every(p => readProgram(driver.programs.list.find(r => Number(r.ID) === p.slot)).active));
+  const { installBackups, tests } = engine.programs();
+  assert.equal(installBackups.length, 1);
+  assert.equal(tests[0].kind, 'install plan');
+  assert.deepEqual(
+    tests[0].slots.map(s => s.slot),
+    [1, 2, 3, 4, 5],
+  );
+
+  // Installing the same review again finds nothing to change.
+  assert.equal(
+    (await engine.programInstall({ token: engine.programInstallPreview().token })).outcome,
+    'nothing to change',
+  );
+
+  const restored = await engine.programRestoreInstall();
+  assert.equal(restored.outcome, 'synced', JSON.stringify(restored.problems));
+  assert.deepEqual(programDefinition(driver.programs.list), programDefinition(before));
+});
+
+test('an install needs a current review and nothing running, and refuses before sending', async t => {
+  const { engine, driver } = await planned(t);
+  let writes = 0;
+  driver.writePrograms = () => writes++;
+  await assert.rejects(engine.programInstall({}), /Review the install first/);
+  const { token } = engine.programInstallPreview();
+  engine.intent('3', { seconds: 900 });
+  const sessions = driver.withSession.bind(driver);
+  let opened = 0;
+  driver.withSession = fn => {
+    opened++;
+    return sessions(fn);
+  };
+  await assert.rejects(engine.programInstall({ token }), /changed since the review/);
+  // A stale review is refused without contacting Tucor.
+  assert.equal(opened, 0);
+  driver.withSession = sessions;
+  const fresh = engine.programInstallPreview();
+  await engine.start('4', 1);
+  await assert.rejects(engine.programInstall({ token: fresh.token }), /A zone is running/);
+  await engine.stop('4');
+  await assert.rejects(engine.programRestoreInstall(), /No install has been made/);
+  assert.equal(writes, 0);
+  assert.equal(engine.programs().installBackups.length, 0);
+});
+
+test('an install cut off partway is left unknown, says how far it got, and keeps its backup', async t => {
+  const { engine, driver } = await planned(t);
+  const write = driver.writePrograms.bind(driver);
+  let calls = 0;
+  driver.writePrograms = messages => {
+    if (++calls === 2) throw new Error('Tucor connection lost; command outcome may be unknown');
+    write(messages);
+  };
+  const { token } = engine.programInstallPreview();
+  await assert.rejects(engine.programInstall({ token }), /connection lost/);
+  const record = engine.programs().tests[0];
+  assert.equal(record.outcome, 'unknown');
+  const written = record.slots.filter(s => s.messages.length);
+  assert.equal(written[0].sent, written[0].messages.length);
+  assert.equal(written[1].sent, 0);
+  assert.equal(engine.programs().installBackups.length, 1);
 });

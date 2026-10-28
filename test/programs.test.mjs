@@ -124,5 +124,6 @@ test('without a controller reading there are no programs', t => {
     backups: { latest: null, original: null },
     writesEnabled: true,
     tests: [],
+    installBackups: [],
   });
 });

@@ -9,35 +9,13 @@ import { createHash } from 'node:crypto';
 import { trace } from './telemetry.mjs';
 import { PlanService } from './plan-service.mjs';
 import { WeatherPolicy } from './weather-policy.mjs';
+import { ProgramJobs } from './program-jobs.mjs';
 import { mergePreferences } from './preferences.mjs';
 import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
-import {
-  lettersFor,
-  readbackProblems,
-  restoreTarget,
-  syncCheck,
-  weekdaysFor,
-  writeSlot,
-} from '../lib/program-messages.mjs';
-import { dateKey } from '../lib/planner.mjs';
 import { AppError, LIMITS, number } from './validation.mjs';
 
 export { AppError, LIMITS, number };
-
-/**
- * The supervised test write (research/scheduling-plan.md): one zone for one
- * minute on a slot that is off and stays off, so nothing can water.
- */
-export const PROGRAM_TEST = Object.freeze({ slot: 1, zone: '2', seconds: 60, startMinute: 23 * 60, days: [1, 8] });
-// Dashboard packets arrive every few seconds; a program test keeps only what identifies them.
-const NOISE = ['Main', 'Stations', 'Flow', 'ElectricFlow'];
-const keep = ({ at, message: m }) => {
-  if (NOISE.includes(m?.component)) return { at, component: m.component };
-  if (m?.component === 'Programs' && Array.isArray(m.data))
-    return { at, component: 'Programs', programs: m.data.length };
-  const text = JSON.stringify(m);
-  return { at, message: text.length > 4000 ? `${text.slice(0, 4000)}…` : m };
-};
+export { PROGRAM_TEST } from './program-jobs.mjs';
 
 /** Stations the controller reports as watering. */
 const active = state => state.stations.filter(s => s.isRunning || s.runningEntries?.length);
@@ -68,6 +46,7 @@ export class Engine {
     this.current = this.store.get('lastObservation');
     this.plans = new PlanService(this);
     this.weatherPolicy = new WeatherPolicy(this);
+    this.programJobs = new ProgramJobs(this);
     this.plans.seed();
     this.error = null;
     // An open session streams controller updates; take them instead of asking again.
@@ -146,6 +125,7 @@ export class Engine {
       backups: { latest, original },
       writesEnabled: this.allowProgramWrites,
       tests: this.store.get('programTests', []),
+      installBackups: this.store.get('programBackups', []).map(b => b.receivedAt),
     };
   }
   refresh({ interactive = false, forceFresh = true } = {}) {
@@ -414,149 +394,21 @@ export class Engine {
       { user: source !== 'weather' },
     );
   }
-  /** POST /api/programs/test-write: the supervised test, on a slot that stays off. */
+  // Program writes: see program-jobs.mjs.
   programTest() {
-    return this.programJob('test write', (raw, today) => {
-      const days = Array.from({ length: 14 }, (_, d) => PROGRAM_TEST.days.includes(d));
-      /** @type {import('../lib/program-messages.mjs').SlotTarget} */
-      const goal = {
-        active: false,
-        type: 0,
-        period: 0,
-        weekdays: weekdaysFor(days, today),
-        budget: 100,
-        booster: null,
-        starts: [
-          {
-            minute: PROGRAM_TEST.startMinute,
-            cycles: 1,
-            endTime: PROGRAM_TEST.startMinute + PROGRAM_TEST.seconds / 60,
-          },
-        ],
-        steps: [{ zone: PROGRAM_TEST.zone, seconds: PROGRAM_TEST.seconds }],
-      };
-      // Written earlier today and not yet synced: nothing to write, only the sync.
-      if (!readbackProblems(raw, goal).length) return goal;
-      const original = this.store.get('programsOriginal')?.list.find(p => Number(p.ID) === PROGRAM_TEST.slot);
-      if (!original) throw new AppError('2core has no saved copy of this slot to restore from; nothing was sent');
-      if (JSON.stringify(programDefinition([raw])) !== JSON.stringify(programDefinition([original])))
-        throw new AppError(
-          `Program ${PROGRAM_TEST.slot} changed since 2core first saw it; restore it first. Nothing was sent`,
-        );
-      if (readProgram(raw).active || /[^-]/.test(raw.fullDaySchedule))
-        throw new AppError(`Program ${PROGRAM_TEST.slot} is on or has watering days; nothing was sent`);
-      return goal;
-    });
+    return this.programJobs.test();
   }
-  /** POST /api/programs/restore-test-slot: puts the test slot back from 2core's first copy. */
   programRestore() {
-    return this.programJob('restore test slot', (raw, today) => {
-      const saved = this.store.get('programsOriginal');
-      const original = saved?.list.find(p => Number(p.ID) === PROGRAM_TEST.slot);
-      if (!original) throw new AppError('2core has no saved copy of this slot; nothing was sent');
-      // The test leaves the slot off. Someone who turned it on since should decide.
-      if (readProgram(raw).active && !readProgram(original).active)
-        throw new AppError(`Program ${PROGRAM_TEST.slot} was turned on since the test; nothing was sent`);
-      return restoreTarget(original, dateKey(new Date(saved.receivedAt)), today);
-    });
+    return this.programJobs.restoreTest();
   }
-  /**
-   * One owner-started program write inside one session: open Tucor's Programs
-   * page, check the slot, send the editor's messages, read them back. It is
-   * never retried; everything Tucor sends meanwhile is kept for review.
-   * @param {string} kind
-   * @param {(raw: any, today: string) => import('../lib/program-messages.mjs').SlotTarget} target
-   */
-  async programJob(kind, target) {
-    this.writable();
-    if (!this.allowProgramWrites)
-      throw new AppError('Program writes are off; set ALLOW_PROGRAM_WRITES=true only for a supervised test', 403);
-    const slot = PROGRAM_TEST.slot,
-      today = dateKey(new Date(this.clock()));
-    const record = { kind, slot, startedAt: new Date(this.clock()).toISOString(), outcome: 'not sent' };
-    return this.withCurrent(async session => {
-      const recorder = session.record();
-      try {
-        const read = await session.openPrograms();
-        this.recordPrograms(read);
-        const raw = read.list?.find(p => Number(p.ID) === slot);
-        if (!raw) throw new AppError(`Tucor didn’t list program ${slot}; nothing was sent`);
-        if (raw.allDaysArranged !== lettersFor(today))
-          throw new AppError(`Tucor’s calendar doesn’t start today (${today}); nothing was sent`);
-        const goal = target(raw, today);
-        const { messages, changes } = writeSlot(raw, goal, readCapabilities(read.capabilities));
-        Object.assign(record, { before: raw, target: goal, changes, messages });
-        // Tucor says whether its cloud and the controller differ.
-        const unsynced = () => (session.codes ?? []).filter(c => /^I01(:|$)/.test(c)).at(-1) === 'I01:02';
-        const ready = () => {
-          if (this.activeDeadline && this.clock() > this.activeDeadline)
-            throw new AppError('Command expired before sending; nothing was sent', 400);
-          // The write and its sync must finish inside this session, never across two.
-          if (session.expiresAt && session.expiresAt - this.clock() < 300000)
-            throw new AppError(
-              'The Tucor session is too close to its time limit; nothing was sent. Try again in five minutes',
-            );
-        };
-        if (!messages.length) {
-          record.outcome = 'nothing to change';
-          if (!unsynced()) return { ok: true, outcome: record.outcome, changes };
-          ready();
-          return await this.programSync(session, record, goal);
-        }
-        ready();
-        record.outcome = 'unknown';
-        session.writePrograms(messages);
-        await session.settle();
-        const back = await session.readPrograms();
-        this.recordPrograms(back);
-        await session.settle();
-        const after = (session.programs?.list ?? back.list).find(p => Number(p.ID) === slot);
-        const problems = readbackProblems(after, goal);
-        Object.assign(record, { after, problems, outcome: problems.length ? 'readback differs' : 'not synced' });
-        if (problems.length) return { ok: false, outcome: record.outcome, changes, problems };
-        return await this.programSync(session, record, goal);
-      } catch (e) {
-        record.error = e.message;
-        throw e;
-      } finally {
-        record.trace = recorder.stop().map(keep);
-        record.codes = session.codes ?? [];
-        record.finishedAt = new Date(this.clock()).toISOString();
-        session.closePrograms();
-        this.store.set('programTests', [record, ...this.store.get('programTests', [])].slice(0, 5));
-      }
-    });
+  programInstallPreview() {
+    return this.programJobs.installPreview();
   }
-
-  /**
-   * Sends the cloud's programs to the controller with Tucor's sync, which
-   * program edits need. It runs only when Tucor proposes app-to-controller for
-   * programs and nothing for any other section, and never changes a direction.
-   * @param {any} session @param {any} record
-   * @param {import('../lib/program-messages.mjs').SlotTarget} goal
-   */
-  async programSync(session, record, goal) {
-    const slot = PROGRAM_TEST.slot,
-      changes = record.changes;
-    try {
-      const check = syncCheck(await session.startSync());
-      record.sync = { sections: check.sections, problems: check.problems };
-      if (!check.ok) {
-        record.outcome = 'not synced';
-        return { ok: false, outcome: record.outcome, changes, problems: check.problems };
-      }
-      record.outcome = 'sync unknown';
-      await session.executeSync();
-      record.sync.finishedAt = new Date(this.clock()).toISOString();
-      const back = await session.readPrograms();
-      this.recordPrograms(back);
-      const after = back.list.find(p => Number(p.ID) === slot);
-      const problems = readbackProblems(after, goal);
-      Object.assign(record, { after, problems, outcome: problems.length ? 'synced, readback differs' : 'synced' });
-      return { ok: !problems.length, outcome: record.outcome, changes, problems };
-    } finally {
-      session.closeSync();
-    }
+  programInstall(payload) {
+    return this.programJobs.install(payload);
+  }
+  programRestoreInstall(payload) {
+    return this.programJobs.restoreInstall(payload);
   }
 
   // Weather policy: see weather-policy.mjs.

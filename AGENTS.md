@@ -17,7 +17,7 @@ Hard rules:
 
 - **No automatic write retries.** A command whose outcome is unknown is reported as unknown; the person decides what to do. The web app never resends a tracked command.
 - **Live writes are off by default** (`ALLOW_LIVE_CONTROL`). Demo mode never touches hardware. Don't change defaults that affect real irrigation.
-- **Program writes are off by default too** (`ALLOW_PROGRAM_WRITES`, which also needs live control). The only program writes are the supervised test on program 1 and its restore (`programJob` in `engine.mjs`). They run Tucor's sync only when it would send programs from the app to the controller and touch nothing else, and never change a sync direction.
+- **Program writes are off by default too** (`ALLOW_PROGRAM_WRITES`, which also needs live control). The only program writes are the jobs in `server/program-jobs.mjs`: installing a reviewed plan, putting the programs back from the backup taken before an install, and the supervised test on program 1 with its restore. They run Tucor's sync only when it would send programs from the app to the controller and touch nothing else, and never change a sync direction.
 - **The plan never reaches Tucor.** Intentions, night settings, rebalancing and the program compiler are local; the program output is a dry run.
 - **Runs started outside 2core are never stopped by 2core**, and the UI never offers stop for them.
 - **Tucor credentials stay on the server.** Never log URLs with tokens (WeatherFlow takes its token as a query parameter); use `redact()` in `lib/protocol.mjs`.
@@ -55,6 +55,7 @@ research/  Protocol research and design notes
 
 - `index.mjs` wires everything from environment variables: store, driver (demo or live), engine, HTTP listeners, weather timer.
 - `engine.mjs` (`Engine`) is the controller core. One command queue (`serial`) serializes every Tucor read and write. It also holds the latest observation and run ownership, builds `GET /api/state` (`state()`), handles idempotent commands (`submit`/`command`) and does start/stop/next/rain with their safety checks. It keeps one-line delegates to the modules below, so routes and tests use a single object.
+- `program-jobs.mjs`: every write to the controller's programs (install, restore, the program test), each one job in one session with a readback and Tucor's sync.
 - `plan-service.mjs`: watering intentions, reviewed plan edits (`editPreview` returns a token, `editApply` checks it), rebalance and the program dry run.
 - `weather-policy.mjs`: automatic rain-delay decisions and station health. `weather.mjs` has the pure threshold evaluation.
 - `preferences.mjs`: zone alias, notes, favorite, order and flagged-issue validation.

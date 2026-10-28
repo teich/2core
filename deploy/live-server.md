@@ -93,6 +93,37 @@ deploy or a watering test.
 Each run's record, including everything Tucor sent back, is in
 `GET /api/programs` under `tests`.
 
+## Installing the plan
+
+Writes the saved plan into all ten programs, then syncs. Run it only with
+someone watching, and with every Tucor tab and app closed: while Tucor's own
+app holds the controller, 2core can't connect. Nothing may be running.
+
+1. Set `ALLOW_PROGRAM_WRITES=true` in `/opt/2core/.env`, then
+   `docker compose up -d --force-recreate`.
+2. Open the app so 2core reads today's programs, then review the install:
+
+   ```sh
+   ssh root@192.168.2.6 'curl -sS -X POST http://192.168.2.6:8787/api/programs/install-preview \
+     -H "Authorization: Bearer $(cat /opt/2core/secrets/api_key)" -H "Content-Type: application/json" -d "{}"'
+   ```
+
+   Check `status` is `ready`, read each slot's `changes`, and note the
+   `token`. A review is only good the same day, for the same plan and programs.
+3. Install it, in the background like the program test, with
+   `-H "Prefer: respond-async"` and `-d "{\"token\": \"TOKEN\", \"deadline\": …}"`
+   to `/api/programs/install`, then follow `/api/commands/<id>`. `synced` means
+   done. `not synced` means the write is in Tucor's cloud but Tucor's sync
+   would have touched more than programs; `problems` says what. Sync by hand
+   only if the dialog lists Programs alone, from the app.
+4. Check the controller against the review.
+5. To undo it, `POST /api/programs/restore-before-install` the same way
+   (newest backup unless `{"backup": "<time from installBackups>"}`).
+6. Set `ALLOW_PROGRAM_WRITES=false` and recreate the service.
+
+An error after sending started leaves the outcome unknown. Don't repeat it:
+the record in `GET /api/programs` `tests` says how far each slot got.
+
 ## Deployment verification
 
 Live authentication, inventory, and status reads succeeded from the LXC. The latency update is deployed as release `20260928T011349Z-21591` (2026-09-27 local time). The original pre-update recovery snapshot is `/opt/2core/backups/20260928T010853Z-21070`.

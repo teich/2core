@@ -40,6 +40,8 @@ export class LiveDriver {
     releaseMs = 500,
     // How long a program write watches for Tucor's follow-up packets, before and after the readback.
     programSettleMs = 15000,
+    // Spacing between program messages, so a whole schedule doesn't arrive at once.
+    programPaceMs = 100,
     // A sync can take minutes; Tucor shows its progress as it goes.
     syncMs = 240000,
     ledger = memory(),
@@ -64,6 +66,7 @@ export class LiveDriver {
     this.waitMs = waitMs;
     this.releaseMs = releaseMs;
     this.programSettleMs = programSettleMs;
+    this.programPaceMs = programPaceMs;
     this.syncMs = syncMs;
     this.ledger = ledger;
     this.limits = limits;
@@ -550,8 +553,11 @@ class Session {
    * Sends a program write. The deadline and session are checked before the first
    * message; after that the write runs to the end rather than stopping halfway.
    */
-  writePrograms(messages) {
-    messages.forEach((m, i) => this.send(m, i === 0));
+  async writePrograms(messages, check = true) {
+    for (const [i, m] of messages.entries()) {
+      this.send(m, check && i === 0);
+      if (this.driver.programPaceMs) await sleep(this.driver.programPaceMs);
+    }
   }
   /** Asks for the program list again, which is how the editor reads its edits back. */
   async readPrograms() {

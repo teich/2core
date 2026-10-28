@@ -375,6 +375,21 @@ writes are off again. Step 2 is done:
 - Not yet seen: a real sync proposal. 2core's sync step now opens the dialog
   as the app does, but hasn't run against Tucor.
 
+## Step 3: installing the plan
+
+Built on October 28, not yet run. `POST /api/programs/install-preview` is the
+dry run with a token for its exact messages; `POST /api/programs/install`
+reads the programs fresh, refuses unless the messages match the review, keeps
+a backup of all ten programs, writes slot by slot (each switched off first
+and on last, 100 ms between messages), reads every slot back, syncs under
+the same narrow rule, and reads back again.
+`POST /api/programs/restore-before-install` puts a backup back. The code is
+in `server/program-jobs.mjs`, alongside the test.
+
+Before the first install: run 2core's own sync once under supervision (the
+first install is that run), and decide how a missed or failed night is
+noticed (step 5 of the cutover).
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be
