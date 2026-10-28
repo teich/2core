@@ -53,6 +53,7 @@ const COMMANDS = routes({
   '/api/programs/restore-test-slot': engine => () => engine.programRestore(),
   '/api/programs/install': (engine, payload) => () => engine.programInstall(payload),
   '/api/programs/restore-before-install': (engine, payload) => () => engine.programRestoreInstall(payload),
+  '/api/programs/rename': (engine, payload) => () => engine.programRename(payload),
 });
 
 function routes(table) {

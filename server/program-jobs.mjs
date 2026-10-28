@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto';
 import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
 import {
+  currentTarget,
   lettersFor,
   programMessages,
   readbackProblems,
@@ -168,6 +169,32 @@ export class ProgramJobs {
   }
 
   /**
+   * POST /api/programs/rename: new names for some programs, `{names: {slot: name}}`.
+   * Only the names change; checked before Tucor is contacted.
+   * @param {{ names?: Record<string, string> }} [payload]
+   */
+  async rename({ names } = {}) {
+    if (!names || typeof names !== 'object' || Array.isArray(names) || !Object.keys(names).length)
+      throw new AppError('Expected names: {program number: name}', 400);
+    const latest = this.store.get('programs');
+    const length = readCapabilities(latest?.capabilities)?.nameLength ?? 12;
+    for (const [slot, name] of Object.entries(names)) {
+      if (!/^\d+$/.test(slot) || !bySlot(latest?.list, slot)) throw new AppError(`There is no program ${slot}`, 400);
+      if (typeof name !== 'string' || !/^[\x20-\x7e]+$/.test(name) || name !== name.trim() || name.length > length)
+        throw new AppError(`Program ${slot}: a name is 1–${length} plain characters, without spaces at the ends`, 400);
+    }
+    return await this.job('rename programs', list => {
+      const targets = new Map();
+      for (const [slot, name] of Object.entries(names)) {
+        const raw = bySlot(list, slot);
+        if (!raw) throw new AppError(`Tucor didn’t list program ${slot}; nothing was sent`);
+        targets.set(Number(slot), { ...currentTarget(raw), name });
+      }
+      return targets;
+    });
+  }
+
+  /**
    * One program job. \`plan\` sees the fresh read and returns each slot's target,
    * or throws to refuse before anything is sent.
    * @param {string} kind
@@ -295,7 +322,17 @@ export class ProgramJobs {
       record.outcome = 'sync unknown';
       await session.executeSync();
       record.sync.finishedAt = new Date(this.engine.clock()).toISOString();
-      const back = await session.readPrograms();
+      record.outcome = 'synced, not read back';
+      let back;
+      try {
+        back = await session.readPrograms();
+      } catch (e) {
+        // Tucor confirmed the sync, but may not answer straight after it (its dialog
+        // leaves the page); a later read settles what the controller has.
+        record.readbackError = e.message;
+        const problems = ['Tucor didn’t send the programs back after the sync. Read them again to check.'];
+        return { ok: false, outcome: record.outcome, changes, problems };
+      }
       this.engine.recordPrograms(back);
       const problems = this.problems(back.list, goals);
       Object.assign(record, {

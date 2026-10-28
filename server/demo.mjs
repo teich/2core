@@ -138,6 +138,7 @@ export class DemoDriver {
       Weekdays: 'fullDaySchedule',
       Budget: 'waterBudget',
       Booster: 'booster',
+      Name: 'name',
     };
     for (const m of messages) {
       if (m.Type === 'IrrPgmData') {

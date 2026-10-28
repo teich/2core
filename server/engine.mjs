@@ -410,6 +410,9 @@ export class Engine {
   programRestoreInstall(payload) {
     return this.programJobs.restoreInstall(payload);
   }
+  programRename(payload) {
+    return this.programJobs.rename(payload);
+  }
 
   // Weather policy: see weather-policy.mjs.
   knownHold(hours) {

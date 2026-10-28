@@ -2,7 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { compilePrograms } from '../lib/program-compiler.mjs';
-import { assignSlots, programMessages, syncCheck } from '../lib/program-messages.mjs';
+import {
+  assignSlots,
+  currentTarget,
+  programMessages,
+  readbackProblems,
+  syncCheck,
+  writeSlot,
+} from '../lib/program-messages.mjs';
 import { readCapabilities, readProgram } from '../lib/programs.mjs';
 
 const tucor = JSON.parse(readFileSync(new URL('./fixtures/tucor-programs.json', import.meta.url), 'utf8'));
@@ -250,4 +257,21 @@ test('a sync runs only for programs going from the app to the controller', () =>
   }
   // A reply 2core can't read blocks it too.
   assert.equal(syncCheck({ capabilities: null, records: undefined }).ok, false);
+});
+
+test('a new name is one message on its own, and the readback checks it', () => {
+  const on = raw(1, { status: '1', name: 'Old name    ', fullDaySchedule: 'S------S------' });
+  const target = { ...currentTarget(on), name: 'Big olives' };
+  assert.deepEqual(writeSlot(on, target, capabilities).messages, [
+    { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 1, Name: 'Big olives' },
+  ]);
+  // With other changes too, it goes while the slot is off, like the rest.
+  const both = writeSlot(on, { ...target, budget: 120 }, capabilities).messages;
+  assert.deepEqual(both[0], { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 1, Status: 0 });
+  assert.equal(both[1].Name, 'Big olives');
+  assert.equal(both.at(-1).Status, 1);
+  // Tucor pads names; an unchanged name sends nothing.
+  assert.deepEqual(writeSlot(on, { ...target, name: 'Old name' }, capabilities).messages, []);
+  assert.deepEqual(readbackProblems(on, target), ['Name is “Old name”']);
+  assert.deepEqual(readbackProblems({ ...on, name: 'Big olives  ' }, target), []);
 });

@@ -302,8 +302,9 @@ Three findings matter for writing programs:
   or the controller before writing a calendar.
 - **Steps can't be deleted.** Capabilities report `steps.deleteStep: false`,
   so the dry run removes a station from a program by writing a 0-second
-  runtime. Nothing in the message family sets a program's name or lets a
-  program water during a rain delay.
+  runtime. Nothing in the message family lets a program water during a rain
+  delay. (A name can be set: see “Writing”. An earlier note here said it
+  couldn't; that was wrong.)
 
 ### Writing (recovered 2026-10-23, never sent)
 
@@ -324,7 +325,7 @@ arrives. When a pushed packet carries `ProgramUpdate`, the editor sends
 
 | Change | Message |
 | --- | --- |
-| Type, status, budget, booster | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Status`, `Budget`, `Booster` (`0` for none) |
+| Type, status, budget, booster, name | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Status`, `Budget`, `Booster` (`0` for none), `Name` (up to `capabilities.name.maxLength`, 12 here; Tucor pads it to that length in its own packets) |
 | Calendar | `Period` alone when the period changes; each day toggle then sends `Period` and `Weekdays` together. Days can only change on an editable period (the 14-day calendar here) |
 | Start times | `{Category:'Irrigation', Type:'IrrPgmStart', Oper:'Upd', PgmId, Seq:<1–maxStarts>, Time, Cycles, EndTime}` for every slot, `Time:-1, Cycles:null, EndTime:null` for unused ones. `Time` is minutes after midnight; `EndTime` is `floor((start + runtime × cycles + soak × (cycles − 1)) / 60)` in minutes and can pass 1440 |
 | Step runtime, one station per step | `{Category:'Irrigation', Type:'IrrPgmCont', Oper:'Upd', PgmId, Seq:<station id>, RunTime:<seconds>}`. Always `Upd`; removing a station writes `RunTime: 0` |

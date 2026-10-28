@@ -276,8 +276,9 @@ Run against production on October 22, it found:
 - **Rain exemptions can't be written.** Citrus and entry pots was set to
   water during rain delays, and no program message expresses that, so the
   write was blocked. The setting was removed the next day (below).
-- **Names stay.** No message sets a program's name, so slots keep names like
-  “\*VINES Top” while holding other zones.
+- **Names stay.** The install leaves names alone, so slots keep names like
+  “\*VINES Top” while holding other zones. (A program can be renamed: see
+  October 28.)
 - **Most slots still change.** Each compiled program goes to the slot that
   already holds most of its zones (an exact search over the ten slots), and a
   slot that already matches sends nothing. That took the write from 212
@@ -389,6 +390,18 @@ in `server/program-jobs.mjs`, alongside the test.
 Before the first install: run 2core's own sync once under supervision (the
 first install is that run), and decide how a missed or failed night is
 noticed (step 5 of the cutover).
+
+### Installed, October 28
+
+The reviewed plan was installed at 17:42 UTC: 201 messages, every slot
+written, the first readback matched. 2core's own sync ran for the first time.
+Tucor's proposal listed seven controller sections with nothing to change and
+each program as its own section, “Program #1” to “Program #10”, all from the
+app; Tucor synced them one by one in about 30 seconds and reported `OK` and
+`I01:01`. The readback after the sync got no answer (Tucor's dialog leaves the
+page after a sync), so the job reported “sync unknown”; a fresh read a minute
+later matched all ten programs. Program names can be set after all; renaming
+the ten programs to match their new zones was added the same day.
 
 ## Deferred: watering covered zones through rain
 

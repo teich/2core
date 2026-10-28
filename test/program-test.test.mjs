@@ -261,3 +261,72 @@ test('an install cut off partway is left unknown, says how far it got, and keeps
   assert.equal(written[1].sent, 0);
   assert.equal(engine.programs().installBackups.length, 1);
 });
+
+test('renaming programs changes only their names, then syncs', async t => {
+  const { engine, driver } = await fixture(t);
+  const before = structuredClone(driver.programs.list);
+  const sent = [];
+  const write = driver.writePrograms.bind(driver);
+  driver.writePrograms = messages => {
+    sent.push(...messages);
+    write(messages);
+  };
+  const result = await engine.programRename({ names: { 1: 'Big olives', 2: 'Trees x road' } });
+  assert.equal(result.outcome, 'synced', JSON.stringify(result.problems));
+  assert.deepEqual(sent, [
+    { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 1, Name: 'Big olives' },
+    { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 2, Name: 'Trees x road' },
+  ]);
+  const strip = list => list.map(({ name, ...p }) => p);
+  assert.deepEqual(programDefinition(strip(driver.programs.list)), programDefinition(strip(before)));
+  assert.deepEqual(
+    driver.programs.list.slice(0, 3).map(p => p.name.trim()),
+    ['Big olives', 'Trees x road', 'Pots'],
+  );
+  assert.equal((await engine.programRename({ names: { 1: 'Big olives' } })).outcome, 'nothing to change');
+});
+
+test('names that the controller can’t take are refused before contacting Tucor', async t => {
+  const { engine, driver } = await fixture(t);
+  let opened = 0;
+  const sessions = driver.withSession.bind(driver);
+  driver.withSession = fn => {
+    opened++;
+    return sessions(fn);
+  };
+  for (const [payload, message] of [
+    [{}, /Expected names/],
+    [{ names: {} }, /Expected names/],
+    [{ names: { 11: 'Spare' } }, /no program 11/],
+    [{ names: { 5: 'Citrus + pots' } }, /1–12 plain characters/],
+    [{ names: { 5: ' Pots' } }, /1–12 plain characters/],
+    [{ names: { 5: 'Pots ✓' } }, /1–12 plain characters/],
+    [{ names: { 5: '' } }, /1–12 plain characters/],
+  ])
+    await assert.rejects(engine.programRename(payload), message);
+  assert.equal(opened, 0);
+});
+
+test('a sync Tucor confirms but doesn’t follow with a readback is reported as such, not as unknown', async t => {
+  const { engine, driver } = await fixture(t);
+  const sessions = driver.withSession.bind(driver);
+  driver.withSession = fn =>
+    sessions(s => {
+      let reads = 0;
+      return fn({
+        ...s,
+        get codes() {
+          return s.codes;
+        },
+        // The open, the readback after writing, then nothing after the sync.
+        readPrograms: async () => {
+          if (++reads > 1) throw new Error('No confirmation for program list; inspect controller before retrying');
+          return s.readPrograms();
+        },
+      });
+    });
+  const result = await engine.programRename({ names: { 1: 'Big olives' } });
+  assert.equal(result.outcome, 'synced, not read back');
+  assert.equal(driver.synced, true);
+  assert.match(engine.programs().tests[0].readbackError, /No confirmation/);
+});

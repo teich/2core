@@ -124,6 +124,13 @@ app holds the controller, 2core can't connect. Nothing may be running.
 An error after sending started leaves the outcome unknown. Don't repeat it:
 the record in `GET /api/programs` `tests` says how far each slot got.
 
+## Renaming programs
+
+`POST /api/programs/rename` with `{"names": {"1": "Big olives", …}, "deadline": …}`,
+sent like the install (in the background, then follow `/api/commands/<id>`).
+It needs `ALLOW_PROGRAM_WRITES=true`, checks the names before contacting
+Tucor (12 plain characters at most), changes nothing but the names, and syncs.
+
 ## Deployment verification
 
 Live authentication, inventory, and status reads succeeded from the LXC. The latency update is deployed as release `20260928T011349Z-21591` (2026-09-27 local time). The original pre-update recovery snapshot is `/opt/2core/backups/20260928T010853Z-21070`.
