@@ -361,6 +361,20 @@ Tucor needs. Nothing was synchronized. The cloud holds the restored program
 and the controller the test version, which is off. Run again, the restore
 finds nothing to write and only syncs.
 
+### Result
+
+The owner synced the restore by hand too; the controller and Tucor showed
+program 1 exactly as it was, and 2core read `I01:01` “Synced”. Program
+writes are off again. Step 2 is done:
+
+- The editor's `IrrPgm*` messages, as 2core sends them, write a program
+  exactly, including the 14-day calendar counted from the day of the write.
+- Edits wait in Tucor's cloud until a sync; the controller changes only then.
+- Tucor's app holding the controller makes 2core's sessions fail with
+  “controller busy”.
+- Not yet seen: a real sync proposal. 2core's sync step now opens the dialog
+  as the app does, but hasn't run against Tucor.
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be
