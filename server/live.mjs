@@ -2,7 +2,7 @@ import io from 'socket.io-client';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { ORIGIN, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
 import { trace } from './telemetry.mjs';
-import { CLOSE, OPEN, READBACK, SYNC_ERRORS, SYNC_EXECUTE, SYNC_START } from '../lib/program-messages.mjs';
+import { CLOSE, OPEN, READBACK, SYNC_CLOSE, SYNC_ERRORS, SYNC_EXECUTE, SYNC_START } from '../lib/program-messages.mjs';
 
 // Tucor is a shared vendor service: every new session costs it a device list request,
 // a socket, a login, and a controller selection. These caps hold even if a
@@ -612,6 +612,10 @@ class Session {
     const code = done.data?.code ?? '';
     if (SYNC_ERRORS.test(code))
       throw new Error(`Tucor reported ${code} during the sync; inspect the controller before retrying`);
+  }
+  /** Closes the sync dialog, as the app does whether or not it ran. */
+  closeSync() {
+    if (this.healthy) for (const m of SYNC_CLOSE) this.send(m);
   }
   closePrograms() {
     if (this.healthy) for (const m of CLOSE) this.send(m);

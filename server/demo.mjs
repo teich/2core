@@ -207,6 +207,7 @@ export class DemoDriver {
         this.synced = true;
       },
       closePrograms: () => {},
+      closeSync: () => {},
     });
   }
   async close() {}

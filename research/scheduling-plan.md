@@ -353,6 +353,14 @@ controller showed program 1 exactly as written, including the days counted
 from the day of the write. That answers the test's questions apart from the
 sync proposal's shape. The restore, with 2core's own sync, is next.
 
+### Restore, October 28
+
+The restore wrote program 1 back and the readback matched, but its sync got
+no answer: the sync step left out the dialog's `Created`/`Mounted`, which
+Tucor needs. Nothing was synchronized. The cloud holds the restored program
+and the controller the test version, which is off. Run again, the restore
+finds nothing to write and only syncs.
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be

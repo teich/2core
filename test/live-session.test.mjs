@@ -91,7 +91,9 @@ class Cloud {
           cloud.unsynced = true;
           this.receive({ category: 'server', command: 'info', data: { code: 'I01:02' } });
         }
-        if (data.command === 'synchronize' && data.data.type === 'initiate') {
+        // As production showed on 2026-10-28, Tucor ignores a sync from a dialog that never announced itself.
+        if (data.component === 'SyncModal') this.syncOpen = data.command === 'Mounted';
+        if (data.command === 'synchronize' && data.data.type === 'initiate' && this.syncOpen) {
           this.receive({ component: 'SyncModal', Capabilities: { sections: { 1: 'Stations', 2: 'Programs' } } });
           const row = (sectionid, app) => ({ sectionid, useappdata: app, usectrldata: '0', warning: '0' });
           this.receive({
@@ -518,6 +520,13 @@ test('the test write opens the editor, writes the off slot, reads it back and sy
   // After the readback: the dialog's opening, then execute, then another readback. No direction is ever changed.
   const syncs = sent.filter(m => m.command === 'synchronize').map(m => m.data.type);
   assert.deepEqual(syncs, ['initiate', 'execute']);
+  const dialog = sent.filter(
+    m => m.component === 'SyncModal' || m.data?.item === 'TimeStamps' || m.command === 'synchronize',
+  );
+  assert.deepEqual(
+    dialog.map(m => (m.command === 'synchronize' ? m.data.type : (m.data?.item ?? m.command))),
+    ['Created', 'Mounted', 'TimeStamps', 'initiate', 'execute', 'Destroyed'],
+  );
   const execute = sent.findIndex(m => m.data?.type === 'execute');
   assert.ok(execute > last + 1);
   assert.ok(sent.findIndex(m => m.data?.item === 'TimeStamps') > last + 1);

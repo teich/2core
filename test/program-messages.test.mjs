@@ -81,7 +81,7 @@ test('the compiled fixture becomes programs, each switched off while edited and 
     assert.equal(starts[0].EndTime, Math.floor((source.clockMinute * 60 + source.seconds) / 60));
     assert.ok(starts.slice(1).every(s => s.Time === -1 && s.Cycles === null));
   }
-  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 7);
+  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 10);
   // The editor opens with these, and reads its edits back with Programs/Mounted; it never syncs.
   assert.deepEqual(result.open, [
     { category: 'route', data: '/programs' },
@@ -91,8 +91,8 @@ test('the compiled fixture becomes programs, each switched off while edited and 
   assert.deepEqual(result.readback, [{ component: 'Programs', command: 'Mounted' }]);
   // Edits reach the controller only through Tucor's sync, after the readback.
   assert.deepEqual(
-    result.sync.map(m => m.data.item ?? m.data.type),
-    ['TimeStamps', 'initiate', 'execute'],
+    result.sync.map(m => m.data?.item ?? m.data?.type ?? m.command),
+    ['Created', 'Mounted', 'TimeStamps', 'initiate', 'execute', 'Destroyed'],
   );
 });
 
@@ -218,7 +218,7 @@ test('a slot that already matches the plan sends nothing', () => {
   const result = write([{}], [matching]);
   assert.equal(result.programs[0].use, 'keep');
   assert.deepEqual(result.programs[0].messages, []);
-  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 7 });
+  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 10 });
   // A read from another day can't be compared with today's calendar.
   assert.ok(write([{}], [matching], { readDate: '2026-10-04' }).issues.some(i => i.code === 'calendar-alignment'));
 });

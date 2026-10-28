@@ -341,7 +341,9 @@ hand (confirmed by the owner, and by the test below, where the status went to
 connection icon, which reads `I01:01` “Synced” or `I01:02` “Not Synced”.
 From `SyncModal.vue`:
 
-1. It opens with `{category:'data', command:'get', data:{type:'dataset',
+1. Like every component, it first sends `{component:'SyncModal',
+   command:'Created'}` and `Mounted`; without them Tucor didn't answer a sync
+   (2026-10-28, below). It then sends `{category:'data', command:'get', data:{type:'dataset',
    item:'TimeStamps'}}` and `{category:'server', command:'synchronize',
    data:{type:'initiate'}}`.
 2. Tucor answers with `{component:'SyncModal', Capabilities:{sections,
@@ -378,6 +380,12 @@ zone 2 for one minute, 23:00, 100%, and Saturdays October 31 and November 7.
 Those are the written days (October 24 and 31, from the day of the write)
 carried forward on the 14-day cycle, so the controller reads `Weekdays` from
 the day of the write. 2core's next read reported `I01:01` “Synced”.
+
+The restore on 2026-10-28 wrote program 1 back (17 messages, readback
+matched) and then sent the `TimeStamps` request and `initiate` without the
+dialog's `Created`/`Mounted`. Tucor sent nothing for the sync in 20 seconds,
+so nothing was executed. The sync step now announces and closes the dialog
+as the app does.
 
 While Tucor's own app had the controller selected, 2core's reads failed with
 “controller busy” until every Tucor tab and app was closed. Still unknown:

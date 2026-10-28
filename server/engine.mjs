@@ -538,21 +538,25 @@ export class Engine {
   async programSync(session, record, goal) {
     const slot = PROGRAM_TEST.slot,
       changes = record.changes;
-    const check = syncCheck(await session.startSync());
-    record.sync = { sections: check.sections, problems: check.problems };
-    if (!check.ok) {
-      record.outcome = 'not synced';
-      return { ok: false, outcome: record.outcome, changes, problems: check.problems };
+    try {
+      const check = syncCheck(await session.startSync());
+      record.sync = { sections: check.sections, problems: check.problems };
+      if (!check.ok) {
+        record.outcome = 'not synced';
+        return { ok: false, outcome: record.outcome, changes, problems: check.problems };
+      }
+      record.outcome = 'sync unknown';
+      await session.executeSync();
+      record.sync.finishedAt = new Date(this.clock()).toISOString();
+      const back = await session.readPrograms();
+      this.recordPrograms(back);
+      const after = back.list.find(p => Number(p.ID) === slot);
+      const problems = readbackProblems(after, goal);
+      Object.assign(record, { after, problems, outcome: problems.length ? 'synced, readback differs' : 'synced' });
+      return { ok: !problems.length, outcome: record.outcome, changes, problems };
+    } finally {
+      session.closeSync();
     }
-    record.outcome = 'sync unknown';
-    await session.executeSync();
-    record.sync.finishedAt = new Date(this.clock()).toISOString();
-    const back = await session.readPrograms();
-    this.recordPrograms(back);
-    const after = back.list.find(p => Number(p.ID) === slot);
-    const problems = readbackProblems(after, goal);
-    Object.assign(record, { after, problems, outcome: problems.length ? 'synced, readback differs' : 'synced' });
-    return { ok: !problems.length, outcome: record.outcome, changes, problems };
   }
 
   // Weather policy: see weather-policy.mjs.
