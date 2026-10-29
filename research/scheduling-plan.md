@@ -46,7 +46,7 @@ Each zone intention contains a target duration, cadence, enabled state, and opti
 
 For twice weekly, alternate three-day and four-day intervals. Use local calendar dates rather than multiples of twenty-four hours. Seed intentions with a chosen first due date; the tested history endpoints provide no reliable last-watering date.
 
-For the first preview, use a clear rain rule: a due run remains pending during a rain hold and moves to the first eligible night after the hold. Rain does not itself count as watering. The next interval starts from that watering's local date, and the three/four-day phase advances only then. Make this assumption visible in the preview so the owner can judge whether it matches the desired behavior before live operation.
+(Superseded on October 29 by skip on rain; see “Rain: skip, not postpone” below.) For the first preview, use a clear rain rule: a due run remains pending during a rain hold and moves to the first eligible night after the hold. Rain does not itself count as watering. The next interval starts from that watering's local date, and the three/four-day phase advances only then. Make this assumption visible in the preview so the owner can judge whether it matches the desired behavior before live operation.
 
 Keep intentions separate from watering records. Record the planned duration and time, installation or start evidence, any completion evidence, and an outcome such as confirmed, assumed, partial, rain skipped, deferred, failed, or unknown.
 
@@ -444,12 +444,34 @@ Still open:
 - **The controller's clock.** The protocol notes found it differed from wall
   time. The spot check looks at the middle of a run of 16 minutes or more, so
   a few minutes don't matter; check the first spot checks' results.
-- **Rain.** The planner moves watering held by rain to the next night; the
-  controller's fixed calendar skips it. Until that's settled, a rain-held night
-  shows as “held by rain”, and the plan and controller calendars drift apart
-  after it.
+- **Rain** is settled: skip, not postpone (next section). A held night's
+  evening finding names the zones it skips.
 - **Water use.** Tucor reports a consumption total, but no working flow meter
   is confirmed, so it isn't used as evidence.
+
+## Rain: skip, not postpone
+
+Decided on October 29. A zone whose run a rain delay holds skips that watering
+and waits for its next date on the calendar. This replaces the earlier
+postpone-and-shift rule, which was never wired up: the plan service gives the
+planner no rain nights, and the plan rolls forward as though every watering
+happened on time, which is also what the controller's fixed calendar does. So
+rain doesn't make the plan and the controller drift apart; both skip.
+
+Why skip: rain that warrants a delay waters the zones it holds, and
+postponing would mean rewriting and syncing all ten programs after every hold,
+with program writes enabled, more Tucor sessions, and on exactly the nights the
+weather is changing. For the every-other-day zones a skip costs a day or two.
+
+What the nightly checks do with it: the evening check lists the skipped zones
+(`skipped`, and `held` when that's every zone tonight). A delay ending during
+the night skips only the runs that start before it ends, and the spot check
+then looks at a zone that runs after it.
+
+Still open: the two weekly zones go about two weeks dry after a skip. If that
+proves too long, the fix is a catch-up for long cadences only, not a general
+postpone. `resolvePlan`'s `rain` input still postpones, for a preview that
+passes it; nothing does.
 
 ## Deferred: watering covered zones through rain
 
