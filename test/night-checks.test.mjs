@@ -131,9 +131,31 @@ test('the evening check reports what keeps a night from running as planned', () 
     firstStartInSeconds: 3600,
     rainSource: 'weather',
   });
-  assert.deepEqual(
-    held.map(f => [f.code, f.warn, f.message]),
-    [['rain', false, 'Held by 2core’s weather delay, 2 h left']],
+  assert.deepEqual(held, [
+    {
+      code: 'rain',
+      warn: false,
+      held: true,
+      skipped: ['2'],
+      message: 'Held by 2core’s weather delay, 2 h left; zone 2 waits for the next date',
+    },
+  ]);
+  // A delay ending during the night skips only the zones that start before it ends.
+  const partial = eveningFindings({
+    ...ready,
+    runs: [
+      ...runs,
+      { slot: 1, program: 'A', zone: '7', from: 1350, to: 1380 },
+      { slot: 2, program: 'B', zone: '4', from: 1390, to: 1400 },
+    ],
+    status: { controllerMode: 2, rainShutDown: 3600 + 40 * 60 },
+    firstStartInSeconds: 3600,
+  });
+  assert.equal(partial[0].held, false);
+  assert.deepEqual(partial[0].skipped, ['2', '7']);
+  assert.equal(
+    partial[0].message,
+    'Held by a rain delay set outside 2core, 2 h left; zones 2, 7 wait for the next date, the rest run after it ends',
   );
   const ending = eveningFindings({
     ...ready,
@@ -176,8 +198,10 @@ test('each night gets one status, most important first', () => {
     warn: true,
   });
   assert.equal(
-    nightStatus({ runs, evening: { ok: true, findings: [{ code: 'rain', warn: false, message: 'Held by x' }] } })
-      .status,
+    nightStatus({
+      runs,
+      evening: { ok: true, findings: [{ code: 'rain', warn: false, held: true, message: 'Held by x' }] },
+    }).status,
     'held by rain',
   );
 });
@@ -327,6 +351,21 @@ test('the evening check finds a rain delay and skips the spot check', async t =>
   assert.equal(night.status, 'held by rain');
   // No spot check on a held night.
   assert.equal(night.target, null);
+});
+
+test('a rain delay ending during the night skips the early zones and looks for a later one', async t => {
+  const { engine, driver, at } = await installed(t);
+  const tonight = engine.state().nights.nights[0];
+  // The first start is an hour after the evening check; the delay ends half an hour after it.
+  driver.rainUntil = Date.now() + 90 * 60000;
+  at(tonight.eveningAt);
+  await engine.nightChecks.tick();
+  const night = engine.state().nights.nights[0];
+  const rain = night.evening.findings.find(f => f.code === 'rain');
+  assert.equal(rain.held, false);
+  assert.ok(rain.skipped.length > 0 && rain.skipped.length < night.zones);
+  assert.notEqual(night.status, 'held by rain');
+  assert.ok(night.target && !rain.skipped.includes(night.target.zone));
 });
 
 test('the sync line tells a changed plan from programs changed outside 2core', async t => {

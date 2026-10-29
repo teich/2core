@@ -201,9 +201,11 @@ export class NightChecks {
       rainSource: this.store.get('rain')?.source ?? null,
     });
     record.evening = { at: new Date(now).toISOString(), ok: true, attempts, findings, codes };
-    // Looking for a run is only worth a session when the night should run.
-    const held = findings.some(f => f.code === 'rain' && /^Held/.test(f.message));
-    record.target = held || findings.some(f => f.warn) ? null : spotTarget(record.runs);
+    // Looking for a run is only worth a session when the night should run, and
+    // only at a zone the rain delay doesn't skip.
+    const rain = findings.find(f => f.code === 'rain');
+    const runs = rain?.skipped ? record.runs.filter(r => !rain.skipped.includes(r.zone)) : record.runs;
+    record.target = rain?.held || findings.some(f => f.warn) ? null : spotTarget(runs);
     this.save(record);
     const warnings = findings.filter(f => f.warn);
     if (warnings.length)
