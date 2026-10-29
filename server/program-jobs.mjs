@@ -315,6 +315,13 @@ export class ProgramJobs {
     try {
       const check = syncCheck(await session.startSync());
       record.sync = { sections: check.sections, problems: check.problems };
+      // Name changes have reached the controller without a sync.
+      if (check.nothing && (session.codes ?? []).filter(c => /^I01(:|$)/.test(c)).at(-1) === 'I01:01') {
+        record.outcome = 'already synced';
+        return { ok: true, outcome: record.outcome, changes, problems: [] };
+      }
+      if (check.nothing)
+        check.problems.push('Tucor proposes nothing to sync but doesn’t report the controller synced.');
       if (!check.ok) {
         record.outcome = 'not synced';
         return { ok: false, outcome: record.outcome, changes, problems: check.problems };

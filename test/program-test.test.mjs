@@ -330,3 +330,16 @@ test('a sync Tucor confirms but doesn’t follow with a readback is reported as 
   assert.equal(driver.synced, true);
   assert.match(engine.programs().tests[0].readbackError, /No confirmation/);
 });
+
+test('a rename Tucor has already synced by itself is reported as already synced', async t => {
+  const { engine, driver } = await fixture(t);
+  // As on 2026-10-29: after name changes Tucor proposed nothing and reported I01:01.
+  const proposal = driver.syncProposal.bind(driver);
+  driver.syncProposal = () => {
+    driver.synced = true;
+    return proposal();
+  };
+  const result = await engine.programRename({ names: { 1: 'Big olives' } });
+  assert.equal(result.outcome, 'already synced');
+  assert.equal(result.ok, true);
+});

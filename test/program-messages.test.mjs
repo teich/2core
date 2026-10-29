@@ -244,7 +244,6 @@ test('a sync runs only for programs going from the app to the controller', () =>
   for (const [records, problem, extra] of [
     [[row('1'), row('2', '0', '1'), row('3')], 'Programs would not go from the app to the controller.'],
     [[row('1'), row('2', '1', '0', '1'), row('3')], 'Programs would not go from the app to the controller.'],
-    [[row('1'), row('2', '0'), row('3')], 'Programs would not go from the app to the controller.'],
     [[row('1', '1'), row('2', '1'), row('3')], 'Stations would sync too.'],
     [[row('1'), row('2', '1'), row('3', '0', '1')], 'Sensors would sync too.'],
     [[row('1'), row('3')], 'Tucor listed no programs section.'],
@@ -255,6 +254,18 @@ test('a sync runs only for programs going from the app to the controller', () =>
     assert.equal(result.ok, false);
     assert.ok(result.problems.includes(problem), JSON.stringify(result.problems));
   }
+  // Nothing pending anywhere: no sync to run, and no problem either.
+  const nothing = syncCheck({ capabilities, records: [row('1'), row('2'), row('3')] });
+  assert.equal(nothing.ok, false);
+  assert.equal(nothing.nothing, true);
+  assert.deepEqual(nothing.problems, []);
+  // Tucor's real shape (2026-10-28): each program is its own section; unchanged ones have nothing pending.
+  const each = { sections: { 11: 'Stations', 101: 'Program #1', 102: 'Program #2' } };
+  assert.equal(syncCheck({ capabilities: each, records: [row('11'), row('101', '1'), row('102')] }).ok, true);
+  assert.deepEqual(
+    syncCheck({ capabilities: each, records: [row('11'), row('101', '1'), row('102', '0', '1')] }).problems,
+    ['Program #2 would not go from the app to the controller.'],
+  );
   // A reply 2core can't read blocks it too.
   assert.equal(syncCheck({ capabilities: null, records: undefined }).ok, false);
 });

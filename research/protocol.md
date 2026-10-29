@@ -388,6 +388,20 @@ dialog's `Created`/`Mounted`. Tucor sent nothing for the sync in 20 seconds,
 so nothing was executed. The sync step now announces and closes the dialog
 as the app does.
 
+The install on 2026-10-28 was the first sync 2core ran. Tucor's proposal
+has one section per controller area (Stations, Station Sequence, Valve
+Types, Sensors, ET, Flow, System; ids 11–17) and one per program
+(“Program #1” to “Program #10”; ids 101–110), each with `appchangedtime`,
+`ctrlchangedtime`, `synchronizedtime`, `timeout` and the flags above. A
+first `TimeStamps` packet lists every section; during the sync Tucor sends
+one per section as it finishes, then `synchronize` `OK` and `I01:01`. It
+synced ten programs in about 30 seconds. Straight after, `Programs`/`Mounted`
+got no answer.
+
+Renaming all ten programs on 2026-10-29 (one `Name` message each) went to
+`I01:02` and back to `I01:01` by itself; the sync proposal then had nothing
+pending anywhere. Names seem to reach the controller without a sync.
+
 While Tucor's own app had the controller selected, 2core's reads failed with
 “controller busy” until every Tucor tab and app was closed. Still unknown:
 the sync proposal's exact shape, which 2core's own sync step relies on.

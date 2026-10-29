@@ -403,6 +403,15 @@ page after a sync), so the job reported “sync unknown”; a fresh read a minut
 later matched all ten programs. Program names can be set after all; renaming
 the ten programs to match their new zones was added the same day.
 
+### Renamed, October 29
+
+The ten programs were renamed to match what they now water: Big olives,
+Trees x road, Pool hill W, Manzanitas, Citrus+pots, Pool hill E, Lower beds,
+Lower trees, Even days, Odd days. Tucor synced the names by itself, so
+2core's sync step found nothing pending; it now reports that as “already
+synced”. The sync check also now lets unchanged programs show nothing
+pending, since Tucor lists each program as its own section.
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be
