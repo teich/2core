@@ -1,6 +1,6 @@
 import io from 'socket.io-client';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { ORIGIN, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
+import { ORIGIN, RAIN_SLACK_SECONDS, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
 import { trace } from './telemetry.mjs';
 import { CLOSE, OPEN, READBACK, SYNC_CLOSE, SYNC_ERRORS, SYNC_EXECUTE, SYNC_START } from '../lib/program-messages.mjs';
 
@@ -521,7 +521,9 @@ class Session {
       this.wait(
         m =>
           m.component === 'Main' &&
-          (hours ? Number(m.data?.rainShutDown) > hours * 3600 - 120 : Number(m.data?.rainShutDown) === 0),
+          (hours
+            ? Number(m.data?.rainShutDown) > hours * 3600 - RAIN_SLACK_SECONDS
+            : Number(m.data?.rainShutDown) === 0),
         'rain delay',
         from,
       ),

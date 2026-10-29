@@ -13,6 +13,7 @@ import { ProgramJobs } from './program-jobs.mjs';
 import { NightChecks } from './night-checks.mjs';
 import { mergePreferences } from './preferences.mjs';
 import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
+import { RAIN_SLACK_SECONDS } from '../lib/protocol.mjs';
 import { AppError, LIMITS, number } from './validation.mjs';
 
 export { AppError, LIMITS, number };
@@ -95,7 +96,8 @@ export class Engine {
       state.status?.rainShutDown != null &&
       Number.isFinite(remaining) &&
       remaining === 0 &&
-      Date.parse(rain.until) - Date.parse(state.receivedAt ?? new Date(this.clock()).toISOString()) > 120000
+      Date.parse(rain.until) - Date.parse(state.receivedAt ?? new Date(this.clock()).toISOString()) >
+        RAIN_SLACK_SECONDS * 1000
     )
       this.store.set('rain', null);
   }
@@ -378,7 +380,7 @@ export class Engine {
         const previous = this.store.get('rain');
         if (source === 'weather' && remaining > 0) {
           const expected = previous ? (Date.parse(previous.until) - this.clock()) / 1000 : 0;
-          if (previous?.source !== 'weather' || Math.abs(remaining - expected) > 120)
+          if (previous?.source !== 'weather' || Math.abs(remaining - expected) > RAIN_SLACK_SECONDS)
             return { ok: true, preserved: true, reason: 'Existing manual or external rain delay preserved' };
           if (remaining >= hours * 3600 - 3600)
             return { ok: true, preserved: true, reason: 'Weather delay already covers this period' };
