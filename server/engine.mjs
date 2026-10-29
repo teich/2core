@@ -10,6 +10,7 @@ import { trace } from './telemetry.mjs';
 import { PlanService } from './plan-service.mjs';
 import { WeatherPolicy } from './weather-policy.mjs';
 import { ProgramJobs } from './program-jobs.mjs';
+import { NightChecks } from './night-checks.mjs';
 import { mergePreferences } from './preferences.mjs';
 import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
 import { AppError, LIMITS, number } from './validation.mjs';
@@ -27,6 +28,7 @@ export class Engine {
     mode = 'demo',
     allowControl = false,
     allowProgramWrites = false,
+    nightChecks = true,
     clock = Date.now,
     logger = () => {},
   }) {
@@ -47,6 +49,7 @@ export class Engine {
     this.plans = new PlanService(this);
     this.weatherPolicy = new WeatherPolicy(this);
     this.programJobs = new ProgramJobs(this);
+    this.nightChecks = new NightChecks(this, { enabled: nightChecks });
     this.plans.seed();
     this.error = null;
     // An open session streams controller updates; take them instead of asking again.
@@ -166,10 +169,9 @@ export class Engine {
     this.refresh({ interactive: true, forceFresh: false }).catch(() => {});
     return { ok: true };
   }
-  state() {
-    const state = this.current;
-    const age = state?.receivedAt ? this.clock() - Date.parse(state.receivedAt) : Infinity;
-    const zones = (state?.stations ?? [])
+  /** The controller's zones with 2core's names and run records, in the owner's order. */
+  zones() {
+    return (this.current?.stations ?? [])
       .map(s => {
         const pref = this.store.get(`zone:${s.StId}`, {});
         const run = this.store.get('runs', []).find(r => r.zone === String(s.StId));
@@ -189,6 +191,10 @@ export class Engine {
         };
       })
       .sort((a, b) => a.order - b.order || Number(a.id) - Number(b.id));
+  }
+  state() {
+    const state = this.current;
+    const age = state?.receivedAt ? this.clock() - Date.parse(state.receivedAt) : Infinity;
     return {
       operations: this.store.operations(),
       apiVersion: 1,
@@ -207,13 +213,14 @@ export class Engine {
       weatherReading: this.store.get('weatherReading'),
       status: state?.status ?? {},
       alarms: state?.alarms ?? [],
-      zones,
+      zones: this.zones(),
       rain: this.store.get('rain'),
       policy: this.weatherPolicy.policy(),
       weatherDecision: this.store.get('weatherDecision'),
       events: this.store.events(),
       plan: this.plans.plan(),
       location: this.store.get('location'),
+      nights: this.nightChecks.summary(),
     };
   }
   submit(key, kind, body, fn, deadline) {

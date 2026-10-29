@@ -412,6 +412,45 @@ Lower trees, Even days, Odd days. Tucor synced the names by itself, so
 synced”. The sync check also now lets unchanged programs show nothing
 pending, since Tucor lists each program as its own section.
 
+## Step 5: noticing a missed night
+
+Designed and built on October 29. Tucor keeps no record of what ran (see
+`protocol.md`, “Runtime history probe”), and nothing will change there for
+now, so a missed night can only be inferred from what a session sees: status,
+sync codes, programs and running zones. 2core opens two short, read-only
+sessions a night (`server/night-checks.mjs`, `lib/night-checks.mjs`; API in
+`server/API.md`, “Nightly checks”):
+
+- **Evening:** an hour before the first start, can the controller run
+  tonight? In Automatic, no alarm, synced, programs as 2core installed them,
+  and tonight's zones the same as the compiled plan's. A rain delay is
+  reported as a hold, not a problem. Catching these before the night is the
+  useful part: there's still time to fix them.
+- **During the night:** once, at the middle of the longest planned zone, is
+  it running? This sees one moment, so the night is “seen running”, never
+  “watered”.
+
+The night's expected runs come from the programs read from the controller,
+since that's what runs. The comparison with the compiled plan catches the
+two weeks of the 14-day calendar arriving swapped, which the program
+comparison folds away.
+
+**Out-of-sync** has two causes, told apart by keeping the programs as each
+program job left them: programs changed outside 2core (a warning), or the plan
+changed since the install (a prompt to review and install).
+
+Still open:
+
+- **The controller's clock.** The protocol notes found it differed from wall
+  time. The spot check looks at the middle of a run of 16 minutes or more, so
+  a few minutes don't matter; check the first spot checks' results.
+- **Rain.** The planner moves watering held by rain to the next night; the
+  controller's fixed calendar skips it. Until that's settled, a rain-held night
+  shows as “held by rain”, and the plan and controller calendars drift apart
+  after it.
+- **Water use.** Tucor reports a consumption total, but no working flow meter
+  is confirmed, so it isn't used as evidence.
+
 ## Deferred: watering covered zones through rain
 
 Removed on October 23 so the plan can be written to the controller; to be

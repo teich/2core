@@ -287,3 +287,18 @@ dd {
   background: var(--water);
   box-shadow: none;
 }
+
+.checks-sync {
+  margin: 8px 0 4px;
+}
+.checks-sync .pill {
+  white-space: normal;
+  min-height: 28px;
+  padding-block: 4px;
+}
+.check-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}

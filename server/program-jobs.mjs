@@ -26,6 +26,8 @@ import { AppError } from './validation.mjs';
  * minute on a slot that is off and stays off, so nothing can water.
  */
 export const PROGRAM_TEST = Object.freeze({ slot: 1, zone: '2', seconds: 60, startMinute: 23 * 60, days: [1, 8] });
+// Outcomes after which the controller holds exactly what the job wrote.
+const SETTLED = ['nothing to change', 'already synced', 'synced', 'synced, not read back'];
 // How many backups of the programs from before an install are kept.
 const BACKUPS = 5;
 // Dashboard packets arrive every few seconds; a job keeps only what identifies them.
@@ -295,6 +297,8 @@ export class ProgramJobs {
         record.finishedAt = new Date(engine.clock()).toISOString();
         session.closePrograms();
         this.store.set('programTests', [record, ...this.store.get('programTests', [])].slice(0, 5));
+        // The controller now holds what 2core wrote: the baseline for noticing changes made elsewhere.
+        if (!record.error && SETTLED.includes(record.outcome)) engine.nightChecks.installed(kind);
       }
     });
   }

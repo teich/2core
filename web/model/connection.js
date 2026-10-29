@@ -19,4 +19,4 @@ export const tucorNote = connection =>
     ? `After a failed connection, 2core waits until ${at(Date.parse(connection.retryAt))} before connecting on its own. Your commands can still retry.`
     : connection?.lastError
       ? `Last problem: ${connection.lastError}`
-      : '2core only connects while you use the app or when a rain delay needs setting.';
+      : '2core connects while you use the app, when a rain delay needs setting, and twice a night to check the watering.';
