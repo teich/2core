@@ -609,20 +609,50 @@
         ></span>
         <div>
           <h2 id="program-title">Controller programs</h2>
-          <p class="muted">Read-only · no controller changes</p>
+          <p id="program-subtitle" class="muted">Read-only · no controller changes</p>
         </div>
         <button id="close-programs" class="icon-button" aria-label="Close">
           <svg><use href="#i-x" /></svg>
         </button>
       </div>
       <div class="sheet-body">
+        <p id="program-writes" class="hint"></p>
+        <div id="program-last"></div>
         <div id="program-current"></div>
+        <div id="program-rename" class="program-rename" hidden>
+          <ol id="rename-list" class="rename-list"></ol>
+          <p id="rename-error" class="failure" role="alert"></p>
+          <div class="program-actions">
+            <button id="cancel-rename" class="outline">Cancel</button><button id="save-names" class="primary">Save names</button>
+          </div>
+        </div>
+        <div class="program-actions"><button id="start-rename" class="outline">Rename programs</button></div>
         <h3 class="program-dry-run">Your plan as programs</h3>
         <p class="hint">How the saved plan would become fixed, repeating controller programs. Dry weather only.</p>
         <fieldset id="program-overrides" class="check-list"></fieldset>
         <button id="compare-programs" class="outline">Compare with these zones on</button>
         <p id="program-error" role="status"></p>
         <div id="program-results"></div>
+        <section class="program-write">
+          <h3>Install on the controller</h3>
+          <p class="hint">
+            Writes the saved plan into the ten programs and syncs them to the controller. Review first; nothing changes until you install.
+            Program names stay as they are.
+          </p>
+          <div class="program-actions"><button id="review-install" class="outline">Review install</button></div>
+          <div id="install-review"></div>
+          <p id="install-error" class="failure" role="alert"></p>
+          <div class="program-actions"><button id="confirm-install" class="primary" hidden>Install on the controller</button></div>
+        </section>
+        <section class="program-write">
+          <h3>Put the programs back</h3>
+          <p id="restore-hint" class="hint"></p>
+          <label id="restore-choice" class="setting-row" hidden>From before the install of<select id="restore-backup"></select></label>
+          <div class="program-actions">
+            <button id="restore-programs" class="outline" hidden>Put these programs back…</button
+            ><button id="confirm-restore" class="primary" hidden>Replace every program</button>
+          </div>
+        </section>
       </div>
     </dialog>
 

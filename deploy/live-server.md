@@ -95,7 +95,9 @@ Each run's record, including everything Tucor sent back, is in
 
 ## Installing the plan
 
-Writes the saved plan into all ten programs, then syncs. Run it only with
+Writes the saved plan into all ten programs, then syncs. In the app this is
+Plan → More → Controller programs → Review install; the steps below do the
+same from a terminal. Run it only with
 someone watching, and with every Tucor tab and app closed: while Tucor's own
 app holds the controller, 2core can't connect. Nothing may be running.
 

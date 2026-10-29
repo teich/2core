@@ -1,5 +1,6 @@
 // What each zone is doing, as far as the controller has confirmed, and what the
 // person may do next. Pure functions of a context from core/app.js `context()`.
+import { programJobLabel } from './programs.js';
 import { at, clock, duration } from '../core/format.js';
 
 /** @typedef {ReturnType<typeof import('../core/app.js').context>} Context */
@@ -173,6 +174,8 @@ export function operationLabel(operation, zones = []) {
   if (operation.kind === '/api/rain')
     return operation.body.hours ? `Rain delay for ${operation.body.hours} hours` : 'Clear rain delay';
   if (operation.kind === '/api/stop') return 'Stop watering';
+  const job = programJobLabel(operation.kind);
+  if (job) return job;
   if (operation.body?.issues) return 'Save flag';
   return 'Save changes';
 }
