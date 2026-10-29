@@ -523,3 +523,44 @@ input[role='switch']:checked::after {
   height: 14px;
   color: var(--ink-3);
 }
+
+/* Controller programs: install, restore and rename. */
+.program-write {
+  margin-top: 24px;
+}
+.program-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 8px 0;
+}
+.program-actions:has(> :only-child[hidden]),
+.program-actions:empty {
+  display: none;
+}
+.rename-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.rename-list li {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 2.5em 1fr;
+  align-items: center;
+  margin: 6px 0;
+}
+.rename-list input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+}
+.rename-list small {
+  grid-column: 2;
+}
+.install-changes li + li {
+  margin-top: 8px;
+}

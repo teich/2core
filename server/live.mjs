@@ -2,6 +2,7 @@ import io from 'socket.io-client';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { ORIGIN, devicesFromResponse, summarize, plan } from '../lib/protocol.mjs';
 import { trace } from './telemetry.mjs';
+import { CLOSE, OPEN, READBACK, SYNC_CLOSE, SYNC_ERRORS, SYNC_EXECUTE, SYNC_START } from '../lib/program-messages.mjs';
 
 // Tucor is a shared vendor service: every new session costs it a device list request,
 // a socket, a login, and a controller selection. These caps hold even if a
@@ -37,6 +38,12 @@ export class LiveDriver {
     freshMs = 3000,
     waitMs = 20000,
     releaseMs = 500,
+    // How long a program write watches for Tucor's follow-up packets, before and after the readback.
+    programSettleMs = 15000,
+    // Spacing between program messages, so a whole schedule doesn't arrive at once.
+    programPaceMs = 100,
+    // A sync can take minutes; Tucor shows its progress as it goes.
+    syncMs = 240000,
     ledger = memory(),
     tokenStore = memory(),
     limits = TUCOR_LIMITS,
@@ -58,6 +65,9 @@ export class LiveDriver {
     this.freshMs = freshMs;
     this.waitMs = waitMs;
     this.releaseMs = releaseMs;
+    this.programSettleMs = programSettleMs;
+    this.programPaceMs = programPaceMs;
+    this.syncMs = syncMs;
     this.ledger = ledger;
     this.limits = limits;
     this.random = random;
@@ -270,6 +280,8 @@ class Session {
     this.sequence = 0;
     this.events = [];
     this.waiters = new Set();
+    /** @type {Set<(m: any) => void>} Program writes keep everything Tucor sends while they run. */
+    this.recorders = new Set();
     this.components = new Map();
     this.observed = { controllerMode: null, rainShutDown: null, stations: null };
     /** Programs and their capabilities arrive unasked after controller selection. */
@@ -324,6 +336,7 @@ class Session {
       for (const field of ['controllerMode', 'rainShutDown'])
         if (Object.hasOwn(m.data, field)) this.observed[field] = at;
     }
+    for (const record of this.recorders) record(m);
     this.events.push({ sequence: ++this.sequence, message: m });
     if (this.events.length > 256) this.events.shift();
     for (const check of [...this.waiters]) check();
@@ -359,7 +372,7 @@ class Session {
     }
     this.socket.emit('message', data);
   }
-  wait(predicate, label, from = 0) {
+  wait(predicate, label, from = 0, ms = this.driver.waitMs) {
     return new Promise((resolve, reject) => {
       const finish = (error, value) => {
         clearTimeout(timer);
@@ -375,7 +388,7 @@ class Session {
       };
       const timer = setTimeout(
         () => finish(new Error(`No confirmation for ${label}; inspect controller before retrying`)),
-        this.driver.waitMs,
+        ms,
       );
       this.waiters.add(check);
       check();
@@ -513,6 +526,105 @@ class Session {
         from,
       ),
     );
+  }
+  /** Starts keeping every packet Tucor sends; `stop()` returns them. */
+  record() {
+    const kept = [];
+    const record = m => kept.push({ at: new Date(this.driver.clock()).toISOString(), message: m });
+    this.recorders.add(record);
+    return {
+      stop: () => {
+        this.recorders.delete(record);
+        return kept;
+      },
+    };
+  }
+  programList(from) {
+    return this.wait(m => m.component === 'Programs' && Array.isArray(m.data) && m.data.length, 'program list', from);
+  }
+  /** Opens Tucor's Programs page as its editor does and waits for the list it sends. */
+  async openPrograms() {
+    const from = this.sequence;
+    for (const m of OPEN) this.send(m);
+    await this.telemetry.stage('programs_open', () => this.programList(from));
+    return { ...this.programs };
+  }
+  /**
+   * Sends a program write. The deadline and session are checked before the first
+   * message; after that the write runs to the end rather than stopping halfway.
+   */
+  async writePrograms(messages, check = true) {
+    for (const [i, m] of messages.entries()) {
+      this.send(m, check && i === 0);
+      if (this.driver.programPaceMs) await sleep(this.driver.programPaceMs);
+    }
+  }
+  /** Asks for the program list again, which is how the editor reads its edits back. */
+  async readPrograms() {
+    const from = this.sequence;
+    for (const m of READBACK) this.send(m);
+    await this.telemetry.stage('programs_confirmation', () => this.programList(from));
+    return { ...this.programs };
+  }
+  /** Leaves time for Tucor's follow-up packets, such as ProgramUpdate or sync status. */
+  settle() {
+    return sleep(this.driver.programSettleMs);
+  }
+  /**
+   * Opens a sync as Tucor's dialog does and collects what it proposes for each
+   * section. Nothing is synchronized until `executeSync`.
+   */
+  async startSync() {
+    const from = this.sequence;
+    const records = new Map();
+    let capabilities = null;
+    // Collected as they arrive: the session's packet buffer is too short for a busy minute.
+    const collect = m => {
+      if (m.component === 'SyncModal' && m.Capabilities) capabilities = m.Capabilities;
+      const list = m.data?.item === 'TimeStamps' ? m.data.record : null;
+      // The first list has every section; later ones update one section each.
+      if (Array.isArray(list)) for (const r of list) if (r?.sectionid != null) records.set(String(r.sectionid), r);
+    };
+    this.recorders.add(collect);
+    try {
+      for (const m of SYNC_START) this.send(m);
+      await this.telemetry.stage('sync_proposal', () =>
+        this.wait(
+          m => m.data?.item === 'TimeStamps' && Array.isArray(m.data.record) && m.data.record.length,
+          'sync proposal',
+          from,
+        ),
+      );
+      await sleep(this.driver.programSettleMs);
+    } finally {
+      this.recorders.delete(collect);
+    }
+    return { capabilities, records: [...records.values()] };
+  }
+  /** Runs the sync and waits for Tucor to report it finished, or a sync error. */
+  async executeSync() {
+    const from = this.sequence;
+    this.send(SYNC_EXECUTE);
+    const done = await this.telemetry.stage('sync_confirmation', () =>
+      this.wait(
+        m =>
+          (m.category === 'server' && m.command === 'synchronize' && m.data?.status === 'OK') ||
+          (m.category === 'server' && /^I01:01$|^(E42|EF1:02|W24)/.test(m.data?.code ?? '')),
+        'sync',
+        from,
+        this.driver.syncMs,
+      ),
+    );
+    const code = done.data?.code ?? '';
+    if (SYNC_ERRORS.test(code))
+      throw new Error(`Tucor reported ${code} during the sync; inspect the controller before retrying`);
+  }
+  /** Closes the sync dialog, as the app does whether or not it ran. */
+  closeSync() {
+    if (this.healthy) for (const m of SYNC_CLOSE) this.send(m);
+  }
+  closePrograms() {
+    if (this.healthy) for (const m of CLOSE) this.send(m);
   }
   async close() {
     const release = this.selected && this.socket.connected;

@@ -104,18 +104,19 @@ test('vineyard-on override fits ten programs with provably minimum overlap', () 
   verify(p, { zones: fixture.zones, ...fixture.plan });
 });
 
-test('rain-exempt zones keep separate programs even when their watering dates match', () => {
+test('zones with the same watering dates share a program, whatever an old saved intent says about rain', () => {
   const p = small([20, 30], {
     intents: {
       0: { seconds: 1200, cadence: { every: 1 } },
       1: { seconds: 1800, cadence: { every: 1 }, waterDuringRain: true },
     },
   });
-  assert.equal(p.programs.length, 2);
+  assert.equal(p.programs.length, 1);
   assert.deepEqual(
-    p.programs.map(p => p.waterDuringRain),
-    [false, true],
+    p.programs[0].steps.map(s => s.zone),
+    ['0', '1'],
   );
+  assert.ok(!('waterDuringRain' in p.programs[0]));
 });
 
 test('nonrepeating cadences, distant anchors and unrepresentable seconds block the whole candidate', () => {
@@ -136,12 +137,12 @@ test('short seconds remain exact, and longer supported seconds use whole-minute 
   const p = small([20 / 60, 310 / 60], {
     intents: {
       0: { seconds: 20, cadence: { every: 1 } },
-      1: { seconds: 310, cadence: { every: 1 }, waterDuringRain: true },
+      1: { seconds: 310, cadence: { every: 1 } },
     },
   });
   assert.equal(p.status, 'candidate');
   assert.deepEqual(
-    p.programs.map(p => p.seconds),
+    p.programs[0].steps.map(s => s.seconds),
     [20, 310],
   );
   assert.ok(p.programs.every(p => Number.isInteger(p.startMinute)));
@@ -229,7 +230,6 @@ test('varied parallel candidates remain bounded and retain all requested waterin
             seconds: (60 + (seed % 181)) * 60,
             cadence: i < 4 ? { every: 2 } : { perWeek: 3 },
             firstDue: dateKey(addDays(start, seed % 2)),
-            waterDuringRain: i % 3 === 0,
           },
         ];
       }),

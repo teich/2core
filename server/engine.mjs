@@ -9,17 +9,27 @@ import { createHash } from 'node:crypto';
 import { trace } from './telemetry.mjs';
 import { PlanService } from './plan-service.mjs';
 import { WeatherPolicy } from './weather-policy.mjs';
+import { ProgramJobs } from './program-jobs.mjs';
 import { mergePreferences } from './preferences.mjs';
 import { programDefinition, readCapabilities, readProgram } from '../lib/programs.mjs';
 import { AppError, LIMITS, number } from './validation.mjs';
 
 export { AppError, LIMITS, number };
+export { PROGRAM_TEST } from './program-jobs.mjs';
 
 /** Stations the controller reports as watering. */
 const active = state => state.stations.filter(s => s.isRunning || s.runningEntries?.length);
 
 export class Engine {
-  constructor({ driver, store, mode = 'demo', allowControl = false, clock = Date.now, logger = () => {} }) {
+  constructor({
+    driver,
+    store,
+    mode = 'demo',
+    allowControl = false,
+    allowProgramWrites = false,
+    clock = Date.now,
+    logger = () => {},
+  }) {
     this.driver = driver;
     this.store = store;
     this.mode = mode;
@@ -28,6 +38,7 @@ export class Engine {
     /** Set by server/index.mjs when a weather station is configured. */
     this.weatherSource = null;
     this.allowControl = mode === 'demo' || allowControl;
+    this.allowProgramWrites = mode === 'demo' || (this.allowControl && allowProgramWrites);
     this.queue = Promise.resolve();
     this.jobs = [];
     this.inflight = new Map();
@@ -35,6 +46,7 @@ export class Engine {
     this.current = this.store.get('lastObservation');
     this.plans = new PlanService(this);
     this.weatherPolicy = new WeatherPolicy(this);
+    this.programJobs = new ProgramJobs(this);
     this.plans.seed();
     this.error = null;
     // An open session streams controller updates; take them instead of asking again.
@@ -111,6 +123,9 @@ export class Engine {
       capabilities: readCapabilities(latest?.capabilities),
       programs: (latest?.list ?? []).map(readProgram),
       backups: { latest, original },
+      writesEnabled: this.allowProgramWrites,
+      tests: this.store.get('programTests', []),
+      installBackups: this.store.get('programBackups', []).map(b => b.receivedAt),
     };
   }
   refresh({ interactive = false, forceFresh = true } = {}) {
@@ -379,6 +394,26 @@ export class Engine {
       { user: source !== 'weather' },
     );
   }
+  // Program writes: see program-jobs.mjs.
+  programTest() {
+    return this.programJobs.test();
+  }
+  programRestore() {
+    return this.programJobs.restoreTest();
+  }
+  programInstallPreview() {
+    return this.programJobs.installPreview();
+  }
+  programInstall(payload) {
+    return this.programJobs.install(payload);
+  }
+  programRestoreInstall(payload) {
+    return this.programJobs.restoreInstall(payload);
+  }
+  programRename(payload) {
+    return this.programJobs.rename(payload);
+  }
+
   // Weather policy: see weather-policy.mjs.
   knownHold(hours) {
     return this.weatherPolicy.knownHold(hours);

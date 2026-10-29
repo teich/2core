@@ -6,6 +6,7 @@ import { LiveDriver } from '../server/live.mjs';
 import { Engine } from '../server/engine.mjs';
 import { Store } from '../server/store.mjs';
 import { readFileSync } from 'node:fs';
+import { DemoDriver } from '../server/demo.mjs';
 
 const captured = JSON.parse(readFileSync(new URL('./fixtures/tucor-programs.json', import.meta.url), 'utf8'));
 
@@ -79,6 +80,37 @@ class Cloud {
           cloud.runs = cloud.runs.filter(s => !s.runningEntries.some(e => data.handleID.includes(e.handleID)));
         if (data.component === 'Rainshutdown')
           cloud.main = { ...cloud.main, rainShutDown: data.command === 'Start' ? data.runtime : 0 };
+        // The program editor's page and readback request.
+        if (data.component === 'Programs' && data.command === 'Mounted' && cloud.programs)
+          this.receive({ component: 'Programs', data: cloud.programs.list });
+        if (data.Category === 'Irrigation') {
+          if (cloud.dropOnProgramWrite) return this.close();
+          DemoDriver.prototype.writePrograms.call(cloud, [data]);
+          if (cloud.programUpdate) this.receive({ ProgramUpdate: true });
+          // Edits wait in Tucor's cloud until a sync.
+          cloud.unsynced = true;
+          this.receive({ category: 'server', command: 'info', data: { code: 'I01:02' } });
+        }
+        // As production showed on 2026-10-28, Tucor ignores a sync from a dialog that never announced itself.
+        if (data.component === 'SyncModal') this.syncOpen = data.command === 'Mounted';
+        if (data.command === 'synchronize' && data.data.type === 'initiate' && this.syncOpen) {
+          this.receive({ component: 'SyncModal', Capabilities: { sections: { 1: 'Stations', 2: 'Programs' } } });
+          const row = (sectionid, app) => ({ sectionid, useappdata: app, usectrldata: '0', warning: '0' });
+          this.receive({
+            category: 'data',
+            data: {
+              item: 'TimeStamps',
+              record: cloud.syncRecords ?? [row('1', '0'), row('2', cloud.unsynced ? '1' : '0')],
+            },
+          });
+        }
+        if (data.command === 'synchronize' && data.data.type === 'execute') {
+          cloud.unsynced = false;
+          cloud.executed = (cloud.executed ?? 0) + 1;
+          this.receive({ category: 'server', command: 'info', data: { code: 'I23:50' } });
+          this.receive({ category: 'server', command: 'synchronize', data: { status: 'OK' } });
+          this.receive({ category: 'server', command: 'info', data: { code: 'I01:01' } });
+        }
         if (data.command === 'AutoStatus') {
           this.stationOnly = true;
           if (!cloud.silent) this.stations();
@@ -117,6 +149,7 @@ async function fixture(t, options = {}) {
     store,
     mode: 'live',
     allowControl: true,
+    allowProgramWrites: options.allowProgramWrites ?? false,
     logger: r => logs.push(r),
     ...(options.clock ? { clock: options.clock } : {}),
   });
@@ -455,4 +488,104 @@ test('a token from a password login survives a restart and is replaced once reje
   await third.driver.withSession(async () => {});
   assert.equal(third.cloud.http.filter(p => p.includes('get-token')).length, 1);
   assert.equal(saved.value, 'fresh-token');
+});
+
+// The captured programs were read on a Sunday; their slot 1 is off with no days, like production's.
+const sunday = () => new Date(2026, 9, 11, 12).getTime();
+const programCloud = cloud => {
+  cloud.programs = { capabilities: captured.capabilities.Capabilities, list: structuredClone(captured.programs.data) };
+};
+
+test('the test write opens the editor, writes the off slot, reads it back and syncs only programs', async t => {
+  const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
+  programCloud(cloud);
+  cloud.programUpdate = true;
+  await engine.refresh();
+  const before = cloud.sent.length;
+  const result = await command(engine, 'program-test', () => engine.programTest());
+  assert.equal(result.outcome, 'synced', JSON.stringify(result.problems));
+  const sent = cloud.sent.slice(before);
+  const writes = sent.filter(m => m.Category === 'Irrigation');
+  const first = sent.indexOf(writes[0]),
+    last = sent.indexOf(writes.at(-1));
+  // The editor's page opens first, the readback and the way back to the dashboard come after.
+  assert.deepEqual(sent.slice(first - 3, first), [
+    { category: 'route', data: '/programs' },
+    { component: 'Programs', command: 'Created' },
+    { component: 'Programs', command: 'Mounted' },
+  ]);
+  assert.deepEqual(sent[last + 1], { component: 'Programs', command: 'Mounted' });
+  assert.ok(sent.slice(last).some(m => m.category === 'route' && m.data === '/home'));
+  assert.ok(!sent.some(m => m.Status === 1));
+  // After the readback: the dialog's opening, then execute, then another readback. No direction is ever changed.
+  const syncs = sent.filter(m => m.command === 'synchronize').map(m => m.data.type);
+  assert.deepEqual(syncs, ['initiate', 'execute']);
+  const dialog = sent.filter(
+    m => m.component === 'SyncModal' || m.data?.item === 'TimeStamps' || m.command === 'synchronize',
+  );
+  assert.deepEqual(
+    dialog.map(m => (m.command === 'synchronize' ? m.data.type : (m.data?.item ?? m.command))),
+    ['Created', 'Mounted', 'TimeStamps', 'initiate', 'execute', 'Destroyed'],
+  );
+  const execute = sent.findIndex(m => m.data?.type === 'execute');
+  assert.ok(execute > last + 1);
+  assert.ok(sent.findIndex(m => m.data?.item === 'TimeStamps') > last + 1);
+  assert.deepEqual(sent[execute + 1], { component: 'Programs', command: 'Mounted' });
+  assert.ok(!sent.some(m => m.Type === 'SyncDirection' || m.command === 'SelectAll'));
+  assert.equal(cloud.executed, 1);
+  assert.equal(readProgramStatus(cloud), '0');
+  assert.equal(cloud.sockets.length, 1);
+  const record = engine.programs().tests[0];
+  assert.equal(record.outcome, 'synced');
+  assert.deepEqual(
+    record.sync.sections.map(s => s.name),
+    ['Stations', 'Programs'],
+  );
+  assert.ok(record.trace.some(e => e.message?.ProgramUpdate));
+  assert.ok(record.trace.some(e => e.component === 'Programs' && e.programs === 10));
+});
+const readProgramStatus = cloud => cloud.programs.list.find(p => p.ID === '1').status;
+
+test('a connection lost during a program write is left unknown and never retried', async t => {
+  const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
+  programCloud(cloud);
+  await engine.refresh();
+  cloud.dropOnProgramWrite = true;
+  await assert.rejects(
+    command(engine, 'program-drop', () => engine.programTest()),
+    /connection lost/,
+  );
+  assert.equal(cloud.sent.filter(m => m.Category === 'Irrigation').length, 1);
+  assert.equal(engine.programs().tests[0].outcome, 'unknown');
+  // The same request answers from its record instead of writing again.
+  await assert.rejects(
+    command(engine, 'program-drop', () => engine.programTest()),
+    /unknown outcome/,
+  );
+  assert.equal(cloud.sent.filter(m => m.Category === 'Irrigation').length, 1);
+});
+
+test('without ALLOW_PROGRAM_WRITES a program write contacts nobody', async t => {
+  const { engine, cloud } = await fixture(t, { clock: sunday });
+  programCloud(cloud);
+  await assert.rejects(
+    command(engine, 'program-off', () => engine.programTest()),
+    /Program writes are off/,
+  );
+  assert.equal(cloud.sockets.length, 0);
+});
+
+test('a sync proposal that touches more than programs leaves the write unsynced', async t => {
+  const { engine, cloud } = await fixture(t, { allowProgramWrites: true, programSettleMs: 5, clock: sunday });
+  programCloud(cloud);
+  await engine.refresh();
+  cloud.syncRecords = [
+    { sectionid: '1', useappdata: '0', usectrldata: '1', warning: '0' },
+    { sectionid: '2', useappdata: '1', usectrldata: '0', warning: '0' },
+  ];
+  const result = await command(engine, 'program-blocked-sync', () => engine.programTest());
+  assert.equal(result.outcome, 'not synced');
+  assert.deepEqual(result.problems, ['Stations would sync too.']);
+  assert.ok(!cloud.sent.some(m => m.data?.type === 'execute'));
+  assert.equal(cloud.executed, undefined);
 });

@@ -55,6 +55,84 @@ The helper verifies credentials with Tucor before replacing files. Container rec
 
 Set `ALLOW_LIVE_CONTROL=false` in `/opt/2core/.env` and recreate the service to return to read-only mode. This does not cancel a running controller timer or an existing rain delay.
 
+## Supervised program test
+
+Writes program 1, which is off and has no days, then reads it back. See
+`research/scheduling-plan.md` (“The supervised program test”) for what it
+writes and why. Run it only with someone at the controller, not during a
+deploy or a watering test.
+
+1. Set `ALLOW_PROGRAM_WRITES=true` in `/opt/2core/.env`, then
+   `docker compose up -d --force-recreate`. Check
+   `GET /api/programs` reports `"writesEnabled": true`.
+2. Open the app once so 2core has a fresh read of the programs.
+3. Start the test (the key stays on the server):
+
+   ```sh
+   ssh root@192.168.2.6 'curl -sS -X POST http://192.168.2.6:8787/api/programs/test-write \
+     -H "Authorization: Bearer $(cat /opt/2core/secrets/api_key)" \
+     -H "Content-Type: application/json" -H "Prefer: respond-async" \
+     -H "Idempotency-Key: program-test-$(date +%s)" \
+     -d "{\"deadline\": \"$(date -u -d +100sec +%FT%TZ)\"}"'
+   ```
+
+   It answers at once with an operation; follow it at
+   `/api/commands/<id>` (same headers, `GET`). The write takes about a
+   minute and the sync can take a few more. The result's `outcome` is
+   `synced` when it's done; `not synced` means Tucor's sync would have
+   touched more than programs, so nothing was synchronized and `problems`
+   says what. An error after sending started means the outcome is unknown:
+   don't repeat it, look at program 1 first. Never finish a sync from
+   Tucor's dialog with the controller's values: that undoes the write.
+4. Check program 1 on the controller itself and in Tucor's app: off, zone 2
+   for one minute, a 23:00 start, two days.
+5. Restore it the same way with `/api/programs/restore-test-slot`, and check
+   again.
+6. Set `ALLOW_PROGRAM_WRITES=false` and recreate the service.
+
+Each run's record, including everything Tucor sent back, is in
+`GET /api/programs` under `tests`.
+
+## Installing the plan
+
+Writes the saved plan into all ten programs, then syncs. In the app this is
+Plan → More → Controller programs → Review install; the steps below do the
+same from a terminal. Run it only with
+someone watching, and with every Tucor tab and app closed: while Tucor's own
+app holds the controller, 2core can't connect. Nothing may be running.
+
+1. Set `ALLOW_PROGRAM_WRITES=true` in `/opt/2core/.env`, then
+   `docker compose up -d --force-recreate`.
+2. Open the app so 2core reads today's programs, then review the install:
+
+   ```sh
+   ssh root@192.168.2.6 'curl -sS -X POST http://192.168.2.6:8787/api/programs/install-preview \
+     -H "Authorization: Bearer $(cat /opt/2core/secrets/api_key)" -H "Content-Type: application/json" -d "{}"'
+   ```
+
+   Check `status` is `ready`, read each slot's `changes`, and note the
+   `token`. A review is only good the same day, for the same plan and programs.
+3. Install it, in the background like the program test, with
+   `-H "Prefer: respond-async"` and `-d "{\"token\": \"TOKEN\", \"deadline\": …}"`
+   to `/api/programs/install`, then follow `/api/commands/<id>`. `synced` means
+   done. `not synced` means the write is in Tucor's cloud but Tucor's sync
+   would have touched more than programs; `problems` says what. Sync by hand
+   only if the dialog lists Programs alone, from the app.
+4. Check the controller against the review.
+5. To undo it, `POST /api/programs/restore-before-install` the same way
+   (newest backup unless `{"backup": "<time from installBackups>"}`).
+6. Set `ALLOW_PROGRAM_WRITES=false` and recreate the service.
+
+An error after sending started leaves the outcome unknown. Don't repeat it:
+the record in `GET /api/programs` `tests` says how far each slot got.
+
+## Renaming programs
+
+`POST /api/programs/rename` with `{"names": {"1": "Big olives", …}, "deadline": …}`,
+sent like the install (in the background, then follow `/api/commands/<id>`).
+It needs `ALLOW_PROGRAM_WRITES=true`, checks the names before contacting
+Tucor (12 plain characters at most), changes nothing but the names, and syncs.
+
 ## Deployment verification
 
 Live authentication, inventory, and status reads succeeded from the LXC. The latency update is deployed as release `20260928T011349Z-21591` (2026-09-27 local time). The original pre-update recovery snapshot is `/opt/2core/backups/20260928T010853Z-21070`.

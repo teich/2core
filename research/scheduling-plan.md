@@ -115,13 +115,12 @@ not a side effect of opening the app or editing another zone. Preview dates
 still assume watering occurred; live operation must use durable due dates and
 watering outcomes so missed or deferred work cannot disappear as time passes.
 
-Covered zones can be marked “Water during rain delays.” In the preview only
-exposed due zones are held; covered zones continue on their cadence, with normal
-capacity and pause constraints. No controller bypass is implemented. Before live
-cutover, validate a way to water covered zones while holding exposed ones. Rain
-and other execution exceptions will require reconciling due dates and updating
-the installed schedule, with verified readback and no blind retries. A repeating
-schedule alone does not implement the agreed postpone-and-shift rain behavior.
+A rain hold postpones every due zone. (Covered zones could once be marked
+“Water during rain delays”; that was removed on October 23, see “Deferred:
+watering covered zones through rain” below.) Rain and other execution
+exceptions will require reconciling due dates and updating the installed
+schedule, with verified readback and no blind retries. A repeating schedule
+alone does not implement the agreed postpone-and-shift rain behavior.
 
 The main cadence menu presents the four observed choices, with Other for the
 remaining choices. Durations display in minutes, night settings are collapsed,
@@ -259,3 +258,184 @@ use as many Tucor messages as it needs (see AGENTS.md). The remaining steps:
 3. Write the reviewed schedule, verify the readback against it, and keep the
    original copy ready to restore. A partly applied write is reported as such
    and isn't retried automatically.
+
+## October 22: the write messages, as a dry run
+
+Step 1 is done as a dry run. `lib/program-messages.mjs` turns a compiled
+candidate into the `IrrPgm*` messages, checked against the
+controller's capabilities. `tools/compile-programs.mjs --programs
+PROGRAMS.json SNAPSHOT.json` prints them. Nothing is sent.
+
+Each slot is switched off first and on last, so a write that stops partway
+leaves programs off rather than half edited. Unchanged steps and settings are
+skipped; removed stations get a 0-second runtime because the controller
+can't delete steps.
+
+Run against production on October 22, it found:
+
+- **Rain exemptions can't be written.** Citrus and entry pots was set to
+  water during rain delays, and no program message expresses that, so the
+  write was blocked. The setting was removed the next day (below).
+- **Names stay.** The install leaves names alone, so slots keep names like
+  “\*VINES Top” while holding other zones. (A program can be renamed: see
+  October 28.)
+- **Most slots still change.** Each compiled program goes to the slot that
+  already holds most of its zones (an exact search over the ten slots), and a
+  slot that already matches sends nothing. That took the write from 212
+  messages to 193. Most slots still change, because the plan groups zones by
+  calendar differently from the current programs. The two every-other-day
+  programs land in “\*Odd days” and “\*EVEN DAYS”; four slots, including
+  “\*VINES Top”, end up holding mostly other zones under their old names.
+- **The calendar's first week is unconfirmed.** The day letters repeat
+  weekly, so only the supervised readback can confirm which dates a mask
+  means.
+
+## October 23: what Tucor's current editor does
+
+Tucor had redeployed its web app since the September research, so the editor
+was read again from the current bundle (`protocol.md`, “Writing”). The
+message shapes held, with corrections the dry run now follows:
+
+- **No sync in the editor.** The editor never sends `synchronize`; the sync
+  is a separate dialog that can take the controller's values over the app's.
+  (The first test write showed edits do need it; see below.)
+- **Reading back** is `{component:'Programs', command:'Mounted'}`, which makes
+  Tucor send the program list again. The editor sends it when it opens and
+  whenever a pushed packet carries `ProgramUpdate`.
+- **Days** go out as `Period` and `Weekdays` in one message, the mask built
+  from `allDaysArranged` as the dry run already did.
+- **End times** are the start plus the program's runtime, in minutes, not -1.
+- **Removing a station** is always `Upd` with `RunTime: 0` when each step
+  holds one station.
+
+What only a supervised write can show: whether edits reach the controller by
+themselves (`I01:02` “Not Synced”, then `I01:01` “Synced”), what
+`ProgramUpdate` looks like and when, and whether the controller reads the
+calendar from the day of the write.
+
+## The supervised program test
+
+Built on October 23 for step 2, not yet run. `POST /api/programs/test-write`
+writes program 1 (“Lawns+perims”, off with no days) through the editor's
+messages: zone 2 for one minute, one start at 23:00, two days (tomorrow and a
+week later), 100% budget, and zones 5 and 9 zeroed. Nothing turns it on, so
+nothing can water. `POST /api/programs/restore-test-slot` puts it back from
+2core's first copy. Both need `ALLOW_PROGRAM_WRITES=true` as well as live
+control, run in one session and are never retried; the
+procedure is in `deploy/live-server.md`.
+
+The test refuses, before sending anything, unless program 1 is off with no
+days, matches 2core's first copy, and Tucor's calendar starts today. It then
+waits, reads back and waits again, keeping every packet and status code.
+Those records should answer:
+
+- Do edits reach the controller without a sync? Look for `I01:02` then
+  `I01:01` in the codes, and check the controller itself.
+- What does `ProgramUpdate` look like, and when does it come?
+- Does the controller read `Weekdays` from the day of the write? The two days
+  should be tomorrow and a week later on the controller.
+
+### First run, October 23
+
+The first attempt refused before sending: the “changed since 2core first saw
+it” check compared the day letters Tucor starts on the day of each read.
+Program definitions now ignore the read day. The second attempt wrote program
+1 with 17 messages and Tucor's readback matched, but the status went to
+`I01:02` “Not synchronized” and stayed, and the controller kept its old
+program. Tucor requires the sync to be started by hand, so the program jobs
+now run it, under the narrow rule in `protocol.md` (“Sync”). Run again the
+same day, the test finds program 1 already holding its target, writes
+nothing, and only syncs.
+
+### Synced by hand, October 28
+
+The owner ran Tucor's sync by hand, with only Programs listed, and the
+controller showed program 1 exactly as written, including the days counted
+from the day of the write. That answers the test's questions apart from the
+sync proposal's shape. The restore, with 2core's own sync, is next.
+
+### Restore, October 28
+
+The restore wrote program 1 back and the readback matched, but its sync got
+no answer: the sync step left out the dialog's `Created`/`Mounted`, which
+Tucor needs. Nothing was synchronized. The cloud holds the restored program
+and the controller the test version, which is off. Run again, the restore
+finds nothing to write and only syncs.
+
+### Result
+
+The owner synced the restore by hand too; the controller and Tucor showed
+program 1 exactly as it was, and 2core read `I01:01` “Synced”. Program
+writes are off again. Step 2 is done:
+
+- The editor's `IrrPgm*` messages, as 2core sends them, write a program
+  exactly, including the 14-day calendar counted from the day of the write.
+- Edits wait in Tucor's cloud until a sync; the controller changes only then.
+- Tucor's app holding the controller makes 2core's sessions fail with
+  “controller busy”.
+- Not yet seen: a real sync proposal. 2core's sync step now opens the dialog
+  as the app does, but hasn't run against Tucor.
+
+## Step 3: installing the plan
+
+Built on October 28, not yet run. `POST /api/programs/install-preview` is the
+dry run with a token for its exact messages; `POST /api/programs/install`
+reads the programs fresh, refuses unless the messages match the review, keeps
+a backup of all ten programs, writes slot by slot (each switched off first
+and on last, 100 ms between messages), reads every slot back, syncs under
+the same narrow rule, and reads back again.
+`POST /api/programs/restore-before-install` puts a backup back. The code is
+in `server/program-jobs.mjs`, alongside the test.
+
+Before the first install: run 2core's own sync once under supervision (the
+first install is that run), and decide how a missed or failed night is
+noticed (step 5 of the cutover).
+
+### Installed, October 28
+
+The reviewed plan was installed at 17:42 UTC: 201 messages, every slot
+written, the first readback matched. 2core's own sync ran for the first time.
+Tucor's proposal listed seven controller sections with nothing to change and
+each program as its own section, “Program #1” to “Program #10”, all from the
+app; Tucor synced them one by one in about 30 seconds and reported `OK` and
+`I01:01`. The readback after the sync got no answer (Tucor's dialog leaves the
+page after a sync), so the job reported “sync unknown”; a fresh read a minute
+later matched all ten programs. Program names can be set after all; renaming
+the ten programs to match their new zones was added the same day.
+
+### Renamed, October 29
+
+The ten programs were renamed to match what they now water: Big olives,
+Trees x road, Pool hill W, Manzanitas, Citrus+pots, Pool hill E, Lower beds,
+Lower trees, Even days, Odd days. Tucor synced the names by itself, so
+2core's sync step found nothing pending; it now reports that as “already
+synced”. The sync check also now lets unchanged programs show nothing
+pending, since Tucor lists each program as its own section.
+
+## Deferred: watering covered zones through rain
+
+Removed on October 23 so the plan can be written to the controller; to be
+added back later. Zones could be marked “Water during rain delays” for covered
+beds and pots that rain doesn't reach. The preview then held only exposed
+zones on rain nights, and the compiler kept covered zones in programs of their
+own. Only Citrus and entry pots (zone 7) used it.
+
+It was removed because nothing on the controller side can express it. Tucor's
+rain delay is controller-wide, and the `IrrPgm*` messages have no
+per-program rain setting (see `protocol.md`, “Writing”). Every zone now
+follows the rain delay.
+
+**The code.** It's all in the commit “Remove watering through rain delays
+for now”, and tag `rain-exemption` marks the last commit that had it.
+`git revert` of that commit restores it: the zone-sheet switch, intent
+validation, the planner's rain hold, separate compiler programs and the
+translator's `rain-exemption` block. Saved intents still carry the field;
+the server strips it when reading, so zone 7's old setting comes back with the
+code, unless a later save rewrote that intent without it.
+
+**Before adding it back,** find a controller-side way to water covered zones
+while exposed ones wait, and check it with a supervised test. Possibilities to
+look into: a per-station rain-sensor bypass in Tucor's station setup, a
+controller rain mode that only suspends some programs, or 2core starting the
+covered zones itself on held nights, which costs Tucor contact that has to be
+justified first.

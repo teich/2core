@@ -64,7 +64,12 @@ export class PlanService {
   /** The saved plan: settings, intentions by zone id, and the seasonal comparison zones. */
   plan() {
     const intents = Object.fromEntries(
-      Object.entries(this.store.prefixed('intent:')).map(([id, intent]) => [id, { ...DEFAULT_INTENT, ...intent }]),
+      // Saved intents can still carry waterDuringRain from before it was removed
+      // (research/scheduling-plan.md); it no longer affects watering.
+      Object.entries(this.store.prefixed('intent:')).map(([id, { waterDuringRain, ...intent }]) => [
+        id,
+        { ...DEFAULT_INTENT, ...intent },
+      ]),
     );
     return {
       settings: { ...DEFAULT_SETTINGS, ...this.store.get('planSettings', {}) },
@@ -101,7 +106,7 @@ export class PlanService {
         )
           throw new AppError('Cadence must be {every: days} or {perWeek: times}', 400);
         next.cadence = v;
-      } else if (k === 'enabled' || k === 'waterDuringRain') {
+      } else if (k === 'enabled') {
         if (typeof v !== 'boolean') throw new AppError(`Invalid ${k} flag`, 400);
         next[k] = v;
       } else if (k === 'firstDue') {

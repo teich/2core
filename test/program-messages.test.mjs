@@ -1,0 +1,288 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { compilePrograms } from '../lib/program-compiler.mjs';
+import {
+  assignSlots,
+  currentTarget,
+  programMessages,
+  readbackProblems,
+  syncCheck,
+  writeSlot,
+} from '../lib/program-messages.mjs';
+import { readCapabilities, readProgram } from '../lib/programs.mjs';
+
+const tucor = JSON.parse(readFileSync(new URL('./fixtures/tucor-programs.json', import.meta.url), 'utf8'));
+const intents = JSON.parse(readFileSync(new URL('./fixtures/program-intents.json', import.meta.url), 'utf8'));
+const capabilities = readCapabilities(tucor.capabilities.Capabilities);
+// The captured packets list the fortnight from a Sunday, so they were read on one.
+const sunday = '2026-10-11';
+
+const raw = (id, extra = {}) => ({
+  ID: String(id),
+  name: `Prog ${id}`,
+  status: '0',
+  waterBudget: '100',
+  irrigationType: '0',
+  period: '0',
+  allDaysArranged: 'SMtWTFsSMtWTFs',
+  fullDaySchedule: '--------------',
+  starts: [{ startSeq: '1', starttime: '-1', cycles: '1', endtime: '-1' }],
+  steps: [],
+  ...extra,
+});
+const mask = days => Array.from({ length: 14 }, (_, d) => days.includes(d));
+const candidate = (programs, anchor = sunday) => ({
+  status: 'candidate',
+  calendarAnchor: anchor,
+  programs: programs.map((p, i) => ({
+    slot: i + 1,
+    calendarMask: mask([0, 7]),
+    clockMinute: 1320,
+    steps: [{ zone: '3', name: 'Rear lawn drip', seconds: 600 }],
+    ...p,
+  })),
+});
+const write = (programs, current, extra = {}) =>
+  programMessages({ candidate: candidate(programs), current, capabilities, today: sunday, ...extra });
+
+test('the compiled fixture becomes programs, each switched off while edited and on last', () => {
+  const compiled = compilePrograms({
+    zones: intents.zones,
+    ...intents.plan,
+    start: new Date(2026, 9, 6),
+    sunriseAt: () => 431,
+  });
+  const result = programMessages({ candidate: compiled, current: tucor.programs.data, capabilities, today: sunday });
+  assert.equal(result.status, 'ready', JSON.stringify(result.issues));
+  assert.equal(result.summary.programs, compiled.programs.length);
+  const shift = 5; // 2026-10-06 to 2026-10-11
+  // Every compiled program lands in exactly one slot.
+  assert.deepEqual(
+    result.programs
+      .filter(p => p.use !== 'off')
+      .map(p => p.compiled)
+      .sort((a, b) => a - b),
+    compiled.programs.map(p => p.slot),
+  );
+  for (const p of result.programs.filter(p => p.use === 'plan')) {
+    const source = compiled.programs.find(c => c.slot === p.compiled);
+    const was = tucor.programs.data.find(r => Number(r.ID) === p.slot);
+    assert.deepEqual(p.messages.at(-1), {
+      Category: 'Irrigation',
+      Type: 'IrrPgmData',
+      Oper: 'Upd',
+      Seq: p.slot,
+      Status: 1,
+    });
+    if (was.status === '1') assert.equal(p.messages[0].Status, 0);
+    const weekdays = p.messages.find(m => m.Weekdays).Weekdays;
+    assert.deepEqual(
+      [...weekdays].map(ch => ch !== '-'),
+      Array.from({ length: 14 }, (_, d) => source.calendarMask[(shift + d) % 14]),
+    );
+    const starts = p.messages.filter(m => m.Type === 'IrrPgmStart');
+    assert.equal(starts.length, capabilities.maxStarts);
+    assert.equal(starts[0].Time, source.clockMinute);
+    // The editor's end time: start plus the program's runtime, in whole minutes.
+    assert.equal(starts[0].EndTime, Math.floor((source.clockMinute * 60 + source.seconds) / 60));
+    assert.ok(starts.slice(1).every(s => s.Time === -1 && s.Cycles === null));
+  }
+  assert.equal(result.summary.messages, result.programs.reduce((n, p) => n + p.messages.length, 0) + 10);
+  // The editor opens with these, and reads its edits back with Programs/Mounted; it never syncs.
+  assert.deepEqual(result.open, [
+    { category: 'route', data: '/programs' },
+    { component: 'Programs', command: 'Created' },
+    { component: 'Programs', command: 'Mounted' },
+  ]);
+  assert.deepEqual(result.readback, [{ component: 'Programs', command: 'Mounted' }]);
+  // Edits reach the controller only through Tucor's sync, after the readback.
+  assert.deepEqual(
+    result.sync.map(m => m.data?.item ?? m.data?.type ?? m.command),
+    ['Created', 'Mounted', 'TimeStamps', 'initiate', 'execute', 'Destroyed'],
+  );
+});
+
+test('steps are addressed by station, unchanged ones are skipped, and removals zero the runtime', () => {
+  const current = [
+    raw(1, {
+      status: '1',
+      steps: [
+        { runSeq: '3', runtime: '600', decoders: ['3'] },
+        { runSeq: '9', runtime: '300', decoders: ['9'] },
+      ],
+    }),
+  ];
+  const steps = [
+    { zone: '3', name: 'Rear lawn drip', seconds: 600 },
+    { zone: '5', name: 'Patio upper', seconds: 1740 },
+  ];
+  const result = write([{ steps }], current);
+  const cont = result.programs[0].messages.filter(m => m.Type === 'IrrPgmCont');
+  assert.deepEqual(cont, [
+    { Category: 'Irrigation', Type: 'IrrPgmCont', Oper: 'Upd', PgmId: 1, Seq: 5, RunTime: 1740 },
+    { Category: 'Irrigation', Type: 'IrrPgmCont', Oper: 'Upd', PgmId: 1, Seq: 9, RunTime: 0 },
+  ]);
+  assert.ok(result.programs[0].changes.includes('Add zone 5 · 29 min'));
+  assert.ok(result.programs[0].changes.includes('Remove zone 9'));
+  // With one station per step the editor never deletes, even where the controller could.
+  const deletable = write([{ steps }], current, { capabilities: { ...capabilities, deleteStep: true } });
+  assert.equal(deletable.programs[0].messages.find(m => m.Seq === 9 && m.Type === 'IrrPgmCont').Oper, 'Upd');
+});
+
+test('settings are only rewritten when they differ, and spare slots are switched off', () => {
+  const current = [
+    raw(1, { status: '1', waterBudget: '145', period: '1', irrigationType: '4' }),
+    raw(2, { status: '1' }),
+    raw(3),
+  ];
+  const result = write([{}], current);
+  const first = result.programs[0];
+  assert.deepEqual(
+    first.messages.filter(m => m.Type === 'IrrPgmData').map(m => Object.keys(m).at(-1)),
+    ['Status', 'IrrType', 'Period', 'Weekdays', 'Budget', 'Status'],
+  );
+  assert.equal(first.messages.find(m => m.Weekdays).Weekdays, 'S------S------');
+  assert.equal(first.messages.find(m => m.Weekdays).Period, 0);
+  assert.deepEqual(result.programs[1].messages, [
+    { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 2, Status: 0 },
+  ]);
+  assert.deepEqual(result.programs[2].messages, []);
+  assert.equal(result.summary.slotsOff, 1);
+  const plain = write([{}], [raw(1)]);
+  assert.deepEqual(
+    plain.programs[0].messages.filter(m => m.Type === 'IrrPgmData').map(m => Object.keys(m).at(-1)),
+    ['Weekdays', 'Status'],
+  );
+});
+
+test('the calendar is rotated from the compiler’s anchor to the day of the write', () => {
+  const tuesday = raw(1, { allDaysArranged: 'tWTFsSMtWTFsSM' });
+  const result = programMessages({
+    candidate: candidate([{ calendarMask: mask([0, 9]) }], '2026-10-11'),
+    current: [tuesday],
+    capabilities,
+    today: '2026-10-13',
+  });
+  assert.equal(result.status, 'ready');
+  assert.equal(result.programs[0].messages.find(m => m.Weekdays).Weekdays, '-------t----S-');
+});
+
+test('anything the messages can’t express blocks the whole write', () => {
+  const blocked = (result, code) => {
+    assert.equal(result.status, 'blocked');
+    assert.ok(
+      result.issues.some(i => i.code === code),
+      JSON.stringify(result.issues),
+    );
+    assert.deepEqual(result.programs, []);
+  };
+  blocked(write([{}, {}], [raw(1)]), 'slots');
+  blocked(write([{}], [raw(1)], { today: '2026-10-12' }), 'calendar-alignment');
+  blocked(write([{}], [raw(1)], { capabilities: { ...capabilities, maxStationsPerStep: 2 } }), 'multi-station-steps');
+  blocked(write([{}], [raw(1)], { capabilities: { ...capabilities, budget: { minimum: 0, maximum: 90 } } }), 'budget');
+  blocked(write([{}], [raw(1)], { capabilities: null }), 'capabilities');
+  blocked(write([{ clockMinute: 1320.5 }], [raw(1)]), 'start-time');
+  blocked(write([{ steps: [{ zone: '3', name: 'Drip', seconds: 0 }] }], [raw(1)]), 'runtime');
+  blocked(
+    programMessages({ candidate: { status: 'blocked' }, current: [raw(1)], capabilities, today: sunday }),
+    'no-candidate',
+  );
+});
+
+test('programs go to the slots that already hold most of their zones', () => {
+  const holding = (id, zones, extra = {}) =>
+    raw(id, { steps: zones.map(z => ({ runSeq: z, runtime: '600', decoders: [z] })), ...extra });
+  const current = [holding(1, ['8']), holding(2, ['3', '4']), holding(3, ['5', '6', '7'])];
+  const step = zone => ({ zone, name: `Zone ${zone}`, seconds: 600 });
+  const result = write([{ steps: [step('5'), step('6')] }, { steps: [step('3'), step('9')] }], current);
+  assert.deepEqual(
+    result.programs.map(p => [p.slot, p.compiled ?? null, p.use]),
+    [
+      [1, null, 'off'],
+      [2, 2, 'plan'],
+      [3, 1, 'plan'],
+    ],
+  );
+  assert.deepEqual(
+    result.programs[2].messages.filter(m => m.Type === 'IrrPgmCont').map(m => [m.Seq, m.RunTime]),
+    [[7, 0]],
+  );
+  assert.deepEqual(assignSlots([{ steps: [] }, { steps: [] }], current.map(readProgram)), [0, 1]);
+  // Slot 2 keeps only zone 3 of its new two, which still counts as half.
+  assert.ok(!result.warnings.some(w => w.code === 'names'));
+  const moved = write([{ steps: [step('3'), step('9'), step('10')] }], [holding(1, ['3', '4'])]);
+  assert.match(moved.warnings.find(w => w.code === 'names').message, /Prog 1/);
+});
+
+test('a slot that already matches the plan sends nothing', () => {
+  const matching = raw(1, {
+    status: '1',
+    fullDaySchedule: 'S------S------',
+    starts: [{ startSeq: '1', starttime: '1320', cycles: '1', endtime: '1330' }],
+    steps: [{ runSeq: '3', runtime: '600', decoders: ['3'] }],
+  });
+  const result = write([{}], [matching]);
+  assert.equal(result.programs[0].use, 'keep');
+  assert.deepEqual(result.programs[0].messages, []);
+  assert.deepEqual(result.summary, { programs: 1, unchanged: 1, slotsOff: 0, messages: 10 });
+  // A read from another day can't be compared with today's calendar.
+  assert.ok(write([{}], [matching], { readDate: '2026-10-04' }).issues.some(i => i.code === 'calendar-alignment'));
+});
+
+test('a sync runs only for programs going from the app to the controller', () => {
+  const capabilities = { sections: { 1: 'Stations', 2: 'Programs', 3: 'Sensors' } };
+  const row = (sectionid, app = '0', ctrl = '0', warning = '0') => ({
+    sectionid,
+    useappdata: app,
+    usectrldata: ctrl,
+    warning,
+  });
+  const ok = syncCheck({ capabilities, records: [row('1'), row('2', '1'), row('3')] });
+  assert.deepEqual(ok.problems, []);
+  assert.equal(ok.sections[1].name, 'Programs');
+  for (const [records, problem, extra] of [
+    [[row('1'), row('2', '0', '1'), row('3')], 'Programs would not go from the app to the controller.'],
+    [[row('1'), row('2', '1', '0', '1'), row('3')], 'Programs would not go from the app to the controller.'],
+    [[row('1', '1'), row('2', '1'), row('3')], 'Stations would sync too.'],
+    [[row('1'), row('2', '1'), row('3', '0', '1')], 'Sensors would sync too.'],
+    [[row('1'), row('3')], 'Tucor listed no programs section.'],
+    [[], 'Tucor didn’t say what a sync would change.'],
+    [[row('2', '1')], 'Tucor warns about the controller’s state.', { ctrlWarn: true }],
+  ]) {
+    const result = syncCheck({ capabilities: { ...capabilities, ...extra }, records });
+    assert.equal(result.ok, false);
+    assert.ok(result.problems.includes(problem), JSON.stringify(result.problems));
+  }
+  // Nothing pending anywhere: no sync to run, and no problem either.
+  const nothing = syncCheck({ capabilities, records: [row('1'), row('2'), row('3')] });
+  assert.equal(nothing.ok, false);
+  assert.equal(nothing.nothing, true);
+  assert.deepEqual(nothing.problems, []);
+  // Tucor's real shape (2026-10-28): each program is its own section; unchanged ones have nothing pending.
+  const each = { sections: { 11: 'Stations', 101: 'Program #1', 102: 'Program #2' } };
+  assert.equal(syncCheck({ capabilities: each, records: [row('11'), row('101', '1'), row('102')] }).ok, true);
+  assert.deepEqual(
+    syncCheck({ capabilities: each, records: [row('11'), row('101', '1'), row('102', '0', '1')] }).problems,
+    ['Program #2 would not go from the app to the controller.'],
+  );
+  // A reply 2core can't read blocks it too.
+  assert.equal(syncCheck({ capabilities: null, records: undefined }).ok, false);
+});
+
+test('a new name is one message on its own, and the readback checks it', () => {
+  const on = raw(1, { status: '1', name: 'Old name    ', fullDaySchedule: 'S------S------' });
+  const target = { ...currentTarget(on), name: 'Big olives' };
+  assert.deepEqual(writeSlot(on, target, capabilities).messages, [
+    { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 1, Name: 'Big olives' },
+  ]);
+  // With other changes too, it goes while the slot is off, like the rest.
+  const both = writeSlot(on, { ...target, budget: 120 }, capabilities).messages;
+  assert.deepEqual(both[0], { Category: 'Irrigation', Type: 'IrrPgmData', Oper: 'Upd', Seq: 1, Status: 0 });
+  assert.equal(both[1].Name, 'Big olives');
+  assert.equal(both.at(-1).Status, 1);
+  // Tucor pads names; an unchanged name sends nothing.
+  assert.deepEqual(writeSlot(on, { ...target, name: 'Old name' }, capabilities).messages, []);
+  assert.deepEqual(readbackProblems(on, target), ['Name is “Old name”']);
+  assert.deepEqual(readbackProblems({ ...on, name: 'Big olives  ' }, target), []);
+});

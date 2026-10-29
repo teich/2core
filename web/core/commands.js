@@ -9,6 +9,7 @@ import { api, uuid } from './api.js';
 import { message } from './message.js';
 import { readJSON, write } from './storage.js';
 import { blockedReason, controlsBusy, opTarget, operationLabel } from '../model/zones.js';
+import { programJobLabel, programOutcome } from '../model/programs.js';
 
 const COMMAND_KEY = '2core-command';
 app.tracked = readJSON(COMMAND_KEY);
@@ -82,6 +83,14 @@ async function reconcileCommand() {
     }
   }
   const target = opTarget(operation);
+  // A program job can finish without reaching the controller; its outcome says.
+  if (operation && operation.state !== 'pending' && programJobLabel(operation.kind)) {
+    remember(null);
+    const { text, failed } = programOutcome(operation);
+    message(text, failed);
+    emit('program-job', operation);
+    return;
+  }
   if (operation?.state === 'succeeded') {
     const run = operation.result?.run;
     if (run) app.walkId = run.zone;

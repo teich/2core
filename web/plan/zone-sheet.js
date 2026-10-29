@@ -19,7 +19,7 @@ import { blank, intents, plan, project, zones } from './state.js';
 
 const COMMON_CADENCES = [{ every: 1 }, { every: 2 }, { perWeek: 3 }, { perWeek: 2 }, { every: 7 }];
 const PRESET_MINUTES = [5, 10, 15, 20, 30, 45, 60];
-const FIELDS = ['seconds', 'cadence', 'enabled', 'waterDuringRain', 'seasonalPercent'];
+const FIELDS = ['seconds', 'cadence', 'enabled', 'seasonalPercent'];
 
 /** The zone being edited; `typed` holds run-length text that doesn't parse yet. */
 let sheet = null;
@@ -95,7 +95,6 @@ export function renderZoneSheet() {
     : pct === 100
       ? 'Runs at the full length.'
       : `Runs ${formatDuration(adjusted)} instead of ${formatDuration(intent.seconds)}.`;
-  $('pz-rain').checked = intent.waterDuringRain === true;
   // Preview this zone with the unsaved values to show what they mean.
   const preview = project({ ...intents(), [sheet.id]: intent }).plan.zones.find(z => z.id === sheet.id);
   $('pz-summary').textContent =
@@ -167,10 +166,6 @@ export function mount() {
   });
   $('pz-enabled').addEventListener('change', () => {
     sheet.intent.enabled = $('pz-enabled').checked;
-    renderZoneSheet();
-  });
-  $('pz-rain').addEventListener('change', () => {
-    sheet.intent.waterDuringRain = $('pz-rain').checked;
     renderZoneSheet();
   });
   $('pz-cancel').addEventListener('click', () => $('plan-zone-dialog').close());

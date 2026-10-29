@@ -343,3 +343,71 @@ test('controller programs read as days, starts and zone steps', async () => {
     /Not read yet/,
   );
 });
+
+test('program days start on the day Tucor read them', async () => {
+  const { programDays } = await import('../web/model/programs.js');
+  const days = mask => [...mask].map(c => c !== '-');
+  // Read on a Wednesday: the first week is Wednesday to Tuesday.
+  assert.equal(programDays({ period: '14 days', days: days('---s------s---'), firstDay: 3 }), 'Every week: Sat');
+  assert.equal(
+    programDays({ period: '14 days', days: days('W-F-S-t-T-s-M-'), firstDay: 3 }),
+    'Alternating weeks: Sun, Tue, Wed, Fri / Mon, Thu, Sat',
+  );
+});
+
+test('program jobs report their outcome, not just that they finished', async () => {
+  const { programOutcome, programRecordText, programJobLabel, nameProblem, reviewRows, programWrites } =
+    await import('../web/model/programs.js');
+  const { operationLabel } = await import('../web/model/zones.js');
+  const op = (kind, state, result) => ({ kind: `/api/programs/${kind}`, state, result });
+  assert.deepEqual(programOutcome(op('install', 'succeeded', { ok: true, outcome: 'synced' })), {
+    text: 'Install the plan on the controller: done and synced to the controller.',
+    failed: false,
+  });
+  const notSynced = programOutcome(
+    op('install', 'succeeded', { ok: false, outcome: 'not synced', problems: ['Stations would sync too.'] }),
+  );
+  assert.equal(notSynced.failed, true);
+  assert.match(notSynced.text, /written to Tucor, but not synced.*Stations would sync too\./);
+  assert.equal(programOutcome(op('rename', 'succeeded', { ok: true, outcome: 'already synced' })).failed, false);
+  assert.match(
+    programOutcome(op('install', 'failed', { error: 'Program writes are off' })).text,
+    /Program writes are off/,
+  );
+  assert.equal(programJobLabel('/api/zones/1/start'), null);
+  assert.equal(operationLabel({ kind: '/api/programs/rename', body: {} }), 'Rename programs');
+
+  assert.equal(
+    programRecordText({ kind: 'rename programs', outcome: 'already synced' }),
+    'Rename programs: done; Tucor had already synced it.',
+  );
+  assert.match(
+    programRecordText({ kind: 'install plan', outcome: 'unknown', error: 'connection lost' }),
+    /outcome is unknown/,
+  );
+  assert.doesNotMatch(programRecordText({ kind: 'install plan', outcome: 'not sent', error: 'changed' }), /unknown/);
+
+  assert.equal(nameProblem('Big olives'), null);
+  assert.equal(nameProblem('Citrus + pots'), '13 characters; the controller takes 12.');
+  assert.equal(nameProblem(' Pots'), 'No spaces at the start or end.');
+  assert.equal(nameProblem('Pots ✓'), 'Letters, numbers and plain symbols only.');
+  assert.equal(nameProblem(''), 'Give it a name.');
+
+  assert.deepEqual(
+    reviewRows({
+      programs: [
+        { slot: 1, name: 'A', use: 'plan', changes: ['Start 05:30 → 04:30'], messages: [{}] },
+        { slot: 2, name: 'B', use: 'keep', changes: [], messages: [] },
+        { slot: 3, name: 'C', use: 'off', changes: ['Turn off'], messages: [{}] },
+      ],
+    }),
+    [
+      { slot: 1, name: 'A', off: false, changes: ['Start 05:30 → 04:30'] },
+      { slot: 3, name: 'C', off: true, changes: ['Turn off'] },
+    ],
+  );
+  assert.equal(programWrites({ writesEnabled: false, observedAt: 'x' }).enabled, false);
+  assert.match(programWrites({ writesEnabled: false, observedAt: 'x' }).note, /ALLOW_PROGRAM_WRITES/);
+  assert.equal(programWrites({ writesEnabled: true, observedAt: null }).enabled, false);
+  assert.equal(programWrites({ writesEnabled: true, observedAt: 'x' }).enabled, true);
+});

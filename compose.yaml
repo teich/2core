@@ -9,6 +9,8 @@ services:
       MODE: live
       TZ: ${TZ:-America/Los_Angeles}
       ALLOW_LIVE_CONTROL: ${ALLOW_LIVE_CONTROL:-false}
+      # Only for the supervised program test; needs live control too.
+      ALLOW_PROGRAM_WRITES: ${ALLOW_PROGRAM_WRITES:-false}
       CONTROLLER_ID: ${CONTROLLER_ID:-2479}
       API_KEY_FILE: /run/secrets/api_key
       TUCOR_USER_FILE: /run/secrets/tucor_user

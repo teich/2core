@@ -10,7 +10,9 @@ history, and status parsing. No local-controller probing was needed.
 Source snapshots live in the ignored `assets/` and `source/` directories next to
 this file. Hashes are recorded in `assets-manifest.json`. Main deployed bundle:
 `https://tucor.mysrc.online/js/app.37eafea5.js`; its map is the same URL plus `.map`.
-SSO bundle: `/sso/js/app.6605415d.js`, also with a source map.
+SSO bundle: `/sso/js/app.6605415d.js`, also with a source map. Tucor had
+redeployed by 2026-10-23; the program-writing notes below come from that day's
+bundle, `/js/app.cebfb023.js` and its chunks.
 
 Evidence levels:
 
@@ -279,12 +281,16 @@ several times during a session. An anonymized copy is in
 | `waterBudget` | Percent applied to every step's runtime (0–250) |
 | `irrigationType` | `"0"` water budget, `"4"` weather |
 | `period` | `"0"` 14-day mask, `"1"` odd days, `"2"` even days |
-| `fullDaySchedule` | 14 characters aligned with `allDaysArranged` (`SMtWTFsSMtWTFs`, from a Sunday): a letter waters that day, `-` doesn't. Odd and even programs report an approximate mask |
+| `fullDaySchedule` | 14 characters aligned with `allDaysArranged`, which starts on the day of the read (`WTFsSMt…` on a Wednesday; the fixture was captured on a Sunday): a letter waters that day, `-` doesn't. Odd and even programs report an approximate mask |
 | `starts[]` | `startSeq`, `starttime` (minutes after midnight), `cycles`, `endtime` (reported finish in minutes, can exceed 1440, or `-1`) |
 | `steps[]` | `runSeq`, `runtime` (seconds, before budget), `decoders` (station ids) |
 | `runningStatus`, `runningEntries`, `nextRun`, `today` | Live state. `nextRun` was sometimes a small number and sometimes epoch ms |
 
-Two findings matter for writing programs:
+Production reads on 2026-10-07 (Wednesday) and 2026-10-22 (Thursday) bear
+this out: `allDaysArranged` began `W` and then `T`, and an unchanged 14-day
+program's mask moved by one day, fifteen days later.
+
+Three findings matter for writing programs:
 
 - **Steps are fixed per station on this LTD.** With `maxStationsPerStep: 1`,
   `runSeq` equals the station id. A program runs its stations in station-number
@@ -294,24 +300,111 @@ Two findings matter for writing programs:
   packets and later ones reported the same programs with the two weeks
   swapped. Which half is the current week needs checking against `nextRun`
   or the controller before writing a calendar.
+- **Steps can't be deleted.** Capabilities report `steps.deleteStep: false`,
+  so the dry run removes a station from a program by writing a 0-second
+  runtime. Nothing in the message family lets a program water during a rain
+  delay. (A name can be set: see “Writing”. An earlier note here said it
+  couldn't; that was wrong.)
 
-### Writing (recovered, never sent)
+### Writing (recovered 2026-10-23, never sent)
 
-Tucor's program editor (`EditProgram*.vue`, `SyncModal.vue` in the
-`app.37eafea5.js.map` source map) uses an `Irrigation` message family,
-distinct from the `component`/`command` messages used elsewhere:
+Read from the current editor: `EditPrograms.vue` and its `EditProgramType`,
+`EditProgramRunTimes`, `EditProgramStartTimes` and `EditProgramParameters`
+steps, plus `pages/Programs.vue` and `SyncModal.vue`, in
+`app.cebfb023.js.map`. Writes use an `Irrigation` message family, distinct
+from the `component`/`command` messages used elsewhere. Every message goes
+out with `socket.emit('message', …)`, like the rest of the app.
+
+**Opening the editor.** Navigating sends `{category:'route', data:'/programs'}`.
+The Programs page, the editor and each editor step send
+`{component:'Programs', command:'Mounted'}` (the page also sends `Created`).
+That request is how the editor reads programs back: Tucor answers with the
+`Programs` packet, and the editor stays locked until a list of all ten
+arrives. When a pushed packet carries `ProgramUpdate`, the editor sends
+`Programs`/`Mounted` again to refresh.
 
 | Change | Message |
 | --- | --- |
-| Program settings | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Period`, `Weekdays` (14-character mask), `Status`, `Budget`, `Booster` |
-| Start times | `{Category:'Irrigation', Type:'IrrPgmStart', Oper:'Upd', PgmId, Seq:<1–maxStarts>, Time, Cycles, EndTime}`. The editor rewrites every slot and sends `Time:-1, Cycles:null, EndTime:null` for unused ones |
-| Step runtime | One station per step: `{Category:'Irrigation', Type:'IrrPgmCont', Oper:'Upd'\|'Del', PgmId, Seq:<step>, RunTime}` (0 on delete). Multi-station controllers use `IrrPgmStep` |
-| Sync | `{category:'server', command:'synchronize', data:{type:'initiate'}}` after `{category:'data', command:'get', data:{type:'dataset', item:'TimeStamps'}}`. `SyncModal` lets each section take the app's or the controller's values (`SelectAll` with `useApp`/`useCtrl`) |
+| Type, status, budget, booster, name | `{Category:'Irrigation', Type:'IrrPgmData', Oper:'Upd', Seq:<program>, …}` with one of `IrrType`, `Status`, `Budget`, `Booster` (`0` for none), `Name` (up to `capabilities.name.maxLength`, 12 here; Tucor pads it to that length in its own packets) |
+| Calendar | `Period` alone when the period changes; each day toggle then sends `Period` and `Weekdays` together. Days can only change on an editable period (the 14-day calendar here) |
+| Start times | `{Category:'Irrigation', Type:'IrrPgmStart', Oper:'Upd', PgmId, Seq:<1–maxStarts>, Time, Cycles, EndTime}` for every slot, `Time:-1, Cycles:null, EndTime:null` for unused ones. `Time` is minutes after midnight; `EndTime` is `floor((start + runtime × cycles + soak × (cycles − 1)) / 60)` in minutes and can pass 1440 |
+| Step runtime, one station per step | `{Category:'Irrigation', Type:'IrrPgmCont', Oper:'Upd', PgmId, Seq:<station id>, RunTime:<seconds>}`. Always `Upd`; removing a station writes `RunTime: 0` |
+| Step runtime, grouped stations | `IrrPgmStep` with `StepNo`, `Station` and `Seq`, plus `IrrPgmCont` addressed by step. Not used on this controller |
 
-Still unknown: whether `Upd` messages are acknowledged; whether they reach
-the controller directly or only after sync; which way sync goes by default;
-and how to tell sync has finished. Until a supervised test answers these,
-treat a saved program as not installed.
+`Weekdays` is built from `allDaysArranged`: the day's letter (`S M t W T F s`)
+where it waters and `-` where it doesn't, in that order, starting with the
+day of the read. That matches what Tucor reports in `fullDaySchedule`.
+
+**Sync.** The program editor never sends `synchronize`, but its edits stay in
+Tucor's cloud until someone syncs: Tucor requires the sync to be started by
+hand (confirmed by the owner, and by the test below, where the status went to
+`I01:02` and stayed). The sync is a separate dialog behind the header's
+connection icon, which reads `I01:01` “Synced” or `I01:02` “Not Synced”.
+From `SyncModal.vue`:
+
+1. Like every component, it first sends `{component:'SyncModal',
+   command:'Created'}` and `Mounted`; without them Tucor didn't answer a sync
+   (2026-10-28, below). It then sends `{category:'data', command:'get', data:{type:'dataset',
+   item:'TimeStamps'}}` and `{category:'server', command:'synchronize',
+   data:{type:'initiate'}}`.
+2. Tucor answers with `{component:'SyncModal', Capabilities:{sections,
+   ctrlWarn}}` (`sections` maps a section id to its name) and a
+   `TimeStamps` dataset whose `record` lists, per `sectionid`, change times
+   and Tucor's proposal: `useappdata` `'1'` sends the app's values to the
+   controller, `usectrldata` `'1'` takes the controller's, `warning` `'1'`
+   flags a conflict. Later `TimeStamps` packets update one section each.
+3. The person may change a section's direction (`{Category:'Settings',
+   Type:'SyncDirection', Oper:'Upd', Seq:<section>, UseApp, UseCtrl}`, or
+   `SelectAll`), then starts it with `{category:'server',
+   command:'synchronize', data:{type:'execute'}}`. With `ctrlWarn` the
+   dialog asks for confirmation first.
+4. Progress arrives as `I23:<percent>`; it ends with `synchronize` status
+   `OK` or `I01:01`. `E42:*`, `EF1:02` and `W24:*` are sync problems. The
+   dialog also lists `IFE`, which Tucor sends on every connection.
+
+A sync covers every section, so 2core runs it only when Tucor proposes the
+app's programs and nothing else, and never changes a direction.
+
+**Acknowledgements.** The editor doesn't wait for a reply to each message.
+It shows “saving” on any `Upd`, refreshes on `ProgramUpdate`, and treats
+the refreshed list as the result.
+
+First test write, 2026-10-23: 17 messages to program 1; Tucor's readback
+matched within seconds, the status went from `I01:01` to `I01:02` about six
+seconds later and stayed there, and the controller kept its old program.
+No packet carried `ProgramUpdate`; about 14 seconds after the writes Tucor
+sent the capabilities and the program list again.
+
+On 2026-10-28 the owner synced it by hand from Tucor's dialog, with only
+Programs listed. The controller then showed exactly what was written: off,
+zone 2 for one minute, 23:00, 100%, and Saturdays October 31 and November 7.
+Those are the written days (October 24 and 31, from the day of the write)
+carried forward on the 14-day cycle, so the controller reads `Weekdays` from
+the day of the write. 2core's next read reported `I01:01` “Synced”.
+
+The restore on 2026-10-28 wrote program 1 back (17 messages, readback
+matched) and then sent the `TimeStamps` request and `initiate` without the
+dialog's `Created`/`Mounted`. Tucor sent nothing for the sync in 20 seconds,
+so nothing was executed. The sync step now announces and closes the dialog
+as the app does.
+
+The install on 2026-10-28 was the first sync 2core ran. Tucor's proposal
+has one section per controller area (Stations, Station Sequence, Valve
+Types, Sensors, ET, Flow, System; ids 11–17) and one per program
+(“Program #1” to “Program #10”; ids 101–110), each with `appchangedtime`,
+`ctrlchangedtime`, `synchronizedtime`, `timeout` and the flags above. A
+first `TimeStamps` packet lists every section; during the sync Tucor sends
+one per section as it finishes, then `synchronize` `OK` and `I01:01`. It
+synced ten programs in about 30 seconds. Straight after, `Programs`/`Mounted`
+got no answer.
+
+Renaming all ten programs on 2026-10-29 (one `Name` message each) went to
+`I01:02` and back to `I01:01` by itself; the sync proposal then had nothing
+pending anywhere. Names seem to reach the controller without a sync.
+
+While Tucor's own app had the controller selected, 2core's reads failed with
+“controller busy” until every Tucor tab and app was closed. Still unknown:
+the sync proposal's exact shape, which 2core's own sync step relies on.
 
 Do not use the configuration synchronization modal as a connection repair tool.
 No synchronization, edits to schedules, station setup, controller dial/mode
