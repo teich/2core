@@ -47,8 +47,8 @@ export class PlanService {
   /** Zones to plan: named ones, plus any unnamed zone that already has a complete intention. */
   plannable(plan) {
     return this.engine
-      .state()
-      .zones.filter(z => z.configured || (plan.intents[z.id]?.seconds && plan.intents[z.id]?.cadence));
+      .zones()
+      .filter(z => z.configured || (plan.intents[z.id]?.seconds && plan.intents[z.id]?.cadence));
   }
 
   /** Gives intentions without a first watering date one, spread across nights. */

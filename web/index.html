@@ -342,6 +342,17 @@
         </section>
 
         <section id="activity-view" hidden aria-labelledby="view-title">
+          <div id="checks-group" class="group pad checks" hidden>
+            <h2>Watering checks</h2>
+            <p class="checks-sync">
+              <span id="checks-sync-pill" class="pill"><i class="dot"></i><span id="checks-sync">—</span></span>
+            </p>
+            <div id="checks-nights"></div>
+            <p class="hint">
+              Tucor keeps no record of what ran. An hour before each night’s first start, 2core checks the controller can run it, then looks
+              once for a planned zone running.
+            </p>
+          </div>
           <div class="group pad metrics">
             <h2>Controller</h2>
             <dl>
@@ -362,7 +373,9 @@
               <dt>Password logins today</dt>
               <dd id="tucor-logins">—</dd>
             </dl>
-            <p id="tucor-note" class="hint">2core only connects while you use the app or when a rain delay needs setting.</p>
+            <p id="tucor-note" class="hint">
+              2core connects while you use the app, when a rain delay needs setting, and twice a night to check the watering.
+            </p>
             <div id="tucor-history"></div>
           </div>
           <h2 class="small-heading">Recent activity</h2>

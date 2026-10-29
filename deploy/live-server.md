@@ -53,6 +53,8 @@ ssh root@192.168.2.6 'cd /opt/2core && docker compose up -d --force-recreate'
 
 The helper verifies credentials with Tucor before replacing files. Container recreation is required because Compose mounts the individual secret files. Rejected credentials stop further login attempts until the app restarts.
 
+The nightly checks (`server/API.md`, “Nightly checks”) open two short read-only Tucor sessions a night and show their results in Activity → Watering checks. Set `NIGHT_CHECKS=false` in `/opt/2core/.env` and recreate the service to stop them.
+
 Set `ALLOW_LIVE_CONTROL=false` in `/opt/2core/.env` and recreate the service to return to read-only mode. This does not cancel a running controller timer or an existing rain delay.
 
 ## Supervised program test

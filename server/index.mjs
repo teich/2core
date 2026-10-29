@@ -42,6 +42,7 @@ const engine = new Engine({
   logger,
   allowControl: process.env.ALLOW_LIVE_CONTROL === 'true',
   allowProgramWrites: process.env.ALLOW_PROGRAM_WRITES === 'true',
+  nightChecks: process.env.NIGHT_CHECKS !== 'false',
 });
 const server = createServer(engine, apiKey);
 const tailscaleSocket = process.env.TAILSCALE_SOCKET;
@@ -51,11 +52,19 @@ if (Boolean(tailscaleSocket) !== Boolean(tailscaleOrigin))
 if (tailscaleOrigin && new URL(tailscaleOrigin).protocol !== 'https:')
   throw new Error('TAILSCALE_ORIGIN must use HTTPS');
 const tailscaleServer = tailscaleSocket ? createServer(engine, apiKey, { trustedOrigin: tailscaleOrigin }) : null;
-// Live mode never polls Tucor in the background: the app's /api/prepare opens a session
-// while someone is using it, and weather automation connects only to write a rain delay.
+// Live mode doesn't poll Tucor: the app's /api/prepare opens a session while someone
+// is using it, weather automation connects only to write a rain delay, and the
+// nightly checks open two short sessions a night (server/night-checks.mjs).
 // The simulator refreshes itself so its runs visibly count down and expire.
 const timers = [];
 if (mode === 'demo') timers.push(setInterval(() => engine.refresh().catch(() => {}), 2000));
+if (engine.nightChecks.enabled)
+  timers.push(
+    setInterval(
+      () => engine.nightChecks.tick().catch(e => logger({ event: 'night_check_error', message: e.message })),
+      60000,
+    ),
+  );
 
 let weather = null;
 const weatherflowToken = await secret('WEATHERFLOW_TOKEN');

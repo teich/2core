@@ -3,9 +3,13 @@ import { $, escape, html } from '../core/dom.js';
 import { app } from '../core/app.js';
 import { ago } from '../core/format.js';
 import { tucorNote } from '../model/connection.js';
+import { nightRows, syncLine } from '../model/nights.js';
 
 const eventRow = e =>
   `<div class="event"><strong>${escape(e.kind.replace('/api/', '').replaceAll('/', ' · '))}</strong> · <span class="${e.data.outcome === 'failed' ? 'failure' : ''}">${escape(e.data.outcome)}</span><small>${new Date(e.at).toLocaleString()}${e.data.message ? ` · ${escape(e.data.message)}` : ''}</small></div>`;
+
+const nightRow = r =>
+  `<div class="event check"><span class="check-head"><strong>${escape(r.title)}</strong><span class="pill ${r.tone}"><i class="dot"></i>${escape(r.status)}</span></span>${r.detail ? `<small>${escape(r.detail)}</small>` : ''}</div>`;
 
 const connectionRow = h =>
   `<div class="event"><span class="${h.ok ? '' : 'failure'}">${h.ok ? 'Connected' : escape(h.error)}</span><small>${new Date(h.at).toLocaleString()}${h.codes?.length ? ` · ${escape(h.codes.join(' '))}` : ''}</small></div>`;
@@ -13,7 +17,14 @@ const connectionRow = h =>
 export function mount() {
   return {
     render() {
-      const { status, observedAt, events, connection: c } = app.state;
+      const { status, observedAt, events, connection: c, nights } = app.state;
+      $('checks-group').hidden = !nights?.enabled;
+      if (nights?.enabled) {
+        const [text, tone] = syncLine(nights.sync);
+        $('checks-sync').textContent = text;
+        $('checks-sync-pill').className = `pill ${tone}`;
+        html('checks-nights', nightRows(nights, nights.nights[0]?.night).map(nightRow).join(''));
+      }
       $('voltage').textContent = status.voltageV == null ? '—' : `${status.voltageV} V`;
       $('current').textContent = status.current == null ? '—' : `${status.current} mA`;
       $('observed').textContent = observedAt ? ago(observedAt) : '—';
