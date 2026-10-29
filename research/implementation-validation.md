@@ -3,7 +3,7 @@
 ## Current status — 2026-10-07
 
 - **Interactive control works on the real controller.** The owner uses it in daily use: starting a zone, stopping it, and Walk mode with stop-and-next. The first live start is recorded below; stop and next have since been confirmed in use as well.
-- **Rain delay writes** follow the vendor's Stop → 1 s → Start sequence. These notes don't record a supervised live test of setting and clearing a delay, so check the replace path after any error.
+- **Rain delay writes** follow the vendor's Stop → 1 s → Start sequence. Setting and clearing were tested live on 2026-10-29 (`protocol.md`, “Rain shutdown”); the controller reports a new delay about three minutes short. Replacing an existing delay hasn't been tested live, so check it after any error.
 - **Weather** comes straight from WeatherFlow. The Home Assistant integration described in the 2026-09-27 sections below was removed that day, and its tests went with it. The test suite is now `npm test` (127 Node tests, including an end-to-end run against the demo server).
 - **Controller programs are read, not written.** Tucor pushes the program list and its capabilities when a controller is selected. 2core keeps that list, pins the first copy as the original to restore from, and shows the programs in Plan → More → Controller programs. Nothing writes programs yet. See the “Programs” section of `protocol.md` and the next steps in `scheduling-plan.md`.
 

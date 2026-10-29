@@ -196,7 +196,8 @@ export class DemoDriver {
         this.runs = this.runs.filter(r => !handles.includes(r.handle));
       },
       rain: async hours => {
-        this.rainUntil = hours ? Date.now() + hours * 3600000 : 0;
+        // Like the real controller, which reports a new delay about three minutes short.
+        this.rainUntil = hours ? Date.now() + hours * 3600000 - 180000 : 0;
       },
       record: () => ({ stop: () => [] }),
       openPrograms: async () => this.readPrograms(),

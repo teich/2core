@@ -26,7 +26,7 @@ Evidence levels:
 | Station inventory | Available from `Main.decoderList`; HTTP metadata endpoint also tested |
 | History menu and program overview | Verified independently; six categories, empty program overview |
 | Start/stop a station | Deployed UI payload; verified live (2026-09-27 onward) |
-| Set/cancel rain shutdown | Exact deployed UI sequence recovered; used by 2core, no supervised live test recorded |
+| Set/cancel rain shutdown | Exact deployed UI sequence recovered; set and cleared live, supervised, on 2026-10-29 |
 | Read programs | Pushed on controller selection; kept by 2core since 2026-10-07 |
 | Write programs and sync | Messages recovered from the editor source (below); never sent |
 | Direct local control | Not investigated in this session |
@@ -164,6 +164,24 @@ The UI allows 1–999 whole hours (up to 41 days 15 hours) and only exposes this
 control in Automatic mode. Cancel sends `Rainshutdown/Stop`. Actual device
 acknowledgement and failure semantics still require a controlled test. Do not
 blindly retry the stop/start pair: it changes the existing delay.
+
+### Supervised test, October 29
+
+With the owner watching and nothing watering, 2core set a one-hour delay
+(20:37 UTC) and cleared it (20:41 UTC) on the real controller.
+
+- **Set:** Stop, then Start with `runtime: 3600`. The delay took effect, but
+  `Main` reported `rainShutDown: 3420`, three minutes short, so 2core's check
+  (within 120 s of the hour) timed out after 20 s and reported no
+  confirmation. Later reads gave 3420 at 20:38:11 and 3240 at 20:41:15: it
+  counts down in real time, in whole minutes. 2core now accepts a reading
+  within ten minutes of what was set (`RAIN_SLACK_SECONDS`), and its own
+  weather delays are recognized with the same allowance.
+- **Clear:** Stop alone. `rainShutDown` read 0 about 1.5 s later and 2core
+  confirmed it.
+
+Whether the three minutes is a fixed offset or rounding isn't known; a
+second set would tell.
 
 ## Status and units
 

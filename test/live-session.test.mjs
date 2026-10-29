@@ -79,7 +79,7 @@ class Cloud {
         if (data.component === 'Stations' && data.command === 'Stop')
           cloud.runs = cloud.runs.filter(s => !s.runningEntries.some(e => data.handleID.includes(e.handleID)));
         if (data.component === 'Rainshutdown')
-          cloud.main = { ...cloud.main, rainShutDown: data.command === 'Start' ? data.runtime : 0 };
+          cloud.main = { ...cloud.main, rainShutDown: data.command === 'Start' ? data.runtime - 180 : 0 };
         // The program editor's page and readback request.
         if (data.component === 'Programs' && data.command === 'Mounted' && cloud.programs)
           this.receive({ component: 'Programs', data: cloud.programs.list });
