@@ -252,7 +252,10 @@
         </section>
 
         <section id="plan-view" hidden aria-labelledby="view-title">
-          <p class="plan-preview">Preview only · controller schedules unchanged</p>
+          <button id="publish-bar" class="publish-bar" aria-haspopup="dialog" hidden>
+            <span class="publish-bar-text"><b id="publish-bar-title"></b><small id="publish-bar-detail"></small></span
+            ><span id="publish-bar-action" class="publish-bar-action"></span>
+          </button>
           <button id="plan-status" class="plan-status" aria-haspopup="dialog">
             <span id="plan-status-icon" class="badge-icon small"
               ><svg><use href="#i-check" /></svg></span
@@ -666,6 +669,53 @@
             ><button id="confirm-restore" class="primary" hidden>Replace every program</button>
           </div>
         </section>
+      </div>
+    </dialog>
+
+    <dialog id="publish-dialog" class="sheet plan-sheet" aria-labelledby="publish-title">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <span class="badge-icon small"
+          ><svg><use href="#i-calendar" /></svg
+        ></span>
+        <div>
+          <h2 id="publish-title">Publish the plan</h2>
+          <p id="publish-subtitle" class="muted"></p>
+        </div>
+        <button id="close-publish" class="icon-button" aria-label="Close">
+          <svg><use href="#i-x" /></svg>
+        </button>
+      </div>
+      <div class="sheet-body publish-review" aria-live="polite">
+        <p id="publish-status" class="muted">Preparing the review…</p>
+        <section id="publish-edits-section" hidden>
+          <h3>What you changed</h3>
+          <ul id="publish-edits" class="fit-edits"></ul>
+        </section>
+        <section id="publish-nights-section" hidden>
+          <h3>The next two weeks</h3>
+          <ul id="publish-nights" class="publish-list"></ul>
+        </section>
+        <section id="publish-minutes-section" hidden>
+          <h3>Minutes a week</h3>
+          <ul id="publish-minutes" class="publish-list"></ul>
+        </section>
+        <div id="publish-warnings"></div>
+        <details id="publish-programs-section" hidden>
+          <summary>Program by program</summary>
+          <ul id="publish-programs" class="install-changes"></ul>
+        </details>
+        <p id="publish-window" class="hint"></p>
+        <p class="hint">
+          Publishing writes the plan into the controller’s ten programs and syncs them, keeping the programs as they were so they can be put
+          back. It takes a few minutes. Program names stay as they are.
+        </p>
+        <p id="publish-error" class="failure" role="alert"></p>
+      </div>
+      <div class="sheet-foot fit-actions">
+        <button id="publish-discard" class="outline" hidden>Discard changes</button
+        ><button id="publish-discard-confirm" class="outline" hidden>Discard every change</button
+        ><button id="publish-confirm" class="primary" hidden>Publish</button>
       </div>
     </dialog>
 

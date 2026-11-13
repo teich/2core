@@ -16,7 +16,9 @@ import {
   weekdaysFor,
   writeSlot,
 } from '../lib/program-messages.mjs';
-import { dateKey } from '../lib/planner.mjs';
+import { currentNight, addDays, dateKey, fromKey } from '../lib/planner.mjs';
+import { controllerNight, eveningAt, planNight } from '../lib/night-checks.mjs';
+import { planChanges, publishImpact } from '../lib/publish.mjs';
 import { AppError } from './validation.mjs';
 
 /** @typedef {import('../lib/program-messages.mjs').SlotTarget} SlotTarget */
@@ -110,10 +112,10 @@ export class ProgramJobs {
    * read today: the dry run, and a token for exactly these messages.
    * @param {any} [latest] A programs read; the last one 2core kept by default.
    */
-  preview(latest = this.store.get('programs')) {
+  preview(latest = this.store.get('programs'), candidate = this.engine.plans.programPreview({})) {
     const today = this.today();
     const result = programMessages({
-      candidate: this.engine.plans.programPreview({}),
+      candidate,
       current: latest?.list ?? [],
       capabilities: readCapabilities(latest?.capabilities),
       today,
@@ -122,11 +124,88 @@ export class ProgramJobs {
     return { ...result, token: hash({ today, programs: result.programs.map(p => [p.slot, p.messages]) }) };
   }
   /**
-   * POST /api/programs/install-preview: what installing the saved plan would
-   * send, from 2core's last read of the programs. Doesn't contact Tucor.
+   * POST /api/programs/install-preview: what publishing the saved plan would
+   * send, from 2core's last read of the programs, and what it changes: the
+   * edits since the last publish, the next fourteen nights before and after,
+   * and when tonight's watering keeps it from being sent. Doesn't contact Tucor.
    */
   installPreview() {
-    return this.preview();
+    const latest = this.store.get('programs'),
+      candidate = this.engine.plans.programPreview({});
+    const preview = this.preview(latest, candidate);
+    const published = this.engine.nightChecks.published();
+    const start = currentNight(new Date(this.engine.clock()));
+    const readDate = latest?.receivedAt ? dateKey(new Date(latest.receivedAt)) : this.today();
+    const current = (latest?.list ?? []).map(readProgram);
+    const nights = Array.from({ length: 14 }, (_, d) => {
+      const night = dateKey(addDays(start, d));
+      return { night, before: controllerNight(current, readDate, night), after: planNight(candidate, night) ?? [] };
+    });
+    return {
+      ...preview,
+      edits: published ? planChanges(published, this.engine.plans.plan()) : null,
+      impact: publishImpact(nights),
+      window: this.wateringWindow(),
+    };
+  }
+
+  /**
+   * When tonight's programs keep a publish from being sent: from the evening
+   * check, an hour before the first start, until the last zone should finish.
+   * Times are ISO; `open` is whether publishing may run now.
+   */
+  wateringWindow() {
+    const checks = this.engine.nightChecks;
+    const night = dateKey(currentNight(new Date(this.engine.clock())));
+    const runs = checks.expected(night);
+    if (!runs.length) return { open: true, closesAt: null, opensAt: null };
+    const closes = eveningAt(runs),
+      opens = Math.ceil(Math.max(...runs.map(r => r.to)));
+    const minute = checks.minute(night);
+    const at = m => new Date(fromKey(night).getTime() + m * 60000).toISOString();
+    return { open: minute < closes || minute >= opens, closesAt: at(closes), opensAt: at(opens) };
+  }
+  refuseDuringWatering() {
+    if (!this.engine.guardWateringWindow) return;
+    const window = this.wateringWindow();
+    if (!window.open)
+      throw new AppError(
+        `Tonight’s watering is due or under way; publish after ${new Date(window.opensAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Nothing was sent`,
+        409,
+      );
+  }
+
+  /**
+   * For GET /api/state: whether the saved plan is on the controller, the edits
+   * not yet published, and whether publishing may run now.
+   */
+  publishState() {
+    const sync = this.engine.nightChecks.sync();
+    const published = this.engine.nightChecks.published();
+    const saved = this.engine.plans.plan();
+    const baseline = this.store.get('programsInstalled');
+    return {
+      state: sync.state,
+      message: sync.message,
+      since: baseline?.at ?? null,
+      edits: published ? planChanges(published, saved) : null,
+      token: hash({ published, saved }),
+      writesEnabled: this.engine.allowProgramWrites,
+      window: this.wateringWindow(),
+    };
+  }
+  /**
+   * POST /api/plan/discard-unpublished: puts the saved plan back to the one
+   * last published. Local only; `token` is from `publish` in the state.
+   * @param {{ token?: string }} [payload]
+   */
+  discard({ token } = {}) {
+    const published = this.engine.nightChecks.published();
+    if (!published) throw new AppError('2core doesn’t know which plan was last published', 409);
+    if (token !== this.publishState().token)
+      throw new AppError('The plan changed since you looked; look again before discarding', 409);
+    this.engine.plans.replace(published);
+    return { ok: true, plan: this.engine.plans.plan() };
   }
   /**
    * POST /api/programs/install: installs a reviewed preview, if nothing changed since.
@@ -134,12 +213,14 @@ export class ProgramJobs {
    */
   async install({ token } = {}) {
     if (typeof token !== 'string' || !token) throw new AppError('Review the install first; its token is missing', 400);
+    this.refuseDuringWatering();
     // Checked against the last read first, so a stale review costs no Tucor contact.
     if (this.preview().token !== token)
       throw new AppError('The plan or the controller’s programs changed since the review; review again', 409);
     return await this.job(
       'install plan',
       (list, read) => {
+        this.refuseDuringWatering();
         const fresh = this.preview(read);
         if (fresh.status !== 'ready')
           throw new AppError(`The plan can’t be installed: ${fresh.issues.map(i => i.message).join(' ')}`);

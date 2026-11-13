@@ -1,5 +1,5 @@
 // The Plan tab: what each zone needs, and the nights that follow from it.
-// Advisory only. Edits save to the bridge's local store and never reach Tucor.
+// Edits save to the bridge's local store; they reach Tucor only when published.
 // Laid out for a phone first: a status line, a strip of nights, and a zone list.
 // Each zone, the night window, and seasonal changes are edited in bottom sheets;
 // anything that doesn't fit cleanly opens a review sheet before it saves.
@@ -11,12 +11,14 @@
 //   zone-sheet.js     editing one zone
 //   settings-sheet.js night window, zones at once, seasonal adjustment
 //   programs.js       rebalance review and controller-program dry run
+//   publish.js        the publish bar, and reviewing, publishing or discarding edits
 import { app } from '../core/app.js';
 import { adjustedSeconds, cadenceLabel, currentNight, formatDuration } from '../../lib/planner.mjs';
 import { nightLabel } from '../model/plan.js';
 import * as fit from './fit.js';
 import * as page from './page.js';
 import * as programs from './programs.js';
+import * as publish from './publish.js';
 import * as settingsSheet from './settings-sheet.js';
 import * as zoneSheet from './zone-sheet.js';
 import { blank, hooks, intents, plan, project, zones } from './state.js';
@@ -43,6 +45,7 @@ export function mount({ zoneEnabled }) {
   zoneSheet.mount();
   settingsSheet.mount();
   programs.mount();
+  publish.mount();
   page.mount({ zoneEnabled, openZone: zoneSheet.openZone });
   return {
     render: () => app.tab === 'plan' && page.render(),

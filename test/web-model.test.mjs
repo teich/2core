@@ -361,7 +361,7 @@ test('program jobs report their outcome, not just that they finished', async () 
   const { operationLabel } = await import('../web/model/zones.js');
   const op = (kind, state, result) => ({ kind: `/api/programs/${kind}`, state, result });
   assert.deepEqual(programOutcome(op('install', 'succeeded', { ok: true, outcome: 'synced' })), {
-    text: 'Install the plan on the controller: done and synced to the controller.',
+    text: 'Publish the plan: done and synced to the controller.',
     failed: false,
   });
   const notSynced = programOutcome(

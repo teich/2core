@@ -25,6 +25,7 @@ import {
 } from '../model/plan.js';
 import { checkDraft } from './draft.js';
 import { problemZones, renderFit } from './fit.js';
+import { render as renderPublish } from './publish.js';
 import { renderSettings } from './settings-sheet.js';
 import { blank, hasDraft, intents, plan, project, settings, zones } from './state.js';
 import { renderZoneSheet } from './zone-sheet.js';
@@ -87,6 +88,7 @@ export function render() {
   const names = Object.fromEntries(list.map(z => [z.id, z.name]));
 
   renderFit(resolved);
+  renderPublish();
   renderSettings(cfg, list, all);
 
   // Filters

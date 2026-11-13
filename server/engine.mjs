@@ -30,6 +30,7 @@ export class Engine {
     allowControl = false,
     allowProgramWrites = false,
     nightChecks = true,
+    guardWateringWindow = mode === 'live',
     clock = Date.now,
     logger = () => {},
   }) {
@@ -42,6 +43,8 @@ export class Engine {
     this.weatherSource = null;
     this.allowControl = mode === 'demo' || allowControl;
     this.allowProgramWrites = mode === 'demo' || (this.allowControl && allowProgramWrites);
+    // Publishing refuses while tonight's programs are due or running (program-jobs.mjs).
+    this.guardWateringWindow = guardWateringWindow;
     this.queue = Promise.resolve();
     this.jobs = [];
     this.inflight = new Map();
@@ -223,6 +226,7 @@ export class Engine {
       plan: this.plans.plan(),
       location: this.store.get('location'),
       nights: this.nightChecks.summary(),
+      publish: this.programJobs.publishState(),
     };
   }
   submit(key, kind, body, fn, deadline) {
@@ -415,6 +419,9 @@ export class Engine {
   }
   programInstall(payload) {
     return this.programJobs.install(payload);
+  }
+  planDiscard(payload) {
+    return this.programJobs.discard(payload);
   }
   programRestoreInstall(payload) {
     return this.programJobs.restoreInstall(payload);

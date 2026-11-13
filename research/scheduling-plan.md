@@ -412,6 +412,21 @@ Lower trees, Even days, Odd days. Tucor synced the names by itself, so
 synced”. The sync check also now lets unchanged programs show nothing
 pending, since Tucor lists each program as its own section.
 
+## Step 4: publishing from the app
+
+Built on November 13. Edits save to the plan as before and collect there; the
+controller changes only when the owner publishes. 2core keeps the plan each
+install publishes (with the nightly checks' install record), so the Plan tab
+can count the edits not yet published, review them zone by zone with the next
+fourteen nights and minutes a week before and after, and discard them back to
+the published plan. Only complete intentions and night settings count, so
+choosing comparison zones or starting an unfinished zone isn't a change. A
+publish refuses during tonight's watering window (an hour before the first
+start to the last finish) as well as while anything runs. A restore or the
+program test forgets the published plan, since the controller then runs other
+programs; a rename keeps it. Publishing on a schedule, unattended, is left for
+later.
+
 ## Step 5: noticing a missed night
 
 Designed and built on October 29. Tucor keeps no record of what ran (see

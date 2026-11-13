@@ -249,6 +249,18 @@ export class PlanService {
     return { ok: true, plan: this.plan(), assessment };
   }
 
+  /** Puts back a whole saved plan, as `plan()` returned it: discarding what was saved since. */
+  replace(plan) {
+    const current = this.store.prefixed('intent:');
+    this.store.transaction(() => {
+      for (const id of Object.keys(current))
+        if (!plan.intents[id]) this.store.set(`intent:${id}`, { ...DEFAULT_INTENT });
+      for (const [id, intent] of Object.entries(plan.intents)) this.store.set(`intent:${id}`, intent);
+      this.store.set('planSettings', plan.settings);
+      this.store.set('planSeasonalZones', plan.seasonalZoneIds);
+    });
+  }
+
   /** POST /api/plan/program-preview — compiles the saved plan into controller programs (dry run). */
   programPreview(payload = {}) {
     if (

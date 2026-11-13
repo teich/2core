@@ -564,3 +564,28 @@ input[role='switch']:checked::after {
 .install-changes li + li {
   margin-top: 8px;
 }
+
+.publish-review h3 {
+  font-size: 15px;
+  margin: 4px 0 8px;
+}
+.publish-review section + section {
+  margin-top: 14px;
+}
+.publish-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+.publish-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+.publish-list li + li {
+  border-top: 1px solid var(--line);
+}
+.publish-list small {
+  color: var(--ink-2);
+}
