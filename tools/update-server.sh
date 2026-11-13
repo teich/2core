@@ -6,6 +6,8 @@ release_id="${2:?Missing release ID}"
 [[ "$release_id" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]] || exit 1
 [[ "$archive" == "/tmp/2core-update-$release_id.tgz" ]] || exit 1
 cd /opt/2core
+# Rollback images kept after a successful deploy.
+ROLLBACK_IMAGES=5
 exec 9>/opt/2core/.deploy.lock
 flock -n 9 || { echo 'Another deployment is in progress' >&2; exit 1; }
 compose=(docker compose -p 2core)
@@ -21,6 +23,12 @@ const s=await r.json();
 if(s.zones?.some(z=>z.running)) {console.error('Watering is active. Deploy after it finishes.');process.exit(1);}
 if(s.operations?.some(o=>o.state==='pending')) {console.error('A command is pending. Deploy after it finishes.');process.exit(1);}
 JS
+# A build that runs out of disk leaves no room to roll back either (2026-11-13). Check first.
+free_kb="$(df --output=avail -k /var/lib/containerd | tail -1)"
+if (( free_kb < 1500000 )); then
+  echo 'Less than 1.5 GB free on the server; nothing was changed. Free space or grow the disk, then deploy.' >&2
+  exit 1
+fi
 backup="/opt/2core/backups/$release_id"
 mkdir -p "$backup"
 chmod 700 /opt/2core/backups "$backup"
@@ -61,6 +69,10 @@ chmod 600 "$backup/data.tgz"
 trap - ERR
 printf '%s\n' "$release_id" > /opt/2core/deployed-release
 rm -f "$archive" "/tmp/2core-update-$release_id.sh"
+# Keep the newest rollback images; their source, settings and data snapshots stay in backups.
+docker image ls --format '{{.Tag}}' 2core-two-core | grep '^rollback-' | sort -r | tail -n +"$((ROLLBACK_IMAGES + 1))" |
+  while read -r tag; do docker rmi "2core-two-core:$tag" >/dev/null || true; done
+docker image prune -f >/dev/null || true
 echo "Deployed $release_id. Recovery snapshot: $backup"
 "${compose[@]}" exec -T two-core node --input-type=module <<'JS'
 import {readFileSync} from 'node:fs';
