@@ -15,6 +15,7 @@ import {
   spotOutcome,
   spotTarget,
 } from '../lib/night-checks.mjs';
+import { wateringPlan } from '../lib/publish.mjs';
 
 // Nights kept, newest first.
 const KEPT = 14;
@@ -23,6 +24,8 @@ const RETRY_MS = 10 * 60000;
 const ATTEMPTS = 3;
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const definition = list => JSON.stringify(programDefinition(list));
+// Only what reaches the programs: a comparison-zone choice or an unfinished zone isn't a change to publish.
+const planHash = plan => hash(wateringPlan(plan));
 
 export class NightChecks {
   /** @param {import('./engine.mjs').Engine} engine @param {{ enabled?: boolean }} [options] */
@@ -57,17 +60,34 @@ export class NightChecks {
     return controllerNight(latest.list.map(readProgram), dateKey(new Date(latest.receivedAt)), night);
   }
 
-  /** Called after a program job leaves the controller as 2core wrote it. */
+  /**
+   * Called after a program job leaves the controller as 2core wrote it. An
+   * install publishes the saved plan; a rename keeps what was published; a
+   * restore or the test leaves programs that aren't the plan.
+   */
   installed(kind) {
     const latest = this.store.get('programs');
     if (!latest?.list?.length) return;
+    const previous = this.store.get('programsInstalled');
+    const plan = this.engine.plans.plan();
+    const published =
+      kind === 'install plan'
+        ? { plan: planHash(plan), published: plan }
+        : kind === 'rename programs' && previous
+          ? { plan: previous.plan, published: previous.published ?? null }
+          : { plan: null, published: null };
     this.store.set('programsInstalled', {
       at: new Date(this.engine.clock()).toISOString(),
       kind,
       definition: definition(latest.list),
-      plan: hash(this.engine.plans.plan()),
+      ...published,
     });
     this.cache = null;
+  }
+  /** The plan as last published, or null when 2core doesn't know it. */
+  published() {
+    this.sync();
+    return this.store.get('programsInstalled')?.published ?? null;
   }
   /**
    * Whether the controller still holds what 2core installed, and whether the
@@ -77,7 +97,7 @@ export class NightChecks {
   sync() {
     const latest = this.store.get('programs'),
       baseline = this.store.get('programsInstalled'),
-      plan = hash(this.engine.plans.plan()),
+      plan = planHash(this.engine.plans.plan()),
       today = dateKey(new Date(this.engine.clock()));
     const key = JSON.stringify([latest?.receivedAt, baseline?.at, plan, today]);
     if (this.cache?.key === key) return this.cache.value;
@@ -97,6 +117,7 @@ export class NightChecks {
         kind: 'matched the plan',
         definition: definition(latest.list),
         plan,
+        published: this.engine.plans.plan(),
       });
       return { state: 'matches', message: 'The controller holds the saved plan' };
     };
@@ -112,7 +133,14 @@ export class NightChecks {
     if (baseline.plan !== plan)
       return holdsPlan
         ? adopt()
-        : { state: 'plan changed', message: 'The plan changed since the last install; review and install it' };
+        : baseline.plan == null
+          ? {
+              state: 'plan changed',
+              message: 'The controller runs programs that aren’t the saved plan; publish to run it',
+            }
+          : { state: 'plan changed', message: 'The plan changed since it was published; review and publish it' };
+    // Installed before 2core kept the published plan: it's the saved one, since they match.
+    if (!baseline.published) this.store.set('programsInstalled', { ...baseline, published: this.engine.plans.plan() });
     return { state: 'matches', message: 'The controller holds the saved plan' };
   }
 

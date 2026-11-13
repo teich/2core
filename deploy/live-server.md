@@ -95,6 +95,18 @@ deploy or a watering test.
 Each run's record, including everything Tucor sent back, is in
 `GET /api/programs` under `tests`.
 
+## Publishing from the app
+
+Plan edits collect in the saved plan; the bar at the top of the Plan tab
+counts those not yet on the controller and opens a review that publishes
+them (the install below) or discards them. Publishing from the app needs
+`ALLOW_PROGRAM_WRITES=true` left on in `/opt/2core/.env`; set it to `false`
+and recreate the service to stop every program write. Publishing refuses from
+an hour before the night's first start until its last zone should finish,
+while anything runs, and while Tucor's own app holds the controller. Watch the
+first publish from the app, then check the Watering checks line says the
+controller holds the saved plan.
+
 ## Installing the plan
 
 Writes the saved plan into all ten programs, then syncs. In the app this is

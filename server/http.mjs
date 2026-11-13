@@ -22,6 +22,7 @@ const LOCAL = routes({
   '/api/plan/rebalance': (engine, payload) => engine.rebalance(payload),
   '/api/plan': (engine, payload) => engine.planSettings(payload),
   '/api/programs/install-preview': engine => engine.programInstallPreview(),
+  '/api/plan/discard-unpublished': (engine, payload) => engine.planDiscard(payload),
 });
 
 /**

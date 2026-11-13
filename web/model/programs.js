@@ -57,7 +57,7 @@ export function programsSummary(result, ago, day) {
 }
 
 const JOBS = {
-  '/api/programs/install': 'Install the plan on the controller',
+  '/api/programs/install': 'Publish the plan',
   '/api/programs/restore-before-install': 'Put the programs back',
   '/api/programs/rename': 'Rename programs',
   '/api/programs/test-write': 'Program test write',
