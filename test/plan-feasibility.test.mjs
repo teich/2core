@@ -21,14 +21,27 @@ test('a full ten-program seasonal plan still reports fits without pretending cap
   assert.equal(report.scenarios.find(s => s.id === 'seasonal-off').programs, 9);
 });
 
-test('a new weekly pattern fits now but fails vineyard-on; proposed date changes fit both', () => {
+test('with the vineyards off, a pattern that only fails vineyard-on is a look ahead, not a fix', () => {
   const after = structuredClone(input.before);
   after.intents['1'] = { ...after.intents['1'], cadence: { every: 7 }, firstDue: '2026-10-06' };
+  const report = assessPlan({ ...input, after });
+  assert.notEqual(report.status, 'needs-adjustment');
+  assert.equal(report.outlook, 'needs-adjustment');
+  const on = report.scenarios.find(s => s.id === 'seasonal-on');
+  assert.equal(on.hypothetical, true);
+  assert.equal(on.reason, 'patterns');
+  assert.deepEqual(verifiedAlternatives({ ...input, after, editedZoneIds: ['1'], report }), []);
+});
+
+test('a new weekly pattern that fails with the vineyards on needs adjusting; proposed date changes fit', () => {
+  const after = structuredClone(input.before);
+  after.intents['1'] = { ...after.intents['1'], cadence: { every: 7 }, firstDue: '2026-10-06' };
+  for (const id of ['15', '16']) after.intents[id] = { ...after.intents[id], enabled: true };
   const args = { ...input, after },
     report = assessPlan(args);
   assert.equal(report.status, 'needs-adjustment');
-  assert.notEqual(report.scenarios.find(s => s.id === 'current').status, 'needs-adjustment');
-  assert.equal(report.scenarios.find(s => s.id === 'seasonal-on').reason, 'patterns');
+  assert.equal(report.scenarios.find(s => s.id === 'current').reason, 'patterns');
+  assert.equal(report.scenarios.find(s => s.id === 'seasonal-off').hypothetical, true);
   const before = structuredClone(after);
   const alternatives = verifiedAlternatives({ ...args, editedZoneIds: ['1'], report });
   assert.ok(alternatives.length);
@@ -56,8 +69,10 @@ test('a new weekly pattern fits now but fails vineyard-on; proposed date changes
 test('new overlap is disclosed before saving even when all scenarios fit', () => {
   const after = structuredClone(input.before);
   after.intents['1'].seconds = 3600;
+  // Only with the vineyards on, so it informs without changing the plan's status.
   const p = assessPlan({ ...input, after });
-  assert.equal(p.status, 'consequence');
+  assert.equal(p.status, 'fits');
+  assert.equal(p.outlook, 'consequence');
   assert.ok(p.scenarios.some(s => s.additionalOverlapSeconds > 0 && s.affectedNights > 0));
 });
 

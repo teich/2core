@@ -245,6 +245,9 @@ input[role='switch']:checked::after {
 .fit-scenario.needs-adjustment {
   background: var(--amber-soft);
 }
+.fit-scenario.ahead {
+  color: var(--ink-2);
+}
 .fit-scenario details {
   font-size: 13px;
   color: var(--ink-2);

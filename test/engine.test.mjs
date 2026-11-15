@@ -511,7 +511,8 @@ function compilerFixture(t) {
 test('reviewed edits preserve the saved plan until a verified alternative is explicitly applied', t => {
   const { engine } = compilerFixture(t),
     before = structuredClone(engine.plan());
-  const change = { intents: { 1: { cadence: { every: 7 } } } };
+  // With the vineyards on, a weekly zone 1 no longer fits.
+  const change = { intents: { 1: { cadence: { every: 7 } }, 15: { enabled: true }, 16: { enabled: true } } };
   const review = engine.planEditPreview({ change });
   assert.deepEqual(engine.plan(), before);
   assert.equal(review.assessment.status, 'needs-adjustment');
@@ -523,14 +524,14 @@ test('reviewed edits preserve the saved plan until a verified alternative is exp
   assert.notEqual(result.assessment.status, 'needs-adjustment');
   assert.equal(result.plan.intents['1'].firstDue, option.adjustments.intents['1'].firstDue);
   assert.deepEqual(result.plan.intents['1'].cadence, { every: 7 });
-  for (const id of Object.keys(before.intents).filter(id => id !== '1'))
+  for (const id of Object.keys(before.intents).filter(id => !['1', '15', '16'].includes(id)))
     assert.deepEqual(result.plan.intents[id], before.intents[id]);
   assert.deepEqual(result.plan.settings, before.settings);
 });
 
-test('saving an unfinished plan is explicit and its seasonal warning survives reload', t => {
+test('saving an unfinished plan is explicit and its warning survives reload', t => {
   const { engine, store } = compilerFixture(t);
-  const change = { intents: { 1: { cadence: { every: 7 } } } },
+  const change = { intents: { 1: { cadence: { every: 7 } }, 15: { enabled: true }, 16: { enabled: true } } },
     review = engine.planEditPreview({ change });
   const saved = engine.planEditApply({ change, token: review.token, saveUnresolved: true });
   assert.equal(saved.assessment.status, 'needs-adjustment');
