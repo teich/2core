@@ -46,8 +46,7 @@ const state = (extra = {}) => ({
     holdHours: 24,
     intensityMmH: 2,
     accumulationMm: 5,
-    forecastMm: 6,
-    forecastProbability: 60,
+    forecastExpectedMm: 4,
   },
   ...extra,
 });
@@ -191,6 +190,10 @@ test('rain depths respect the station unit and show traces', () => {
   assert.equal(depth(12.6, 'mm'), '13');
   assert.equal(because('Wet', { kind: 'intensity', mm: 2 }, 'mm'), 'Raining 2.0 mm/h');
   assert.equal(because('Manual', null, 'mm'), 'Manual');
+  assert.equal(
+    because('Wet', { kind: 'forecast', mm: 14.5, expectedMm: 9.7, probability: 70 }, 'mm'),
+    'Forecast of 15 mm, 9.7 mm expected',
+  );
 });
 
 test('a rain delay is ours only when it matches the one 2core set', () => {

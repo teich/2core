@@ -101,8 +101,14 @@ test('weather rejects stale and incomplete forecasts; exact fresh thresholds wor
   const now = Date.now();
   const sample = { observedAt: new Date(now).toISOString() };
   assert.equal(evaluateWeather({ ...sample, intensityMmH: 0.25 }, DEFAULT_POLICY, now).wet, true);
-  assert.equal(evaluateWeather({ ...sample, forecastMm: 5, forecastProbability: 70 }, DEFAULT_POLICY, now).wet, true);
-  assert.equal(evaluateWeather({ ...sample, forecastMm: 5 }, DEFAULT_POLICY, now).wet, false);
+  // The forecast counts by expected rain: each hour's amount times its chance.
+  const forecast = { forecastMm: 14.5, forecastExpectedMm: 4, forecastProbability: 65 };
+  const decision = evaluateWeather({ ...sample, ...forecast }, DEFAULT_POLICY, now);
+  assert.equal(decision.wet, true);
+  assert.equal(decision.reason, 'Forecast 14.5 mm, 4.0 mm expected');
+  assert.deepEqual(decision.trigger, { kind: 'forecast', mm: 14.5, expectedMm: 4, probability: 65 });
+  assert.equal(evaluateWeather({ ...sample, ...forecast, forecastExpectedMm: 3.9 }, DEFAULT_POLICY, now).wet, false);
+  assert.equal(evaluateWeather({ ...sample, forecastMm: 50 }, DEFAULT_POLICY, now).wet, false);
   assert.equal(
     evaluateWeather(
       { ...sample, observedAt: new Date(now - 1800001).toISOString(), intensityMmH: 100 },
@@ -605,4 +611,44 @@ test('edit HTTP endpoints require auth, validate fields, and use the reviewed co
   const review = await response.json();
   assert.equal((await post('/edit-apply', { change, token: review.token })).status, 200);
   assert.equal(engine.plan().intents['1'].seconds, 600);
+});
+
+test('a saved policy from before expected rain takes its default and drops the retired settings', async t => {
+  const { engine, store } = await fixture(t);
+  const { forecastExpectedMm, ...before } = DEFAULT_POLICY;
+  store.set('policy', { ...before, mode: 'automatic', forecastMm: 5, forecastProbability: 70 });
+  const policy = engine.weatherPolicy.policy();
+  assert.equal(policy.mode, 'automatic');
+  assert.equal(policy.forecastExpectedMm, 4);
+  assert.equal('forecastProbability' in policy, false);
+  assert.throws(() => engine.configurePolicy({ forecastProbability: 50 }), /Unknown weather setting/);
+  assert.equal(engine.configurePolicy({ forecastExpectedMm: 6 }).policy.forecastExpectedMm, 6);
+});
+
+test('the weather log keeps a reading every 15 minutes with its decision', async t => {
+  let now = Date.now();
+  const { engine } = await fixture(t, { clock: () => now });
+  const sample = () => ({
+    observedAt: new Date(now).toISOString(),
+    intensityMmH: 0,
+    accumulationMm: 0.4,
+    forecastMm: 14.49,
+    forecastExpectedMm: 8.68,
+    forecastProbability: 70,
+  });
+  await engine.weather(sample());
+  now += 5 * 60000;
+  await engine.weather(sample());
+  now += 10 * 60000;
+  await engine.weather({ ...sample(), forecastExpectedMm: 1.234 });
+  const { log, policy } = engine.weatherPolicy.history();
+  assert.equal(policy.forecastExpectedMm, 4);
+  assert.equal(log.length, 2);
+  assert.deepEqual(
+    log.map(e => [e.wet, e.trigger, e.forecastExpectedMm]),
+    [
+      [false, null, 1.23],
+      [true, 'forecast', 8.68],
+    ],
+  );
 });

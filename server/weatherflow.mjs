@@ -7,7 +7,8 @@ const fresh = (seconds, now) => {
   return Number.isFinite(age) && age >= -60000 && age <= 30 * 60000;
 };
 
-// Requires twelve complete hourly buckets with an amount and a probability. Amounts are millimeters.
+// Requires twelve complete hourly buckets with an amount and a probability. Amounts are millimeters;
+// `forecastProbability` is the highest hourly chance, shown alongside, not a threshold.
 export function forecastRain(hourly, now = Date.now()) {
   if (!Array.isArray(hourly)) return null;
   const buckets = new Map();
@@ -24,11 +25,14 @@ export function forecastRain(hourly, now = Date.now()) {
   }
   if (buckets.size !== 12) return null;
   const values = [...buckets.values()];
-  // Conservatively use the lowest probability among the hours that predict rain.
+  // Each hour's amount weighted by its chance. Hourly chances rarely pass 70% even
+  // before a soaking, so requiring every wet hour to be likely missed real storms.
   const wet = values.filter(([amount]) => amount > 0).map(([, p]) => p);
+  const hundredths = x => Math.round(x * 100) / 100;
   return {
-    forecastMm: values.reduce((sum, [amount]) => sum + amount, 0),
-    forecastProbability: wet.length ? Math.min(...wet) : 0,
+    forecastMm: hundredths(values.reduce((sum, [amount]) => sum + amount, 0)),
+    forecastExpectedMm: hundredths(values.reduce((sum, [amount, p]) => sum + (amount * p) / 100, 0)),
+    forecastProbability: wet.length ? Math.max(...wet) : 0,
   };
 }
 

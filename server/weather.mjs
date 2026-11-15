@@ -2,8 +2,8 @@ export const DEFAULT_POLICY = {
   mode: 'observe',
   intensityMmH: 0.25,
   accumulationMm: 3,
-  forecastMm: 5,
-  forecastProbability: 70,
+  // Expected rain over the next 12 hours: each hour's amount times its chance.
+  forecastExpectedMm: 4,
   holdHours: 12,
 };
 
@@ -22,13 +22,17 @@ export function evaluateWeather(sample, policy, now = Date.now()) {
     reason = `Rainfall today ${sample.accumulationMm} mm`;
     trigger = { kind: 'accumulation', mm: sample.accumulationMm };
   } else if (
+    finite(sample.forecastExpectedMm) &&
     finite(sample.forecastMm) &&
-    finite(sample.forecastProbability) &&
-    sample.forecastMm >= policy.forecastMm &&
-    sample.forecastProbability >= policy.forecastProbability
+    sample.forecastExpectedMm >= policy.forecastExpectedMm
   ) {
-    reason = `Forecast ${sample.forecastMm} mm with ${sample.forecastProbability}% probability`;
-    trigger = { kind: 'forecast', mm: sample.forecastMm, probability: sample.forecastProbability };
+    reason = `Forecast ${sample.forecastMm.toFixed(1)} mm, ${sample.forecastExpectedMm.toFixed(1)} mm expected`;
+    trigger = {
+      kind: 'forecast',
+      mm: sample.forecastMm,
+      expectedMm: sample.forecastExpectedMm,
+      probability: sample.forecastProbability,
+    };
   }
   if (!reason) return { wet: false, reason: 'No rainfall threshold met with available measurements' };
   return { wet: true, reason, trigger, until: new Date(now + policy.holdHours * 3600000).toISOString() };

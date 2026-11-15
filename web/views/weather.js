@@ -53,8 +53,7 @@ function render() {
   $('station-note').textContent = health.note;
 
   const configured = Boolean(source?.configured),
-    sample = configured && state.weatherReading?.sample,
-    chance = sample?.forecastProbability;
+    sample = configured && state.weatherReading?.sample;
   html(
     'readings',
     [
@@ -76,16 +75,17 @@ function render() {
         unit,
         `Delays at ${limit(policy.accumulationMm, unit)}`,
       ),
-      // A forecast counts only when both its amount and its probability clear their thresholds.
+      // Expected rain: each forecast hour's amount times its chance.
       tile(
         'Next 12 h',
         configured,
-        sample?.forecastMm,
-        policy.forecastMm,
+        sample?.forecastExpectedMm,
+        policy.forecastExpectedMm,
         unit,
-        chance == null ? unit : `${unit} · ${Math.round(chance)}%`,
-        `Delays at ${limit(policy.forecastMm, unit)}, ${policy.forecastProbability}%+`,
-        sample?.forecastMm >= policy.forecastMm && chance >= policy.forecastProbability,
+        `${unit} expected`,
+        sample?.forecastMm == null
+          ? `Delays at ${limit(policy.forecastExpectedMm, unit)}`
+          : `Of ${depth(sample.forecastMm, unit)} forecast · delays at ${limit(policy.forecastExpectedMm, unit)}`,
       ),
     ].join(''),
   );

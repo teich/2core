@@ -4,6 +4,13 @@
 import { DEFAULT_POLICY, evaluateWeather } from './weather.mjs';
 import { AppError, number } from './validation.mjs';
 
+// The weather log: one reading every 15 minutes at most, for a week, so a delay
+// that should have happened can be replayed against the thresholds.
+const LOG_EVERY_MS = 15 * 60000;
+const LOG_KEPT = 7 * 24 * 4;
+const LOGGED = ['intensityMmH', 'accumulationMm', 'forecastMm', 'forecastExpectedMm', 'forecastProbability'];
+const round = x => (typeof x === 'number' ? Math.round(x * 100) / 100 : null);
+
 export class WeatherPolicy {
   /** @param {import('./engine.mjs').Engine} engine For the store, clock, command queue and rain(). */
   constructor(engine) {
@@ -15,8 +22,10 @@ export class WeatherPolicy {
   now() {
     return new Date(this.engine.clock()).toISOString();
   }
+  /** The saved policy; settings it predates take their defaults, and retired ones are dropped. */
   policy() {
-    return this.store.get('policy', DEFAULT_POLICY);
+    const saved = this.store.get('policy', {});
+    return Object.fromEntries(Object.entries(DEFAULT_POLICY).map(([k, v]) => [k, saved[k] ?? v]));
   }
 
   /**
@@ -40,8 +49,7 @@ export class WeatherPolicy {
       if (!Object.hasOwn(DEFAULT_POLICY, k)) throw new AppError('Unknown weather setting', 400);
     number(policy.intensityMmH, 0.01, 100);
     number(policy.accumulationMm, 0.1, 500);
-    number(policy.forecastMm, 0.1, 500);
-    number(policy.forecastProbability, 1, 100);
+    number(policy.forecastExpectedMm, 0.1, 500);
     number(policy.holdHours, 1, 72, true);
     this.store.set('policy', policy);
     return { ok: true, policy };
@@ -49,7 +57,7 @@ export class WeatherPolicy {
 
   /** POST /api/weather, and each in-process reading: decide, and in automatic mode act. */
   async decide(sample) {
-    for (const key of ['intensityMmH', 'accumulationMm', 'forecastMm', 'forecastProbability']) {
+    for (const key of ['intensityMmH', 'accumulationMm', 'forecastMm', 'forecastExpectedMm', 'forecastProbability']) {
       if (sample[key] !== undefined && sample[key] !== null)
         number(sample[key], 0, key === 'forecastProbability' ? 100 : 10000);
     }
@@ -72,7 +80,21 @@ export class WeatherPolicy {
     }
     if (decision.wet && !this.engine.allowControl) decision.blocked = 'Live control is disabled';
     this.store.set('weatherDecision', decision);
+    this.log(sample, decision);
     return { ok: true, decision };
+  }
+
+  /** Adds a reading and its decision to the weather log, at most every 15 minutes. */
+  log(sample, decision) {
+    const log = this.store.get('weatherLog', []);
+    if (log[0] && this.engine.clock() - Date.parse(log[0].at) < LOG_EVERY_MS) return;
+    const entry = { at: decision.at, wet: decision.wet, trigger: decision.trigger?.kind ?? null };
+    for (const key of LOGGED) entry[key] = round(sample[key]);
+    this.store.set('weatherLog', [entry, ...log].slice(0, LOG_KEPT));
+  }
+  /** GET /api/weather-log: the last week of readings, newest first, with the policy they were judged by. */
+  history() {
+    return { policy: this.policy(), log: this.store.get('weatherLog', []) };
   }
 
   /** In-process weather source: serialized with commands, recorded like one. */

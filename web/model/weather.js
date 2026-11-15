@@ -33,7 +33,9 @@ export const because = (reason, trigger, unit) =>
       ? `Raining ${depth(trigger.mm, unit)} ${unit}/h`
       : trigger.kind === 'accumulation'
         ? `${depth(trigger.mm, unit)} ${unit} of rain today`
-        : `Forecast of ${depth(trigger.mm, unit)} ${unit} at ${Math.round(trigger.probability)}%`;
+        : trigger.expectedMm == null
+          ? `Forecast of ${depth(trigger.mm, unit)} ${unit} at ${Math.round(trigger.probability)}%`
+          : `Forecast of ${depth(trigger.mm, unit)} ${unit}, ${depth(trigger.expectedMm, unit)} ${unit} expected`;
 
 /** The rain delay, counted down from the controller's last report. */
 export function rainDelay(state, unit, now) {
@@ -127,4 +129,4 @@ export function decisionSummary({ weatherDecision: d, policy, weatherSource: sou
 
 /** The policy's thresholds in one sentence. */
 export const policyRule = (policy, unit) =>
-  `Delays ${policy.holdHours} h when rain reaches ${limit(policy.intensityMmH, unit)} ${unit}/h, today’s total reaches ${limit(policy.accumulationMm, unit)} ${unit}, or the next 12 hours forecast ${limit(policy.forecastMm, unit)} ${unit} at ${policy.forecastProbability}% or more. Missing readings never count as dry.`;
+  `Delays ${policy.holdHours} h when rain reaches ${limit(policy.intensityMmH, unit)} ${unit}/h, today’s total reaches ${limit(policy.accumulationMm, unit)} ${unit}, or the next 12 hours’ forecast expects ${limit(policy.forecastExpectedMm, unit)} ${unit} (each hour’s amount times its chance). Missing readings never count as dry.`;
