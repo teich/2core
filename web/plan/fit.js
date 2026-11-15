@@ -4,19 +4,29 @@ import { $, escape, html, icon } from '../core/dom.js';
 import { app } from '../core/app.js';
 import { clockAt, consequenceText, editLines } from '../model/plan.js';
 import { applyReviewed, checkDraft, discardDraft } from './draft.js';
-import { hasDraft, plan, zoneName } from './state.js';
+import { hasDraft, intents, plan, zoneName } from './state.js';
 import { openZone } from './zone-sheet.js';
 
 const TONE = { busy: '', error: 'danger', none: '', fits: 'leaf', consequence: 'amber', 'needs-adjustment': 'amber' };
 const GLYPH = { error: 'alert', consequence: 'alert', 'needs-adjustment': 'alert' };
 
+/** The latest check's scenarios for the zones as saved; the rest only look ahead. */
+const real = () => (plan.review?.assessment?.scenarios ?? []).filter(r => !r.hypothetical);
+
 /** Zones the latest check says need an adjustment. */
 export const problemZones = () =>
   new Set(
-    (plan.review?.assessment?.scenarios ?? [])
+    real()
       .filter(r => r.status === 'needs-adjustment')
       .flatMap(r => r.zoneIds ?? []),
   );
+
+/** Seasonal zones that are off now but wouldn't fit if turned on, as names; '' when none. */
+const offZonesNote = () => {
+  if (plan.review?.assessment?.outlook !== 'needs-adjustment') return '';
+  const off = (plan.review.seasonalZones ?? []).filter(z => intents()[z.id]?.enabled === false);
+  return off.length ? `${off.map(z => z.name).join(', ')} wouldn’t fit if turned on` : '';
+};
 
 const problemText = r => {
   const names = (r.zoneIds ?? []).map(zoneName);
@@ -40,8 +50,8 @@ export function renderFit(resolved) {
     glyph = GLYPH[status] ?? 'check';
 
   // Status line on the page.
-  const failing = report?.scenarios.find(r => r.status === 'needs-adjustment');
-  const trade = report?.scenarios.map(consequenceText).find(Boolean);
+  const failing = real().find(r => r.status === 'needs-adjustment');
+  const trade = real().map(consequenceText).find(Boolean);
   let title,
     detail = '';
   if (status === 'busy') title = draft ? 'Checking your change…' : 'Checking the plan…';
@@ -71,7 +81,11 @@ export function renderFit(resolved) {
     const planned = resolved.zones.filter(z => !z.problem).length,
       open = resolved.nights.filter(n => n.start != null);
     const last = open.reduce((a, n) => (!a || n.finish > a.finish ? n : a), null);
-    detail = [`${planned} of ${resolved.zones.length} zones planned`, last && `latest finish ${clockAt(last.finish)}`]
+    detail = [
+      `${planned} of ${resolved.zones.length} zones planned`,
+      last && `latest finish ${clockAt(last.finish)}`,
+      offZonesNote(),
+    ]
       .filter(Boolean)
       .join(' · ');
   }
@@ -116,11 +130,13 @@ export function renderFit(resolved) {
           r.id === 'current' ? '' : ` (${(plan.review.seasonalZones ?? []).map(z => z.name).join(', ')})`;
         const text =
           r.status === 'needs-adjustment'
-            ? problemText(r)
+            ? r.hypothetical
+              ? `Wouldn’t fit as planned. Nothing to change now; this matters when you turn them on. ${problemText(r)}`
+              : problemText(r)
             : consequenceText(r) ||
               `Fits ${r.maxConcurrent === 2 ? 'with up to two zones at once' : 'with one zone at a time'}.`;
         const fix =
-          r.status === 'needs-adjustment'
+          r.status === 'needs-adjustment' && !r.hypothetical
             ? (r.zoneIds ?? [])
                 .map(
                   id =>
@@ -128,7 +144,7 @@ export function renderFit(resolved) {
                 )
                 .join('')
             : '';
-        return `<div class="fit-scenario ${r.status}">${scenarios.length > 1 ? `<b>${escape(r.label + seasonal)}</b>` : ''}<p>${escape(text)}${r.sunriseKnown === false ? ' Sunrise is estimated.' : ''}</p>${fix ? `<div class="fit-fixes">${fix}</div>` : ''}<details><summary>Details</summary><p>${escape(r.detail)}</p></details></div>`;
+        return `<div class="fit-scenario ${r.hypothetical ? 'ahead' : r.status}">${scenarios.length > 1 ? `<b>${escape(r.label + seasonal)}</b>` : ''}<p>${escape(text)}${r.sunriseKnown === false ? ' Sunrise is estimated.' : ''}</p>${fix ? `<div class="fit-fixes">${fix}</div>` : ''}<details><summary>Details</summary><p>${escape(r.detail)}</p></details></div>`;
       })
       .join(''),
   );
