@@ -34,12 +34,42 @@ const forecast = (day = 4.2, hourly = hours(1, 90)) => ({
   forecast: { hourly },
 });
 
-test('forecasts need twelve complete hours and use the lowest wet-hour probability', () => {
-  assert.deepEqual(forecastRain(hours(0.5, 80), now), { forecastMm: 6, forecastProbability: 80 });
+test('forecasts need twelve complete hours and weigh each hour’s rain by its chance', () => {
+  assert.deepEqual(forecastRain(hours(0.5, 80), now), {
+    forecastMm: 6,
+    forecastExpectedMm: 4.8,
+    forecastProbability: 80,
+  });
   assert.equal(forecastRain(hours(0.5, 80, 11), now), null);
   const rows = hours(0, 10);
   rows[3] = { ...rows[3], precip: 2, precip_probability: 40 };
-  assert.deepEqual(forecastRain(rows, now), { forecastMm: 2, forecastProbability: 40 });
+  rows[4] = { ...rows[4], precip: 1, precip_probability: 65 };
+  assert.deepEqual(forecastRain(rows, now), { forecastMm: 3, forecastExpectedMm: 1.45, forecastProbability: 65 });
+});
+
+test('the November 15 forecast, mostly at 60–65%, now counts as wet', () => {
+  // Hourly amounts and chances as WeatherFlow gave them from 1 pm.
+  const day = [
+    [2.34, 35],
+    [3.1, 65],
+    [3.04, 65],
+    [1.74, 65],
+    [0.92, 65],
+    [0.51, 65],
+    [0.51, 60],
+    [0.76, 60],
+    [0.51, 65],
+    [0.75, 70],
+    [0.25, 60],
+    [0.06, 60],
+  ];
+  const rows = day.map(([precip, precip_probability], i) => ({
+    time: seconds(now + i * 3600000 + 60000),
+    precip,
+    precip_probability,
+  }));
+  const result = forecastRain(rows, now);
+  assert.deepEqual(result, { forecastMm: 14.49, forecastExpectedMm: 8.68, forecastProbability: 70 });
 });
 
 test('a sample combines the observation and forecast, in millimeters with the owner’s display unit', async () => {
@@ -55,6 +85,7 @@ test('a sample combines the observation and forecast, in millimeters with the ow
     intensityMmH: 3,
     accumulationMm: 4.2,
     forecastMm: 12,
+    forecastExpectedMm: 10.8,
     forecastProbability: 90,
     observedAt: new Date(now - 120000).toISOString(),
   });

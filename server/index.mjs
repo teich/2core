@@ -82,6 +82,7 @@ if (weatherflowToken) {
       intensityMmH: 0.1,
       accumulationMm: 1.4,
       forecastMm: 2.2,
+      forecastExpectedMm: 0.9,
       forecastProbability: 40,
       unit: 'in',
       observedAt: new Date().toISOString(),
